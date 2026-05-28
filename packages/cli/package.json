@@ -1,17 +1,17 @@
 {
-  "name": "@nightcode/cli",
+  "name": "@koincode/cli",
   "module": "src/index.tsx",
   "type": "module",
   "private": true,
   "bin": {
-    "nightcode": "./bin/nightcode"
+    "koincode": "./bin/koincode"
   },
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
     "build": "bun build src/index.tsx --outdir dist --target bun"
   },
   "devDependencies": {
-    "@nightcode/server": "workspace:*",
+    "@koincode/server": "workspace:*",
     "@types/bun": "latest",
     "@types/react": "^19.2.14"
   },
@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.186",
-    "@nightcode/shared": "workspace:*",
+    "@koincode/shared": "workspace:*",
     "@opentui/core": "^0.1.97",
     "@opentui/react": "^0.1.97",
     "ai": "^6.0.184",

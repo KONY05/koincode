@@ -5,7 +5,7 @@ import {
   Mode,
   type ModeType,
   type SupportedChatModelId,
-} from "@nightcode/shared";
+} from "@koincode/shared";
 
 type PromptConfigContextValue = {
   mode: ModeType;

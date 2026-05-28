@@ -5,7 +5,7 @@ import {
   type SupportedChatModel,
   type SupportedChatModelId,
   type SupportedProvider,
-} from "@nightcode/shared";
+} from "@koincode/shared";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
 import type { LanguageModel } from "ai";
 

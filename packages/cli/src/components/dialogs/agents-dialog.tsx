@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useDialog } from "../../providers/dialog";
 import { DialogSearchList } from "../dialog-search-list";
-import { Mode, type ModeType } from "@nightcode/shared";
+import { Mode, type ModeType } from "@koincode/shared";
 
 const AVAILABLE_MODES: ModeType[] = [Mode.BUILD, Mode.PLAN];
 

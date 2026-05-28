@@ -1,5 +1,5 @@
 {
-  "name": "@nightcode/shared",
+  "name": "@koincode/shared",
   "type": "module",
   "private": true,
   "exports": {

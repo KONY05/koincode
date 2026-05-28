@@ -9,14 +9,14 @@ import {
   type LanguageModelUsage,
   type UIMessage,
 } from "ai";
-import { db } from "@nightcode/database/client";
-import type { Prisma } from "@nightcode/database";
+import { db } from "@koincode/database/client";
+import type { Prisma } from "@koincode/database";
 import { 
   getToolContracts, 
   modeSchema, 
   type ModeType, 
   type ToolContracts
-} from "@nightcode/shared";
+} from "@koincode/shared";
 import { buildSystemPrompt } from "../system-prompt";
 import type { AuthenticatedEnv } from "../middleware/require-auth";
 import { requireCreditsBalance } from "../middleware/require-credits-balance";
@@ -31,13 +31,13 @@ type ChatMessageMetadata = {
   usage?: LanguageModelUsage;
 };
 
-type NightcodeUIMessage = UIMessage<ChatMessageMetadata, never, InferUITools<ToolContracts>>;
+type KoincodeUIMessage = UIMessage<ChatMessageMetadata, never, InferUITools<ToolContracts>>;
 
 const submitSchema = z.object({
   id: z.string(),
   messages: z
     .array(
-      z.custom<NightcodeUIMessage>((value) => {
+      z.custom<KoincodeUIMessage>((value) => {
         return value != null && typeof value === "object" && "id" in value && "parts" in value;
       }),
     )
@@ -52,7 +52,7 @@ const submitValidator = zValidator("json", submitSchema, (result, c) => {
   }
 });
 
-function hasPendingToolCalls(message: NightcodeUIMessage) {
+function hasPendingToolCalls(message: KoincodeUIMessage) {
   return message.parts.some((part) => {
     if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
       const state = (part as { state?: string }).state;
@@ -84,7 +84,7 @@ const app = new Hono<AuthenticatedEnv>()
       const tools = getToolContracts(mode);
       const resolvedModel = resolveChatModel(model);
       const previousMessages = Array.isArray(session.messages)
-        ? (session.messages as unknown as NightcodeUIMessage[])
+        ? (session.messages as unknown as KoincodeUIMessage[])
         : [];
       const mergedMessages = [...previousMessages];
       
@@ -92,7 +92,7 @@ const app = new Hono<AuthenticatedEnv>()
         const incomingMessage = {
           ...message,
           metadata: { ...message.metadata, mode, model },
-        } satisfies NightcodeUIMessage;
+        } satisfies KoincodeUIMessage;
 
         const existingMessageIndex = mergedMessages.findIndex((m) => m.id === incomingMessage.id);
 
@@ -103,7 +103,7 @@ const app = new Hono<AuthenticatedEnv>()
         }
       }
 
-      const nextMessages = await validateUIMessages<NightcodeUIMessage>({
+      const nextMessages = await validateUIMessages<KoincodeUIMessage>({
         messages: mergedMessages,
         tools,
       });
@@ -121,7 +121,7 @@ const app = new Hono<AuthenticatedEnv>()
         },
       });
 
-      return result.toUIMessageStreamResponse<NightcodeUIMessage>({
+      return result.toUIMessageStreamResponse<KoincodeUIMessage>({
         originalMessages: nextMessages,
         messageMetadata({ part }) {
           if (part.type === "start") {

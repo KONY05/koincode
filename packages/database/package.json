@@ -1,5 +1,5 @@
 {
-  "name": "@nightcode/database",
+  "name": "@koincode/database",
   "type": "module",
   "private": true,
   "exports": {

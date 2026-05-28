@@ -1,5 +1,5 @@
 import { hc } from "hono/client";
-import type { AppType } from "@nightcode/server";
+import type { AppType } from "@koincode/server";
 import { clearAuth, getAuth } from "./auth";
 
 export const apiClient = hc<AppType>(

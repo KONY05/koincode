@@ -1,4 +1,4 @@
-import { Mode, type ModeType } from "@nightcode/shared";
+import { Mode, type ModeType } from "@koincode/shared";
 import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 
