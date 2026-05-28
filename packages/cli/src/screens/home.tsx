@@ -3,11 +3,17 @@ import { useNavigate } from "react-router";
 import { Header } from "../components/header";
 import { InputBar } from "../components/input-bar";
 import { usePromptConfig } from "../providers/prompt-config";
+import { useTheme } from "../providers/theme";
 import { TextAttributes } from "@opentui/core";
+import { CWD, getGitBranch } from "../lib/helper";
+
+
+const GIT_BRANCH = getGitBranch();
 
 export function Home() {
   const navigate = useNavigate();
   const { mode, model } = usePromptConfig();
+  const { colors } = useTheme();
 
   const handleSubmit = useCallback(
     (text: string) => {
@@ -33,6 +39,11 @@ export function Home() {
           <text>tab</text>
           <text attributes={TextAttributes.DIM}>agents</text>
         </box>
+      </box>
+      <box position="absolute" bottom={1} left={0} width="100%" paddingX={1}>
+        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+          {CWD}{GIT_BRANCH ? `:${GIT_BRANCH}` : ""}
+        </text>
       </box>
     </box>
   );
