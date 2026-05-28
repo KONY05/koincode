@@ -62,7 +62,7 @@ export function BotMessage({
   model,
   mode,
   durationMs,
-  streaming = false,
+  streaming: _streaming = false,
 }: Props) {
   const { colors } = useTheme();
   return (

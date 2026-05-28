@@ -13,9 +13,10 @@ export const ThemeDialogContent = () => {
 
   // Revert to original theme if the user dismisses without confirming
   useEffect(() => {
+    const originalTheme = originalThemeRef.current;
     return () => {
       if (!confirmedRef.current) {
-        setTheme(originalThemeRef.current);
+        setTheme(originalTheme);
       }
     };
   }, [setTheme]);
