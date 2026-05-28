@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "nightcode",
@@ -8,10 +9,13 @@
       },
     },
     "packages/cli": {
-      "name": "@nightcode/cli",
+      "name": "@koincode/cli",
+      "bin": {
+        "koincode": "./bin/koincode",
+      },
       "dependencies": {
         "@ai-sdk/react": "^3.0.186",
-        "@nightcode/shared": "workspace:*",
+        "@koincode/shared": "workspace:*",
         "@opentui/core": "^0.1.97",
         "@opentui/react": "^0.1.97",
         "ai": "^6.0.184",
@@ -25,7 +29,7 @@
         "zod": "^4.3.6",
       },
       "devDependencies": {
-        "@nightcode/server": "workspace:*",
+        "@koincode/server": "workspace:*",
         "@types/bun": "latest",
         "@types/react": "^19.2.14",
       },
@@ -34,7 +38,7 @@
       },
     },
     "packages/database": {
-      "name": "@nightcode/database",
+      "name": "@koincode/database",
       "dependencies": {
         "@prisma/adapter-pg": "^7.7.0",
         "@prisma/client": "^7.7.0",
@@ -46,14 +50,14 @@
       },
     },
     "packages/server": {
-      "name": "@nightcode/server",
+      "name": "@koincode/server",
       "dependencies": {
         "@ai-sdk/anthropic": "^3.0.68",
         "@ai-sdk/openai": "^3.0.52",
         "@clerk/backend": "^3.2.8",
         "@hono/zod-validator": "^0.7.6",
-        "@nightcode/database": "workspace:*",
-        "@nightcode/shared": "workspace:*",
+        "@koincode/database": "workspace:*",
+        "@koincode/shared": "workspace:*",
         "@polar-sh/sdk": "^0.47.1",
         "ai": "^6.0.154",
         "dotenv": "^17.4.1",
@@ -62,7 +66,7 @@
       },
     },
     "packages/shared": {
-      "name": "@nightcode/shared",
+      "name": "@koincode/shared",
       "dependencies": {
         "ai": "^6.0.184",
         "zod": "^4.3.6",
@@ -154,15 +158,15 @@
 
     "@jimp/utils": ["@jimp/utils@1.6.0", "", { "dependencies": { "@jimp/types": "1.6.0", "tinycolor2": "^1.6.0" } }, "sha512-gqFTGEosKbOkYF/WFj26jMHOI5OH2jeP1MmC/zbK6BF6VJBf8rIC5898dPfSzZEbSA0wbbV5slbntWVc5PKLFA=="],
 
+    "@koincode/cli": ["@koincode/cli@workspace:packages/cli"],
+
+    "@koincode/database": ["@koincode/database@workspace:packages/database"],
+
+    "@koincode/server": ["@koincode/server@workspace:packages/server"],
+
+    "@koincode/shared": ["@koincode/shared@workspace:packages/shared"],
+
     "@kurkle/color": ["@kurkle/color@0.3.4", "", {}, "sha512-M5UknZPHRu3DEDWoipU6sE8PdkZ6Z/S+v4dD+Ke8IaNlpdSQah50lz1KtcFBa2vsdOnwbbnxJwVM4wty6udA5w=="],
-
-    "@nightcode/cli": ["@nightcode/cli@workspace:packages/cli"],
-
-    "@nightcode/database": ["@nightcode/database@workspace:packages/database"],
-
-    "@nightcode/server": ["@nightcode/server@workspace:packages/server"],
-
-    "@nightcode/shared": ["@nightcode/shared@workspace:packages/shared"],
 
     "@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
 

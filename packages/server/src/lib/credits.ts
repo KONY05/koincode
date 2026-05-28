@@ -2,7 +2,7 @@ import {
   SUPPORTED_CHAT_MODELS,
   findSupportedChatModel,
   type ModelPricing,
-} from "@nightcode/shared";
+} from "@koincode/shared";
 import type { LanguageModelUsage } from "ai";
 
 type CalculateCreditsForUsageParams = {
@@ -21,7 +21,7 @@ type TokenCounts = {
 };
 
 const TOKENS_PER_MILLION = 1_000_000;
-// Nightcode charges in internal credits instead of exposing provider pricing.
+// Koincode charges in internal credits instead of exposing provider pricing.
 // We currently peg 1 credit to $0.01 so credits stay easy to reason about
 // like cents, while still being granular enough for small AI usage. Change
 // this constant if product wants a finer unit like 0.001 or a coarser one.

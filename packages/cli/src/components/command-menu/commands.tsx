@@ -1,4 +1,4 @@
-import { SUPPORTED_CHAT_MODELS } from "@nightcode/shared";
+import { SUPPORTED_CHAT_MODELS } from "@koincode/shared";
 import { 
   AgentsDialogContent,
   ModelsDialogContent,

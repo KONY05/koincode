@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useLocation, useNavigate } from "react-router";
 import { z } from "zod";
 import { useKeyboard } from "@opentui/react";
-import { type ModeType, type SupportedChatModelId } from "@nightcode/shared";
+import { type ModeType, type SupportedChatModelId } from "@koincode/shared";
 import type { InferResponseType } from "hono/client";
 import { SessionShell } from "../components/session-shell";
 import { 

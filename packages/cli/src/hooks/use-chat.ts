@@ -7,7 +7,7 @@ import {
   type LanguageModelUsage,
   type UIMessage,
 } from "ai";
-import { type ModeType, type SupportedChatModelId, type ToolContracts } from "@nightcode/shared";
+import { type ModeType, type SupportedChatModelId, type ToolContracts } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
 import { getAuth } from "../lib/auth";
 import { executeLocalTool } from "../lib/local-tools";

@@ -6,7 +6,7 @@ type AuthData = {
   token: string;
 };
 
-const AUTH_DIR = join(homedir(), ".nightcode");
+const AUTH_DIR = join(homedir(), ".koincode");
 const AUTH_FILE = join(AUTH_DIR, "auth.json");
 
 

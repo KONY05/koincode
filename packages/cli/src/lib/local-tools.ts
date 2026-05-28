@@ -1,6 +1,6 @@
 import { mkdir, readFile, readdir, stat, writeFile } from "fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
-import { toolInputSchemas, Mode, type ModeType } from "@nightcode/shared";
+import { toolInputSchemas, Mode, type ModeType } from "@koincode/shared";
 
 const MAX_FILE_SIZE = 10_000;
 const MAX_RESULTS = 200;

@@ -1,5 +1,5 @@
 import "opentui-spinner/react";
-import { Mode, type ModeType } from "@nightcode/shared";
+import { Mode, type ModeType } from "@koincode/shared";
 import { useTheme } from "../providers/theme";
 
 type Props = {
