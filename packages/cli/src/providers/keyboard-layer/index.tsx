@@ -21,6 +21,7 @@ const KeyboardLayerContext = createContext<KeyboardLayerContextValue | null>(nul
 export function KeyboardLayerProvider({ children }: { children: React.ReactNode }) {
   const [stack, setStack] = useState<string[]>(["base"]);
   const stackRef = useRef(stack);
+  // eslint-disable-next-line react-hooks/refs -- intentional: keep ref in sync with state so callbacks never capture a stale stack value
   stackRef.current = stack;
 
   const responders = useRef<Map<string, Responder>>(new Map());

@@ -61,4 +61,4 @@ setInterval(() => {
 }, 60_000).unref();
 
 // idleTimeout must be high, otherwise LLM tool calls might not complete
-export default { port: SERVER_PORT, fetch: app.fetch, idleTimeout: 255 };
+export default { port: SERVER_PORT, fetch: routes.fetch, idleTimeout: 255 };

@@ -128,6 +128,7 @@ export function Session() {
     // Skip fetch if session was passed via location state
     if (prefetched?.session) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: resets to loading state synchronously before the async fetch begins
     setSession(null);
 
     if (!id) return;

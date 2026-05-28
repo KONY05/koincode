@@ -1,6 +1,7 @@
 {
   "name": "koincode",
   "version": "1.0.0",
+  "type": "module",
   "workspaces": ["packages/*"],
   "scripts": {
     "dev:cli": "NODE_ENV=development bun run --watch packages/cli/bin/koincode",
@@ -8,9 +9,18 @@
     "build:cli": "bun run --filter @koincode/cli build",
     "link:cli": "bun run build:cli && cd packages/cli && bun link",
     "db:migrate": "bun run --cwd packages/database db:migrate",
-    "db:studio": "bun run --cwd packages/database db:studio"
+    "db:studio": "bun run --cwd packages/database db:studio",
+    "lint": "eslint packages/",
+    "lint:fix": "eslint packages/ --fix"
   },
   "dependencies": {
     "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.4.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "typescript-eslint": "^8.60.0"
   }
 }

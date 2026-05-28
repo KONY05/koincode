@@ -375,13 +375,6 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     syncMentionMenu(nextText, textarea.cursorOffset);
   }, [mentionCandidates, syncMentionMenu]);
 
-  const handleTextareaCursorChange = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    syncMentionMenu(textarea.plainText, textarea.cursorOffset);
-  }, [syncMentionMenu]);
-
   const handleCommand = useCallback((
     command: Command | undefined
   ) => {
@@ -416,6 +409,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   // Keep the file picker in sync with the current @mention token.
   useEffect(() => {
     if (!activeMention) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: clears stale candidates immediately when mention token disappears
       setMentionCandidates([]);
       return;
     }
@@ -451,6 +445,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     };
   }, []);
 
+  // eslint-disable-next-line react-hooks/refs -- intentional: ref stores the latest submit handler so the textarea's onSubmit listener (wired once) never goes stale
   onSubmitRef.current = () => {
     if (disabled) return;
 
