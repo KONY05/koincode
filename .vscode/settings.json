@@ -1,4 +1,14 @@
 {
   "js/ts.tsdk.path": "node_modules/typescript/lib",
-  "cSpell.words": ["koincode", "opentui"]
+  "cSpell.words": [
+    "deepseek",
+    "kimi",
+    "koincode",
+    "mistralai",
+    "moonshotai",
+    "openrouter",
+    "opentui",
+    "qwen",
+    "Renderable"
+  ]
 }

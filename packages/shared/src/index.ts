@@ -17,4 +17,5 @@ export {
   type ModeType,
 } from "./schemas";
 
-export { SERVER_PORT, CONFIG_DIR, DB_PATH, PID_FILE } from "./paths";
+export { SERVER_PORT, CONFIG_DIR, DB_PATH, PID_FILE, CONFIG_FILE } from "./paths";
+export type { KoincodeConfig } from "./config";

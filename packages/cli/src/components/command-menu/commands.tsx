@@ -3,6 +3,7 @@ import {
   AgentsDialogContent,
   ModelsDialogContent,
   SessionsDialogContent,
+  SetupDialogContent,
   ThemeDialogContent,
 } from "../dialogs";
 import type { Command } from "./types";
@@ -36,7 +37,7 @@ export const COMMANDS: Command[] = [
         title: "Select Model",
         children: (
           <ModelsDialogContent
-            models={SUPPORTED_CHAT_MODELS.map((model) => model.id)}
+            models={SUPPORTED_CHAT_MODELS}
             onSelectModel={ctx.setModel}
           />
         ),
@@ -63,6 +64,17 @@ export const COMMANDS: Command[] = [
         title: "Select Theme",
         children: <ThemeDialogContent />,
       })
+    },
+  },
+  {
+    name: "setup",
+    description: "Configure API keys (OpenRouter, Anthropic, OpenAI, Gemini)",
+    value: "/setup",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "API Key Setup",
+        children: <SetupDialogContent />,
+      });
     },
   },
   {
