@@ -18,4 +18,4 @@ export {
 } from "./schemas";
 
 export { SERVER_PORT, CONFIG_DIR, DB_PATH, PID_FILE, CONFIG_FILE } from "./paths";
-export type { KoincodeConfig } from "./config";
+export type { KoincodeConfig, ApiKeys } from "./config";

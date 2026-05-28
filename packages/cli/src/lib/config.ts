@@ -1,6 +1,6 @@
 import fs from "fs";
 import { CONFIG_DIR, CONFIG_FILE } from "@koincode/shared";
-import type { KoincodeConfig } from "@koincode/shared";
+import type { ApiKeys, KoincodeConfig } from "@koincode/shared";
 
 export function readConfig(): KoincodeConfig {
   try {
@@ -19,12 +19,23 @@ export function updateConfig(updates: Partial<KoincodeConfig>): KoincodeConfig {
   const current = readConfig();
   const next: KoincodeConfig = { ...current };
 
-  for (const k of Object.keys(updates) as Array<keyof KoincodeConfig>) {
-    const value = updates[k];
-    if (value === undefined || value === "") {
-      delete next[k];
+  if (updates.themeName !== undefined) {
+    if (updates.themeName === "") {
+      delete next.themeName;
     } else {
-      next[k] = value;
+      next.themeName = updates.themeName;
+    }
+  }
+
+  if (updates.apiKeys !== undefined) {
+    const merged: ApiKeys = { ...current.apiKeys, ...updates.apiKeys };
+    for (const k of Object.keys(merged) as Array<keyof ApiKeys>) {
+      if (!merged[k]) delete merged[k];
+    }
+    if (Object.keys(merged).length === 0) {
+      delete next.apiKeys;
+    } else {
+      next.apiKeys = merged;
     }
   }
 

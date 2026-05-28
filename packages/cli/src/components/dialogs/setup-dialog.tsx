@@ -7,19 +7,21 @@ import { useToast } from "../../providers/toast";
 import { useTheme } from "../../providers/theme";
 import { readConfig, updateConfig } from "../../lib/config";
 import { restartServer } from "../../lib/server-manager";
-import type { KoincodeConfig } from "@koincode/shared";
+import type { ApiKeys, KoincodeConfig } from "@koincode/shared";
 import { TEXTAREA_KEY_BINDINGS } from "../input-bar";
 
+type ApiKeyName = keyof ApiKeys;
+
 type ProviderEntry = {
-  key: keyof KoincodeConfig;
+  key: ApiKeyName;
   label: string;
 };
 
 const PROVIDERS: ProviderEntry[] = [
-  { key: "openrouterKey", label: "OpenRouter" },
-  { key: "anthropicKey",  label: "Anthropic"  },
-  { key: "openaiKey",     label: "OpenAI"     },
-  { key: "geminiKey",     label: "Gemini"     },
+  { key: "openrouter", label: "OpenRouter" },
+  { key: "anthropic",  label: "Anthropic"  },
+  { key: "openai",     label: "OpenAI"     },
+  { key: "gemini",     label: "Gemini"     },
 ];
 
 function maskKey(value: string | undefined): string {
@@ -81,7 +83,7 @@ function EditKeyView({ providerLabel, initialValue, onSave, onCancel }: EditKeyV
 type KeyListViewProps = {
   config: KoincodeConfig;
   selectedIndex: number;
-  onSelect: (key: keyof KoincodeConfig) => void;
+  onSelect: (key: ApiKeyName) => void;
 };
 
 function KeyListView({ config, selectedIndex, onSelect }: KeyListViewProps) {
@@ -91,7 +93,7 @@ function KeyListView({ config, selectedIndex, onSelect }: KeyListViewProps) {
     <box flexDirection="column" gap={0}>
       {PROVIDERS.map((provider, i) => {
         const isSelected = i === selectedIndex;
-        const value = config[provider.key];
+        const value = config.apiKeys?.[provider.key];
 
         return (
           <box
@@ -129,12 +131,12 @@ function KeyListView({ config, selectedIndex, onSelect }: KeyListViewProps) {
 export function SetupDialogContent() {
   const [config, setConfig] = useState<KoincodeConfig>(() => readConfig());
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [editingKey, setEditingKey] = useState<keyof KoincodeConfig | null>(null);
+  const [editingKey, setEditingKey] = useState<ApiKeyName | null>(null);
   const { push, pop, isTopLayer } = useKeyboardLayer();
   const toast = useToast();
 
   const startEdit = useCallback(
-    (key: keyof KoincodeConfig) => {
+    (key: ApiKeyName) => {
       setEditingKey(key);
       push("setup-edit", () => {
         setEditingKey(null);
@@ -145,8 +147,8 @@ export function SetupDialogContent() {
   );
 
   const handleSave = useCallback(
-    (key: keyof KoincodeConfig, value: string) => {
-      const newConfig = updateConfig({ [key]: value.trim() || undefined });
+    (key: ApiKeyName, value: string) => {
+      const newConfig = updateConfig({ apiKeys: { [key]: value.trim() || undefined } });
       setConfig(newConfig);
       setEditingKey(null);
       pop("setup-edit");
@@ -191,7 +193,7 @@ export function SetupDialogContent() {
     return (
       <EditKeyView
         providerLabel={provider.label}
-        initialValue={config[editingKey] ?? ""}
+        initialValue={config.apiKeys?.[editingKey] ?? ""}
         onSave={handleSaveCurrentKey}
         onCancel={handleCancel}
       />

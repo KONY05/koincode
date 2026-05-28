@@ -49,10 +49,10 @@ function spawnServer() {
       PORT: String(SERVER_PORT),
       NODE_ENV: process.env.NODE_ENV ?? "production",
       // Config file keys take precedence over shell env vars
-      ...(config.anthropicKey  && { ANTHROPIC_API_KEY:  config.anthropicKey }),
-      ...(config.openaiKey     && { OPENAI_API_KEY:     config.openaiKey }),
-      ...(config.geminiKey     && { GOOGLE_GENERATIVE_AI_API_KEY: config.geminiKey }),
-      ...(config.openrouterKey && { OPENROUTER_API_KEY: config.openrouterKey }),
+      ...(config.apiKeys?.anthropic  && { ANTHROPIC_API_KEY: config.apiKeys.anthropic }),
+      ...(config.apiKeys?.openai     && { OPENAI_API_KEY: config.apiKeys.openai }),
+      ...(config.apiKeys?.gemini     && { GOOGLE_GENERATIVE_AI_API_KEY: config.apiKeys.gemini }),
+      ...(config.apiKeys?.openrouter && { OPENROUTER_API_KEY: config.apiKeys.openrouter }),
     },
   });
 

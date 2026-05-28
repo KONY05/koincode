@@ -1,6 +1,11 @@
+export type ApiKeys = {
+  openrouter?: string;
+  anthropic?: string;
+  openai?: string;
+  gemini?: string;
+};
+
 export type KoincodeConfig = {
-  openrouterKey?: string;
-  anthropicKey?: string;
-  openaiKey?: string;
-  geminiKey?: string;
+  themeName?: string;
+  apiKeys?: ApiKeys;
 };
