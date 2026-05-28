@@ -17,7 +17,7 @@ If implementation changes the architecture, scope, or standards documented in th
 
 ## What This Is
 
-KOINCODE is a terminal-based AI coding agent — a CLI tool that lets users chat with AI models in the terminal, with PLAN mode (read-only analysis) and BUILD mode (full file editing and bash execution). It uses streaming responses, persistent sessions, OAuth via Clerk, and credit-based billing via Polar.
+KOINCODE is a local-first, open-source terminal AI coding agent — a CLI tool that lets users chat with AI models in the terminal, with PLAN mode (read-only analysis) and BUILD mode (full file editing and bash execution). It uses streaming responses and persistent local sessions. No auth or billing required — users bring their own AI provider keys.
 
 ## Monorepo Structure
 
@@ -54,27 +54,16 @@ Copy `.env.example` to `.env` at the repo root. Required variables:
 ```
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/koincode
 API_URL=http://localhost:3000
-JWT_SECRET=<any string>
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
-CLERK_FRONTEND_API=        # From Clerk dashboard
-CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-CLERK_OAUTH_CLIENT_ID=     # Clerk OAuth app credentials
-CLERK_OAUTH_CLIENT_SECRET=
-POLAR_ACCESS_TOKEN=
-POLAR_PRODUCT_ID=
-POLAR_CREDITS_METER_ID=
-POLAR_SERVER=sandbox       # or "production"
 ```
 
 ## Architecture
 
 ### Request Flow
 
-1. **Auth:** CLI opens Clerk OAuth in browser → server handles callback at `POST /auth/callback` → returns JWT → CLI stores token locally
-2. **Chat:** CLI sends messages to `POST /chat/submit` with JWT → server validates auth + credits → streams AI response with tool calls → saves session to DB → ingests usage to Polar
-3. **Tool execution:** Tool calls returned by the server are executed *locally* in the CLI (in BUILD mode), results sent back to server for next LLM turn
+1. **Chat:** CLI sends messages to `POST /chat` → server streams AI response with tool calls → saves session to DB
+2. **Tool execution:** Tool calls returned by the server are executed *locally* in the CLI (in BUILD mode), results sent back to server for next LLM turn
 
 ### CLI (`packages/cli/src/`)
 
@@ -87,10 +76,9 @@ POLAR_SERVER=sandbox       # or "production"
 
 ### Server (`packages/server/src/`)
 
-- **Entry point:** `index.ts` — Hono app with route groups: `/auth`, `/billing`, `/sessions`, `/chat`
-- **Middleware:** `auth.ts` verifies JWT; `credits.ts` checks Polar balance before each chat request
-- **`routes/chat.ts`** — main LLM orchestration: system prompt construction, AI SDK streaming, tool call dispatch, credit ingestion
-- **`lib/`** — model lookup, Polar SDK integration, credits calculation, auth verification
+- **Entry point:** `index.ts` — Hono app with route groups: `/sessions`, `/chat`
+- **`routes/chat.ts`** — main LLM orchestration: system prompt construction, AI SDK streaming, tool call dispatch, session persistence
+- **`lib/models.ts`** — model lookup and provider resolution
 
 ### Shared (`packages/shared/src/`)
 
@@ -103,19 +91,19 @@ Single Prisma model:
 ```prisma
 model Session {
   id        String   @id @default(cuid())
-  userId    String
   title     String
-  messages  Json     @default("[]")   // full message history serialized
+  messages  Json     @default("[]")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 ```
 
-Uses `@prisma/adapter-pg` for edge-compatible connections. Production DB is Neon (PostgreSQL).
+Uses `@prisma/adapter-pg` for edge-compatible connections. Production DB is Neon (PostgreSQL). SQLite migration is planned for Phase 2.
 
 ## Key Design Decisions
 
 - **Two operational modes:** PLAN (read-only tools) and BUILD (write/edit/bash tools). The shared package exports separate tool sets for each.
 - **Local tool execution:** AI tool calls are streamed to the CLI and executed client-side, not server-side, so the server never touches the user's filesystem.
-- **Credits system:** Each chat request checks Polar credit balance first (middleware), then ingests token usage as a credit event after the response completes.
+- **No auth or billing:** The server is unauthenticated — all endpoints are localhost-only. No Clerk, no Polar.
+- **Single-user scope:** No `userId` on any model or route; the app is scoped to the local machine user.
 - **Message history in JSON:** Full conversation history is stored as a JSON blob on the `Session` model rather than normalized rows.

@@ -9,7 +9,6 @@ import {
 } from "ai";
 import { type ModeType, type SupportedChatModelId, type ToolContracts } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
-import { getAuth } from "../lib/auth";
 import { executeLocalTool } from "../lib/local-tools";
 
 export type ChatMessageMetadata = {
@@ -32,10 +31,6 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
   const transport = useMemo(() => {
     return new DefaultChatTransport<Message>({
       api: apiClient.chat.$url().toString(),
-      headers() {
-        const auth = getAuth();
-        return auth ? { Authorization: `Bearer ${auth.token}` } : new Headers();
-      },
       prepareSendMessagesRequest({ messages }) {
         const message = messages[messages.length - 1];
         if (!message) throw new Error("No message to send");

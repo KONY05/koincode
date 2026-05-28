@@ -4,10 +4,6 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { db } from "@koincode/database/client";
 
-import type { AuthenticatedEnv } from "../middleware/require-auth";
-import { requireCreditsBalance } from "../middleware/require-credits-balance";
-
-
 const createSessionSchema = z.object({
   title: z.string(),
 });
@@ -19,12 +15,9 @@ const createSessionValidator = zValidator(
   }
 });
 
-const app = new Hono<AuthenticatedEnv>()
+const app = new Hono()
   .get("/", async (c) => {
-    const userId = c.get("userId");
-
     const sessions = await db.session.findMany({
-      where: { userId },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -41,15 +34,14 @@ const app = new Hono<AuthenticatedEnv>()
 
     // MOCK: Uncomment to simulate session loading error
     // throw new HTTPException(
-    //   500, 
+    //   500,
     //   { message: "Mock error: session loading failed" }
     // )
 
     const id = c.req.param("id");
-    const userId = c.get("userId");
-    
+
     const session = await db.session.findUnique({
-      where: { id, userId },
+      where: { id },
     });
 
     if (!session) {
@@ -58,24 +50,20 @@ const app = new Hono<AuthenticatedEnv>()
 
     return c.json(session);
   })
-  .post("/", requireCreditsBalance, createSessionValidator, async (c) => {
+  .post("/", createSessionValidator, async (c) => {
     // MOCK: Uncomment to simulate slow session loading
     // await new Promise((r) => setTimeout(r, 5000))
 
     // MOCK: Uncomment to simulate session loading error
     // throw new HTTPException(
-    //   500, 
+    //   500,
     //   { message: "Mock error: session loading failed" }
     // )
 
-    const userId = c.get("userId");
     const data = c.req.valid("json");
 
     const session = await db.session.create({
-      data: {
-        ...data,
-        userId,
-      },
+      data,
     });
 
     return c.json(session, 201);

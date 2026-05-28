@@ -33,7 +33,7 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ### Phase 2 — Local-First Pivot
 
-- **P2-F01:** Remove Clerk auth middleware and all auth routes. Remove Polar billing middleware and billing routes. Remove `@clerk/*` and `@polar-sh/sdk` dependencies. Server becomes unauthenticated — all endpoints accessible from localhost only.
+- **P2-F01:** ✅ Done. Removed Clerk auth middleware, all auth routes, Polar billing middleware and billing routes. Removed `@clerk/backend` and `@polar-sh/sdk` dependencies. Removed all `userId` references from routes, schema, and generated Prisma client. Server is now unauthenticated — all endpoints accessible from localhost only. Removed `/login`, `/logout`, `/upgrade`, `/usage` CLI commands.
 - **P2-F02:** Replace PostgreSQL + Prisma with SQLite. Swap `@prisma/adapter-pg` for `better-sqlite3` or Prisma's SQLite adapter. Update `DATABASE_URL` to a local file path. Run migration. Verify session persistence works end-to-end.
 - **P2-F03:** Add OpenRouter support. Replace `@ai-sdk/anthropic` with `@openai/ai-sdk` pointed at `https://openrouter.ai/api/v1`. Model registry updated to list OpenRouter-available models. User provides `OPENROUTER_API_KEY` (or sets it on first run via a setup prompt).
 - **P2-F04:** Add direct provider key support. User stores any combination of Anthropic, OpenAI, and Gemini keys in `~/.koincode/config.json` alongside an optional OpenRouter key. Provider is resolved by the model the user selects: Anthropic models use the Anthropic key if present, OpenAI models use the OpenAI key if present, etc. OpenRouter is the fallback when no matching direct key exists for the chosen model. First-run setup flow prompts for at least one key if none found.
