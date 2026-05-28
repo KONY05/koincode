@@ -16,3 +16,5 @@ export {
   type ToolContracts,
   type ModeType,
 } from "./schemas";
+
+export { SERVER_PORT, CONFIG_DIR, DB_PATH, PID_FILE } from "./paths";
