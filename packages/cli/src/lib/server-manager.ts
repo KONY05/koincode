@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 import { CONFIG_DIR, PID_FILE, SERVER_PORT } from "@koincode/shared";
+import { readConfig } from "./config";
 
 const LOG_FILE = `${CONFIG_DIR}/server.log`;
 
@@ -38,6 +39,7 @@ function spawnServer() {
 
   const logFd = fs.openSync(LOG_FILE, "w");
   const args = isDev ? ["--hot", SERVER_ENTRY] : [SERVER_ENTRY];
+  const config = readConfig();
 
   const server = spawn("bun", args, {
     detached: true,
@@ -46,6 +48,11 @@ function spawnServer() {
       ...process.env,
       PORT: String(SERVER_PORT),
       NODE_ENV: process.env.NODE_ENV ?? "production",
+      // Config file keys take precedence over shell env vars
+      ...(config.apiKeys?.anthropic  && { ANTHROPIC_API_KEY: config.apiKeys.anthropic }),
+      ...(config.apiKeys?.openai     && { OPENAI_API_KEY: config.apiKeys.openai }),
+      ...(config.apiKeys?.gemini     && { GOOGLE_GENERATIVE_AI_API_KEY: config.apiKeys.gemini }),
+      ...(config.apiKeys?.openrouter && { OPENROUTER_API_KEY: config.apiKeys.openrouter }),
     },
   });
 

@@ -1,41 +1,18 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
 import type { ThemeColors, Theme } from "../../theme";
 import { DEFAULT_THEME, THEMES } from "../../theme";
-import { CONFIG_DIR } from "@koincode/shared";
-
-const THEME_PREFERENCES_PATH = join(CONFIG_DIR, "preferences.json");
-
-type ThemePreferences = {
-  themeName: string;
-};
+import { readConfig, updateConfig } from "../../lib/config";
 
 function getInitialTheme(): Theme {
   try {
-    const preferences = JSON.parse(
-      readFileSync(THEME_PREFERENCES_PATH, "utf8"),
-    ) as Partial<ThemePreferences>;
-    const savedTheme = THEMES.find((theme) => theme.name === preferences.themeName);
-    return savedTheme ?? DEFAULT_THEME;
+    const config = readConfig();
+    const saved = THEMES.find((t) => t.name === config.themeName);
+    return saved ?? DEFAULT_THEME;
   } catch {
     return DEFAULT_THEME;
   }
-};
-
-function persistTheme(theme: Theme) {
-  try {
-    mkdirSync(CONFIG_DIR, { recursive: true });
-    writeFileSync(
-      THEME_PREFERENCES_PATH,
-      JSON.stringify({ themeName: theme.name } satisfies ThemePreferences, null, 2),
-      "utf8",
-    );
-  } catch {
-    // Ignore preference write failures so theme switching still works for this session.
-  }
-};
+}
 
 type ThemeContextValue = {
   colors: ThemeColors;
@@ -62,13 +39,17 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   const setTheme = useCallback((theme: Theme) => {
     setCurrentTheme(theme);
-    persistTheme(theme);
+    try {
+      updateConfig({ themeName: theme.name });
+    } catch {
+      // Ignore write failures so theme switching still works for this session.
+    }
   }, []);
 
   return (
-    <ThemeContext.Provider 
+    <ThemeContext.Provider
       value={{ colors: currentTheme.colors, currentTheme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );
-};
+}
