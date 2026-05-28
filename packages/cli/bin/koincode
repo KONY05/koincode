@@ -7,4 +7,8 @@ dotenv.config({
   quiet: true,
 });
 
+import { ensureServerRunning } from "../src/lib/server-manager";
+
+await ensureServerRunning();
+
 await import("../src/index.tsx");

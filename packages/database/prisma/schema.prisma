@@ -9,15 +9,13 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 model Session {
   id        String   @id @default(cuid())
-  userId    String
   title     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   messages  Json     @default("[]")
-  @@index([userId])
 }

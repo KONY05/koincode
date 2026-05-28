@@ -1,12 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
 import type { ThemeColors, Theme } from "../../theme";
 import { DEFAULT_THEME, THEMES } from "../../theme";
+import { CONFIG_DIR } from "@koincode/shared";
 
-const CONFIG_DIR = join(homedir(), ".koincode");
 const THEME_PREFERENCES_PATH = join(CONFIG_DIR, "preferences.json");
 
 type ThemePreferences = {

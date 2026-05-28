@@ -7,14 +7,17 @@
     "./client": "./src/client.ts"
   },
   "scripts": {
-    "db:generate": "bunx prisma generate"
+    "db:generate": "bunx prisma generate",
+    "db:migrate": "bunx prisma migrate dev",
+    "db:studio": "bunx prisma studio"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
     "prisma": "^7.7.0"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.7.0",
+    "@libsql/client": "^0.14.0",
+    "@prisma/adapter-libsql": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "dotenv": "^17.4.1"
   }

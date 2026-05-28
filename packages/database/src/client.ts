@@ -1,18 +1,10 @@
-import dotenv from "dotenv";
-import path from "path";
-import { PrismaPg } from "@prisma/adapter-pg";
+import fs from "fs";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { PrismaClient } from "../generated/prisma/client.ts";
+import { CONFIG_DIR, DB_PATH } from "@koincode/shared";
 
-dotenv.config({
-  path: path.resolve(import.meta.dirname, "../../../.env"),
-});
+fs.mkdirSync(CONFIG_DIR, { recursive: true });
 
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not set");
-}
-
-const adapter = new PrismaPg({ connectionString: databaseUrl });
+const adapter = new PrismaLibSql({ url: `file:${DB_PATH}` });
 
 export const db = new PrismaClient({ adapter });

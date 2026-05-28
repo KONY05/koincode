@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "workspaces": ["packages/*"],
   "scripts": {
-    "dev:cli": "bun run --watch packages/cli/src/index.tsx",
-    "dev:server": "bun run --hot packages/server/src/index.ts",
+    "dev:cli": "NODE_ENV=development bun run --watch packages/cli/bin/koincode",
+    "dev:server": "PORT=37420 bun run --hot packages/server/src/index.ts",
     "build:cli": "bun run --filter @koincode/cli build",
-    "link:cli": "bun run build:cli && cd packages/cli && bun link"
+    "link:cli": "bun run build:cli && cd packages/cli && bun link",
+    "db:migrate": "bun run --cwd packages/database db:migrate",
+    "db:studio": "bun run --cwd packages/database db:studio"
   },
   "dependencies": {
     "dotenv": "^17.4.2"

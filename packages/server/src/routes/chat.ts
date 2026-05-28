@@ -11,17 +11,13 @@ import {
 } from "ai";
 import { db } from "@koincode/database/client";
 import type { Prisma } from "@koincode/database";
-import { 
-  getToolContracts, 
-  modeSchema, 
-  type ModeType, 
+import {
+  getToolContracts,
+  modeSchema,
+  type ModeType,
   type ToolContracts
 } from "@koincode/shared";
 import { buildSystemPrompt } from "../system-prompt";
-import type { AuthenticatedEnv } from "../middleware/require-auth";
-import { requireCreditsBalance } from "../middleware/require-credits-balance";
-import { calculateCreditsForUsage } from "../lib/credits";
-import { ingestAiUsage } from "../lib/polar";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
 
 type ChatMessageMetadata = {
@@ -63,17 +59,15 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
   });
 };
 
-const app = new Hono<AuthenticatedEnv>()
+const app = new Hono()
   .post(
     "/",
-    requireCreditsBalance,
     submitValidator,
     async (c) => {
-      const userId = c.get("userId");
       const { id, messages, mode, model } = c.req.valid("json");
 
       const session = await db.session.findUnique({
-        where: { id, userId },
+        where: { id },
       });
 
       if (!session) {
@@ -143,34 +137,11 @@ const app = new Hono<AuthenticatedEnv>()
           if (hasPendingToolCalls(event.responseMessage)) return;
 
           await db.session.update({
-            where: { id, userId },
+            where: { id },
             data: {
               messages: event.messages as unknown as Prisma.InputJsonValue,
             },
           });
-
-          if (!completedUsage) return;
-
-          try {
-            const billableUsage = calculateCreditsForUsage({
-              provider: resolvedModel.provider,
-              model: resolvedModel.modelId,
-              usage: completedUsage,
-            });
-
-            await ingestAiUsage({
-              externalCustomerId: userId,
-              eventId: `chat-message:${event.responseMessage.id}`,
-              credits: billableUsage.credits,
-            });
-          } catch (error) {
-            console.error("Failed to ingest Polar AI usage for chat message", {
-              error,
-              sessionId: id,
-              messageId: event.responseMessage.id,
-              userId,
-            });
-          }
         },
         onError(error) {
           return error instanceof Error ? error.message : String(error);
