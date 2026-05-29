@@ -1,0 +1,3 @@
+tool calls from the models are visible on the ui, but they look plain, i want to see if we can style is up a bit, right now only the edit and write file just like all the modern ai terminal agent shows the write that agent is making.
+
+for the edit tool we can just show a diff, while for the write tool we don't need to show any diff since its meant to be about file creation we can just show like a view of the first 3 lines of the file, just like how Claude Code does it, we can just show a snippet of the file that's being written to

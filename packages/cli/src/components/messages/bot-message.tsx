@@ -1,11 +1,14 @@
 import { useCallback, useMemo } from "react";
 import prettyMs from "pretty-ms";
+import { getTreeSitterClient, TextAttributes } from "@opentui/core";
+
 import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 import type { Message } from "../../hooks/use-chat";
 import { Mode, type ModeType } from "@koincode/shared";
-import { getTreeSitterClient, TextAttributes } from "@opentui/core";
 import { createMarkdownSyntaxStyle } from "../../lib/syntax-style";
+import EditFileDiff from "../tool-view/edit-file";
+import WriteFilePreview from "../tool-view/write-file";
 
 const treeSitterClient = getTreeSitterClient();
 
@@ -112,6 +115,10 @@ export function BotMessage({
             if (isToolPart(part)) {
               const toolName =
                 part.type === "dynamic-tool" ? part.toolName : part.type.slice("tool-".length);
+              const pending = part.state !== "output-available" && part.state !== "output-error";
+              const hasInput = "input" in part && part.input != null && part.state !== "input-streaming";
+
+              const errorText = part.state === "output-error" ? part.errorText : undefined;
 
               return (
                 <box
@@ -125,14 +132,17 @@ export function BotMessage({
                   width="100%"
                   paddingX={2}
                 >
-                  <text attributes={TextAttributes.DIM}>
-                    <em fg={colors.info}>{formatToolName(toolName)}:</em> {formatToolArgs(part)}
-                    {part.state !== "output-available" && part.state !== "output-error" 
-                      ? " …" 
-                      : ""
-                    }
-                    {part.state === "output-error" ? ` ${part.errorText}` : ""}
-                  </text>
+                  {hasInput && toolName === "editFile" ? (
+                    <EditFileDiff input={part.input} pending={pending} error={errorText} colors={colors} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient}/>
+                  ) : hasInput && toolName === "writeFile" ? (
+                    <WriteFilePreview input={part.input} pending={pending} error={errorText} colors={colors} />
+                  ) : (
+                    <text attributes={TextAttributes.DIM}>
+                      <em fg={colors.info}>{formatToolName(toolName)}:</em> {formatToolArgs(part)}
+                      {pending ? " …" : ""}
+                      {errorText ? ` ${errorText}` : ""}
+                    </text>
+                  )}
                 </box>
               );
             }

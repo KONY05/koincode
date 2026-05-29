@@ -29,6 +29,10 @@ Update this file whenever the current phase, active feature, or implementation s
 
 - None.
 
+## Recently Completed
+
+- **Tool call styling** — `editFile` now renders a diff view: removed lines in red with `- ` prefix, added lines in green with `+` prefix, capped at 8 lines per side with truncation notices. `writeFile` shows a file creation preview: header with path + first 3 lines of content (dimmed), with `…` if the file has more. Both components show a ` …` spinner while the tool is pending and surface error text if the call fails. All other tools retain the existing plain-text display. Change is in `packages/cli/src/components/messages/bot-message.tsx`.
+
 ## Next Up
 
 ### Phase 2 — Local-First Pivot
