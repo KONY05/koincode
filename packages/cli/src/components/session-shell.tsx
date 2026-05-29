@@ -58,6 +58,10 @@ export function SessionShell({
 
         <box flexDirection="row" gap={2} flexShrink={0} marginLeft="auto">
           <box flexDirection="row" gap={1}>
+            <text>opt+enter</text>
+            <text attributes={TextAttributes.DIM}>newline</text>
+          </box>
+          <box flexDirection="row" gap={1}>
             <text>ctrl+c</text>
             <text attributes={TextAttributes.DIM}>copy</text>
           </box>
