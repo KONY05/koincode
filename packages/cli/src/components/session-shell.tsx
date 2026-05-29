@@ -1,5 +1,5 @@
-import { TextAttributes } from "@opentui/core";
-import type { ReactNode } from "react";
+import { MacOSScrollAccel, TextAttributes } from "@opentui/core";
+import { useMemo, type ReactNode } from "react";
 import { InputBar } from "./input-bar";
 import { Spinner } from "./spinner";
 import { usePromptConfig } from "../providers/prompt-config";
@@ -20,6 +20,7 @@ export function SessionShell({
   interruptible = false,
 }: Props) {
   const { mode } = usePromptConfig();
+  const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
 
   return (
     <box
@@ -31,7 +32,7 @@ export function SessionShell({
       paddingX={2}
       gap={1}
     >
-      <scrollbox flexGrow={1} width="100%" stickyScroll stickyStart="bottom">
+      <scrollbox flexGrow={1} width="100%" stickyScroll stickyStart="bottom" scrollAcceleration={scrollAccel}>
         <box>{children}</box>
       </scrollbox>
       <box flexShrink={0}>
@@ -55,9 +56,19 @@ export function SessionShell({
           ) : null}
         </box>
 
-        <box flexDirection="row" gap={1} flexShrink={0} marginLeft="auto">
-          <text>tab</text>
-          <text attributes={TextAttributes.DIM}>agents</text>
+        <box flexDirection="row" gap={2} flexShrink={0} marginLeft="auto">
+          <box flexDirection="row" gap={1}>
+            <text>ctrl+c</text>
+            <text attributes={TextAttributes.DIM}>copy</text>
+          </box>
+          <box flexDirection="row" gap={1}>
+            <text>ctrl+z</text>
+            <text attributes={TextAttributes.DIM}>undo</text>
+          </box>
+          <box flexDirection="row" gap={1}>
+            <text>tab</text>
+            <text attributes={TextAttributes.DIM}>agents</text>
+          </box>
         </box>
       </box>
     </box>

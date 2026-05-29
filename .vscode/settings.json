@@ -10,6 +10,7 @@
     "openrouter",
     "opentui",
     "qwen",
-    "Renderable"
+    "Renderable",
+    "scrollbox"
   ]
 }

@@ -1,4 +1,5 @@
 import { createCliRenderer } from "@opentui/core";
+import { initTreeSitter } from "./lib/tree-sitter";
 import { createRoot } from "@opentui/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { RootLayout } from "./layouts/root-layout";
@@ -33,6 +34,8 @@ for (const { flag, apiKey } of KEY_FLAGS) {
     process.stdout.write(`✓ ${flag.replace("--", "").replace("-key", "")} key saved\n`);
   }
 }
+
+await initTreeSitter();
 
 const router = createMemoryRouter([
   {
