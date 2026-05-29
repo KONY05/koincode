@@ -126,6 +126,7 @@ async function getMentionCandidates(query: string): Promise<MentionCandidate[]> 
 
     const directMatches = entries
       .filter((entry) => showHiddenEntries || !entry.name.startsWith("."))
+      .filter((entry) => !(entry.isDirectory() && RECURSIVE_MENTION_IGNORED_DIRECTORIES.has(entry.name)))
       .filter((entry) => {
         return lowercasePrefix === "" || entry.name.toLowerCase().startsWith(lowercasePrefix);
       })

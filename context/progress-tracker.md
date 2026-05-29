@@ -38,6 +38,13 @@ Update this file whenever the current phase, active feature, or implementation s
 - **P2-F03 + P2-F04:** ✅ Done. OpenRouter integration and multi-provider key support implemented together. Keys stored in `~/.koincode/config.json` (`KoincodeConfig` type in `@koincode/shared`). CLI reads config and passes keys as env vars when spawning the server. Server model resolver checks for a direct provider key first (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) and falls back to OpenRouter (`OPENROUTER_API_KEY`) for any model whose native key is absent. `/setup` command opens a dialog with rows for OpenRouter, Anthropic, OpenAI, and Gemini keys — navigate with ↑↓, Enter to edit, Esc to cancel/close. Keys can also be saved non-interactively: `koincode --openrouter-key sk-xxx`, `--anthropic-key`, `--openai-key`, `--gemini-key`.
 - **P2-F05:** Update server port from 3000 → 37420 across server config, `API_URL` default, and CLAUDE.md.
 
+## Deferred (Future Implementation)
+
+These were scoped out during system prompt improvements and should be revisited:
+
+- **User memory in system prompt** — Add a `Memory` table to the Prisma schema (content: string, createdAt). Fetch all rows on each chat request, concatenate, and pass to `buildSystemPrompt` as `userMemory`. The `buildSystemPrompt` function already has a stubbed `userMemory?: string` param and commented-out section ready to activate.
+- **Compression prompt** — Implement context window compression. When conversation length approaches the model's limit, summarize completed work into a structured continuation prompt (original goal, completed actions, current state, remaining tasks, next step, key context) and replace the history. Prevents context overflow mid-task.
+
 ## Open Questions
 
 - None.
