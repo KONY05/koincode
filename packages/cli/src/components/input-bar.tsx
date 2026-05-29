@@ -390,7 +390,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
 
     if (command.action) {
       command.action({
-        exit: () => renderer.destroy(),
+        exit: () => { renderer.destroy(); process.exit(0); },
         toast,
         dialog,
         navigate,

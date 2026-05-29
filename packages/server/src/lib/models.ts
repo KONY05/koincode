@@ -1,9 +1,12 @@
+import fs from "fs";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { google } from "@ai-sdk/google";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   findSupportedChatModel,
+  CONFIG_FILE,
+  type KoincodeConfig,
   type SupportedChatModel,
   type SupportedChatModelId,
   type SupportedProvider,
@@ -37,8 +40,17 @@ function assertUnsupportedProvider(provider: never): never {
   throw new Error(`Unsupported provider: ${provider}`);
 }
 
+function readConfigKey(key: keyof NonNullable<KoincodeConfig["apiKeys"]>): string | undefined {
+  try {
+    const config = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")) as KoincodeConfig;
+    return config.apiKeys?.[key] || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function requireOpenRouterKey(): string {
-  const key = process.env.OPENROUTER_API_KEY;
+  const key = process.env.OPENROUTER_API_KEY ?? readConfigKey("openrouter");
   if (!key) {
     throw new Error(
       "OPENROUTER_API_KEY is not set. Run `koincode --openrouter-key <key>` or use /setup.",
@@ -60,6 +72,10 @@ function resolveViaOpenRouter(modelId: string, provider: SupportedProvider): Res
 }
 
 function resolveAnthropicModel(modelId: AnthropicModelId): ResolvedModel {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    const key = readConfigKey("anthropic");
+    if (key) process.env.ANTHROPIC_API_KEY = key;
+  }
   if (process.env.ANTHROPIC_API_KEY) {
     return {
       model: anthropic(modelId),
@@ -72,6 +88,10 @@ function resolveAnthropicModel(modelId: AnthropicModelId): ResolvedModel {
 }
 
 function resolveOpenAIModel(modelId: OpenAIModelId): ResolvedModel {
+  if (!process.env.OPENAI_API_KEY) {
+    const key = readConfigKey("openai");
+    if (key) process.env.OPENAI_API_KEY = key;
+  }
   if (process.env.OPENAI_API_KEY) {
     return { model: openai(modelId), provider: "openai", modelId };
   }
@@ -79,6 +99,10 @@ function resolveOpenAIModel(modelId: OpenAIModelId): ResolvedModel {
 }
 
 function resolveGoogleModel(modelId: GoogleModelId): ResolvedModel {
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    const key = readConfigKey("gemini");
+    if (key) process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
+  }
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     return {
       model: google(modelId),
