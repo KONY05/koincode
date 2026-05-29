@@ -3,7 +3,9 @@ import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 import type { Message } from "../../hooks/use-chat";
 import { Mode, type ModeType } from "@koincode/shared";
-import { TextAttributes } from "@opentui/core";
+import { SyntaxStyle, TextAttributes } from "@opentui/core";
+
+const syntaxStyle = SyntaxStyle.create();
 
 type ClientMessagePart = Message["parts"][number];
 type ToolPart = Extract<ClientMessagePart, { type: `tool-${string}` | "dynamic-tool" }>;
@@ -62,7 +64,7 @@ export function BotMessage({
   model,
   mode,
   durationMs,
-  streaming: _streaming = false,
+  streaming = false,
 }: Props) {
   const { colors } = useTheme();
   return (
@@ -121,7 +123,13 @@ export function BotMessage({
             if (part.type === "text") {
               return (
                 <box key={`text-${j}`} paddingX={3} width="100%">
-                  <text>{part.text}</text>
+                  <markdown
+                    content={part.text}
+                    syntaxStyle={syntaxStyle}
+                    streaming={streaming}
+                    conceal
+                    width="100%"
+                  />
                 </box>
               );
             }

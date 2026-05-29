@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import {
   convertToModelMessages,
+  generateId,
   streamText,
   validateUIMessages,
   type InferUITools,
@@ -103,6 +104,18 @@ const app = new Hono()
         messages: mergedMessages,
         tools,
       });
+
+      // Persist incoming messages immediately so a concurrent round can't race-overwrite them.
+      try {
+        await db.session.update({
+          where: { id },
+          data: { messages: nextMessages as unknown as Prisma.InputJsonValue },
+        });
+      } catch (err) {
+        const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
+        console.error(`[${ts}] Failed to pre-save messages for session ${id}:`, err);
+      }
+
       const modelMessages = await convertToModelMessages(nextMessages, { tools });
       let completedUsage: LanguageModelUsage | null = null;
 
@@ -119,6 +132,7 @@ const app = new Hono()
 
       return result.toUIMessageStreamResponse<KoincodeUIMessage>({
         originalMessages: nextMessages,
+        generateMessageId: generateId,
         messageMetadata({ part }) {
           if (part.type === "start") {
             return { mode, model };
@@ -141,10 +155,16 @@ const app = new Hono()
           if (hasPendingToolCalls(event.responseMessage)) return;
 
           try {
+            // event.messages is the originalMessages passed in (nextMessages), without the
+            // new response appended. Explicitly include responseMessage so the AI reply is saved.
+            const allMessages = event.isContinuation
+              ? [...nextMessages.slice(0, -1), event.responseMessage]
+              : [...nextMessages, event.responseMessage];
+
             await db.session.update({
               where: { id },
               data: {
-                messages: event.messages as unknown as Prisma.InputJsonValue,
+                messages: allMessages as unknown as Prisma.InputJsonValue,
               },
             });
           } catch (err) {
