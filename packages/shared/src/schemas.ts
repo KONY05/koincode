@@ -40,6 +40,10 @@ export const toolInputSchemas = {
     description: z.string().optional().describe("Short description of the command"),
     timeout: z.number().optional().describe("Timeout in milliseconds"),
   }),
+  webFetch: z.object({
+    url: z.string().url().describe("URL to fetch"),
+    timeout: z.number().min(5).max(120).default(30).describe("Request timeout in seconds (5–120, default 30)"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -59,6 +63,10 @@ export const readOnlyToolContracts = {
     description:
       "Search file contents with a regular expression under the current project directory.",
     inputSchema: toolInputSchemas.grep,
+  }),
+  webFetch: tool({
+    description: "Fetch the content of a URL and return the response body as text.",
+    inputSchema: toolInputSchemas.webFetch,
   }),
 } as const;
 

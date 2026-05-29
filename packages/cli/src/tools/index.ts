@@ -5,9 +5,10 @@ import { runGlob } from "./glob";
 import { runGrep } from "./grep";
 import { runListDirectory } from "./list-directory";
 import { runReadFile } from "./read-file";
+import { runWebFetch } from "./web-fetch";
 import { runWriteFile } from "./write-file";
 
-const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep"];
+const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "webFetch"];
 
 export async function executeLocalTool(toolName: string, input: unknown, mode: ModeType) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.includes(toolName)) {
@@ -29,6 +30,8 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
       return runEditFile(input);
     case "bash":
       return runBash(input);
+    case "webFetch":
+      return runWebFetch(input);
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
