@@ -78,7 +78,9 @@ const app = new Hono()
       const tools = getToolContracts(mode);
       const resolvedModel = resolveChatModel(model);
       const previousMessages = Array.isArray(session.messages)
-        ? (session.messages as unknown as KoincodeUIMessage[])
+        ? (session.messages as unknown as KoincodeUIMessage[]).filter(
+            (m) => m.id && m.parts.length > 0,
+          )
         : [];
       const mergedMessages = [...previousMessages];
       
@@ -134,14 +136,21 @@ const app = new Hono()
         async onFinish(event) {
           if (event.isAborted) return;
 
+          if (event.finishReason === "error") return;
+
           if (hasPendingToolCalls(event.responseMessage)) return;
 
-          await db.session.update({
-            where: { id },
-            data: {
-              messages: event.messages as unknown as Prisma.InputJsonValue,
-            },
-          });
+          try {
+            await db.session.update({
+              where: { id },
+              data: {
+                messages: event.messages as unknown as Prisma.InputJsonValue,
+              },
+            });
+          } catch (err) {
+            const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
+            console.error(`[${ts}] Failed to save messages for session ${id}:`, err);
+          }
         },
         onError(error) {
           return error instanceof Error ? error.message : String(error);

@@ -72,17 +72,7 @@ export const SUPPORTED_CHAT_MODELS = [
 
   // ── OpenRouter free (require OPENROUTER_API_KEY, $0 per token) ────────────
   {
-    id: "qwen/qwen3-coder:free",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-  },
-  {
-    id: "meta-llama/llama-3.3-70b-instruct:free",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-  },
-  {
-    id: "deepseek/deepseek-v4-flash:free",
+    id: "openrouter/owl-alpha",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
   },
@@ -93,11 +83,6 @@ export const SUPPORTED_CHAT_MODELS = [
   },
   {
     id: "openai/gpt-oss-120b:free",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-  },
-  {
-    id: "moonshotai/kimi-k2.6:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
   },

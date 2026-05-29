@@ -16,20 +16,22 @@ const KEY_FLAGS: Array<{ flag: string; apiKey: keyof ApiKeys }> = [
   { flag: "--gemini-key",     apiKey: "gemini" },
 ];
 
-const args = process.argv.slice(2);
-let savedAnyKey = false;
+const args = process.argv.slice(2).map((a) => a.trim());
 
 for (const { flag, apiKey } of KEY_FLAGS) {
+  // Support both --flag=value and --flag value
+  const eqArg = args.find((a) => a.startsWith(`${flag}=`));
   const idx = args.indexOf(flag);
-  if (idx !== -1 && args[idx + 1]) {
-    updateConfig({ apiKeys: { [apiKey]: args[idx + 1] } });
-    process.stdout.write(`✓ ${flag.replace("--", "").replace("-key", "")} key saved\n`);
-    savedAnyKey = true;
-  }
-}
+  const value = eqArg
+    ? eqArg.slice(flag.length + 1)
+    : idx !== -1 && args[idx + 1] != null && !args[idx + 1]!.startsWith("--")
+      ? args[idx + 1]!
+      : undefined;
 
-if (savedAnyKey) {
-  process.exit(0);
+  if (value) {
+    updateConfig({ apiKeys: { [apiKey]: value } });
+    process.stdout.write(`✓ ${flag.replace("--", "").replace("-key", "")} key saved\n`);
+  }
 }
 
 const router = createMemoryRouter([
@@ -59,4 +61,13 @@ const renderer = await createCliRenderer({
   targetFps: 60,
   exitOnCtrlC: false,
 });
+
+function shutdown(code = 0) {
+  renderer.destroy();
+  process.exit(code);
+}
+
+process.on("SIGINT",  () => shutdown(0));
+process.on("SIGTERM", () => shutdown(0));
+
 createRoot(renderer).render(<App />);

@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import path from "path";
 import fs from "fs";
 import { CONFIG_DIR, PID_FILE, SERVER_PORT } from "@koincode/shared";
@@ -13,6 +13,19 @@ const isDev = process.env.NODE_ENV === "development";
 const SERVER_ENTRY = isDev
   ? path.join(import.meta.dirname, "../../../server/src/index.ts")
   : path.join(import.meta.dirname, "../../server/src/index.ts");
+
+function killPortIfInUse(): void {
+  try {
+    execSync(`lsof -ti tcp:${SERVER_PORT} | xargs kill -9`, { stdio: "ignore" });
+  } catch {
+    // Nothing was using the port — that's fine.
+  }
+  try {
+    fs.unlinkSync(PID_FILE);
+  } catch {
+    // PID file didn't exist — that's fine.
+  }
+}
 
 async function isServerHealthy(): Promise<boolean> {
   try {
@@ -68,12 +81,13 @@ function spawnServer() {
 export async function ensureServerRunning(): Promise<void> {
   if (await isServerHealthy()) return;
 
+  killPortIfInUse();
   spawnServer();
 
-  const ready = await waitForServer();
+  const ready = await waitForServer(30_000);
   if (!ready) {
     throw new Error(
-      `Koincode server failed to start on port ${SERVER_PORT} within 15 seconds.`,
+      `Koincode server failed to start on port ${SERVER_PORT} within 30 seconds.`,
     );
   }
 }
@@ -87,12 +101,13 @@ export async function restartServer(): Promise<void> {
     // No PID or already dead — continue to spawn
   }
 
+  killPortIfInUse();
   spawnServer();
 
-  const ready = await waitForServer();
+  const ready = await waitForServer(30_000);
   if (!ready) {
     throw new Error(
-      `Koincode server failed to restart on port ${SERVER_PORT} within 15 seconds.`,
+      `Koincode server failed to restart on port ${SERVER_PORT} within 30 seconds.`,
     );
   }
 }
