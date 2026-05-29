@@ -7,7 +7,7 @@ import { runListDirectory } from "./list-directory";
 import { runReadFile } from "./read-file";
 import { runWriteFile } from "./write-file";
 
-const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep"];
+const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "createTodos", "updateTodos"];
 
 export async function executeLocalTool(toolName: string, input: unknown, mode: ModeType) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.includes(toolName)) {
@@ -29,6 +29,9 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
       return runEditFile(input);
     case "bash":
       return runBash(input);
+    case "createTodos":
+    case "updateTodos":
+      return { ok: true };
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }

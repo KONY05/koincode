@@ -15,6 +15,7 @@ export {
   getToolContracts,
   type ToolContracts,
   type ModeType,
+  type TodoItem,
 } from "./schemas";
 
 export { type ChatMessageMetadata} from "./chat";

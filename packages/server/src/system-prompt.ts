@@ -106,6 +106,8 @@ You have these tools available:
 - **listDirectory** — List entries in a directory
 - **glob** — Find files matching a pattern (e.g. \`**/*.ts\`)
 - **grep** — Search file contents with regex
+- **createTodos** — Create a numbered todo list to lay out your plan
+- **updateTodos** — Update the todo list to mark items complete as you work
 
 ${sharedRules}`;
   }
@@ -120,6 +122,8 @@ You have these tools available:
 - **glob** — Find files matching a pattern (e.g. \`**/*.ts\`)
 - **grep** — Search file contents with regex
 - **bash** — Run a shell command
+- **createTodos** — Create a numbered todo list to lay out your plan before implementing
+- **updateTodos** — Update the todo list to mark items complete as you work
 
 ${sharedRules}
 4. **Prefer \`editFile\` for small changes** to existing files. Only use \`writeFile\` when creating new files or rewriting most of a file.`;
@@ -165,8 +169,8 @@ function getOperationalSection(): string {
 When asked to fix bugs, add features, or refactor code:
 
 1. **Understand** — Search the codebase to understand structure and conventions before touching anything. Use parallel tool calls for independent reads.
-2. **Plan** — Form a clear, grounded plan. Share a concise version with the user if it helps.
-3. **Implement** — Execute the plan, strictly following the project's existing conventions.
+2. **Plan** — Call \`createTodos\` with a numbered list of steps before writing or editing any file. This is required for any non-trivial task.
+3. **Implement** — Execute each todo item in order. Call \`updateTodos\` to mark items complete as you finish them.
 4. **Verify** — Run the project's build, lint, and type-check commands to confirm nothing is broken. Never assume standard commands — check \`package.json\` or README first.
 5. **Finalize** — Once verification passes, consider the task complete and await the next instruction.
 

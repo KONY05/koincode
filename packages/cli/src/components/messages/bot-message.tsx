@@ -9,6 +9,7 @@ import { Mode, type ModeType } from "@koincode/shared";
 import { createMarkdownSyntaxStyle } from "../../lib/syntax-style";
 import EditFileDiff from "../tool-view/edit-file";
 import WriteFilePreview from "../tool-view/write-file";
+import TodoList from "../tool-view/todo-list";
 
 const treeSitterClient = getTreeSitterClient();
 
@@ -136,6 +137,8 @@ export function BotMessage({
                     <EditFileDiff input={part.input} pending={pending} error={errorText} colors={colors} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient}/>
                   ) : hasInput && toolName === "writeFile" ? (
                     <WriteFilePreview input={part.input} pending={pending} error={errorText} colors={colors} />
+                  ) : hasInput && (toolName === "createTodos" || toolName === "updateTodos") ? (
+                    <TodoList input={part.input} toolName={toolName} pending={pending} colors={colors} />
                   ) : (
                     <text attributes={TextAttributes.DIM}>
                       <em fg={colors.info}>{formatToolName(toolName)}:</em> {formatToolArgs(part)}
