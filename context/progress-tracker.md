@@ -31,6 +31,7 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Recently Completed
 
+- **Tool refactor** — `packages/cli/src/lib/local-tools.ts` split into `packages/cli/src/tools/` with one file per tool (`read-file.ts`, `list-directory.ts`, `glob.ts`, `grep.ts`, `write-file.ts`, `edit-file.ts`, `bash.ts`). Shared helpers/constants live in `tools/utils.ts`. `tools/index.ts` exports `executeLocalTool` with the same switch-based dispatch. Import in `hooks/use-chat.ts` updated; old `lib/local-tools.ts` deleted.
 - **Tool call styling** — `editFile` now renders a diff view: removed lines in red with `- ` prefix, added lines in green with `+` prefix, capped at 8 lines per side with truncation notices. `writeFile` shows a file creation preview: header with path + first 3 lines of content (dimmed), with `…` if the file has more. Both components show a ` …` spinner while the tool is pending and surface error text if the call fails. All other tools retain the existing plain-text display. Change is in `packages/cli/src/components/messages/bot-message.tsx`.
 
 ## Next Up

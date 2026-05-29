@@ -8,7 +8,7 @@ import {
 } from "ai";
 import { type ChatMessageMetadata, type ModeType, type SupportedChatModelId, type ToolContracts } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
-import { executeLocalTool } from "../lib/local-tools";
+import { executeLocalTool } from "../tools";
 
 
 type ChatTools = {
