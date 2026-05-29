@@ -108,6 +108,7 @@ You have these tools available:
 - **grep** — Search file contents with regex
 - **createTodos** — Create a numbered todo list to lay out your plan
 - **updateTodos** — Update the todo list to mark items complete as you work
+- **webSearch** — Search the web via DuckDuckGo (returns title, url, snippet per result)
 
 ${sharedRules}`;
   }
@@ -124,6 +125,7 @@ You have these tools available:
 - **bash** — Run a shell command
 - **createTodos** — Create a numbered todo list to lay out your plan before implementing
 - **updateTodos** — Update the todo list to mark items complete as you work
+- **webSearch** — Search the web via DuckDuckGo (returns title, url, snippet per result)
 
 ${sharedRules}
 4. **Prefer \`editFile\` for small changes** to existing files. Only use \`writeFile\` when creating new files or rewriting most of a file.`;

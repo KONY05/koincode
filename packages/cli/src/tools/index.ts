@@ -6,8 +6,9 @@ import { runGrep } from "./grep";
 import { runListDirectory } from "./list-directory";
 import { runReadFile } from "./read-file";
 import { runWriteFile } from "./write-file";
+import { runWebSearch } from "./web-search";
 
-const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "createTodos", "updateTodos"];
+const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "createTodos", "updateTodos", "webSearch"];
 
 export async function executeLocalTool(toolName: string, input: unknown, mode: ModeType) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.includes(toolName)) {
@@ -29,6 +30,8 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
       return runEditFile(input);
     case "bash":
       return runBash(input);
+    case "webSearch":
+      return runWebSearch(input);
     case "createTodos":
     case "updateTodos":
       return { ok: true };

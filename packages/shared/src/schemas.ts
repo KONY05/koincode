@@ -54,6 +54,10 @@ export const toolInputSchemas = {
   updateTodos: z.object({
     todos: z.array(todoItemSchema).describe("Full updated list with current completion state"),
   }),
+  webSearch: z.object({
+    query: z.string().describe("Search query"),
+    maxResults: z.number().int().min(1).max(20).default(10).describe("Maximum number of results to return"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -83,6 +87,11 @@ export const readOnlyToolContracts = {
     description:
       "Update the todo list to reflect current progress. Mark items completed as you finish them.",
     inputSchema: toolInputSchemas.updateTodos,
+  }),
+  webSearch: tool({
+    description:
+      "Search the web using DuckDuckGo and return a list of results with title, URL, and snippet.",
+    inputSchema: toolInputSchemas.webSearch,
   }),
 } as const;
 
