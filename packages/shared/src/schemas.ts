@@ -54,6 +54,10 @@ export const toolInputSchemas = {
   updateTodos: z.object({
     todos: z.array(todoItemSchema).describe("Full updated list with current completion state"),
   }),
+  webFetch: z.object({
+    url: z.url().describe("URL to fetch"),
+    timeout: z.number().min(5).max(120).default(30).describe("Request timeout in seconds (5–120, default 30)"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -83,6 +87,10 @@ export const readOnlyToolContracts = {
     description:
       "Update the todo list to reflect current progress. Mark items completed as you finish them.",
     inputSchema: toolInputSchemas.updateTodos,
+  }),
+  webFetch: tool({
+    description: "Fetch the content of a URL and return the response body as text.",
+    inputSchema: toolInputSchemas.webFetch,
   }),
 } as const;
 
