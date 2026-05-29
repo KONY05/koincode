@@ -7,5 +7,6 @@ export type ApiKeys = {
 
 export type KoincodeConfig = {
   themeName?: string;
+  defaultModel?: string;
   apiKeys?: ApiKeys;
 };

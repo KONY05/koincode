@@ -1,11 +1,13 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
-import { 
-  DEFAULT_CHAT_MODEL_ID, 
+import {
+  DEFAULT_CHAT_MODEL_ID,
+  findSupportedChatModel,
   Mode,
   type ModeType,
   type SupportedChatModelId,
 } from "@koincode/shared";
+import { readConfig, updateConfig } from "../../lib/config";
 
 type PromptConfigContextValue = {
   mode: ModeType;
@@ -29,23 +31,27 @@ type PromptConfigProviderProps = {
   children: ReactNode;
 };
 
+function resolveInitialModel(): SupportedChatModelId {
+  const saved = readConfig().defaultModel;
+  if (saved && findSupportedChatModel(saved)) return saved as SupportedChatModelId;
+  return DEFAULT_CHAT_MODEL_ID;
+}
+
 export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   const [mode, setMode] = useState<ModeType>(Mode.BUILD);
-  const [model, setModel] = useState<SupportedChatModelId>(DEFAULT_CHAT_MODEL_ID);
+  const [model, setModelState] = useState<SupportedChatModelId>(resolveInitialModel);
 
   const toggleMode = useCallback(() => {
     setMode((m) => (m === Mode.BUILD ? Mode.PLAN : Mode.BUILD));
   }, []);
 
+  const setModel = useCallback((m: SupportedChatModelId) => {
+    setModelState(m);
+    updateConfig({ defaultModel: m });
+  }, []);
+
   return (
-    <PromptConfigContext.Provider 
-      value={{ 
-        mode, 
-        toggleMode, 
-        setMode, 
-        model, 
-        setModel
-    }}>
+    <PromptConfigContext.Provider value={{ mode, toggleMode, setMode, model, setModel }}>
       {children}
     </PromptConfigContext.Provider>
   );
