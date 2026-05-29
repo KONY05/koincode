@@ -18,6 +18,7 @@ type Props = {
   mode: ModeType;
   durationMs?: number;
   streaming?: boolean;
+  interrupted?: boolean;
 };
 
 function formatToolName(name: string): string {
@@ -67,6 +68,7 @@ export function BotMessage({
   mode,
   durationMs,
   streaming = false,
+  interrupted = false,
 }: Props) {
   const { colors } = useTheme();
 
@@ -175,6 +177,14 @@ export function BotMessage({
                 <text attributes={TextAttributes.DIM}>
                   {prettyMs(durationMs)}
                 </text>
+              </>
+            )}
+            {interrupted && (
+              <>
+                <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+                  ›
+                </text>
+                <text fg={colors.error}>agent interrupted</text>
               </>
             )}
           </box>

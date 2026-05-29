@@ -1,0 +1,3 @@
+we have a key press "esc" that allows user to interrupt the agent, but there is no ux showing that the agent is interrupted, we should add a ux showing that the agent is interrupted, the ux should be in the chat interface, it should be a small text that says "agent interrupted" and it should be shown when the agent is interrupted, it should be removed when the agent is resumed.
+
+a question before we implement as well do we persist the interrupted message or we just keep it as it is, we don't persist it to the db?

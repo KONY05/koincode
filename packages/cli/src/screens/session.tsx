@@ -32,9 +32,10 @@ const sessionLocationSchema = z.object({
 });
 
 function ChatMessage(
-  { msg, streaming = false }: {
+  { msg, streaming = false, interrupted = false }: {
     msg: Message;
     streaming?: boolean;
+    interrupted?: boolean;
   }
 ) {
   if (msg.role === "user") {
@@ -53,6 +54,7 @@ function ChatMessage(
       mode={msg.metadata?.mode ?? "BUILD"}
       durationMs={msg.metadata?.durationMs}
       streaming={streaming}
+      interrupted={interrupted || msg.metadata?.interrupted}
     />
   );
 };
@@ -67,7 +69,7 @@ function SessionChat({
   const [initialMessages] = useState(() => session.messages as unknown as Message[]);
   const { mode, model } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
-  const { messages, status, submit, abort, interrupt, error } = useChat(
+  const { messages, status, wasInterrupted, submit, abort, interrupt, error } = useChat(
     session.id,
     initialMessages
   );
@@ -104,17 +106,18 @@ function SessionChat({
       loading={status === "submitted" || status === "streaming"}
       interruptible={status === "submitted" || status === "streaming"}
     >
-      {messages.map((msg, i) => (
-        <ChatMessage
-          key={msg.id}
-          msg={msg}
-          streaming={
-            status === "streaming" &&
-            i === messages.length - 1 &&
-            msg.role === "assistant"
-          }
-        />
-      ))}
+      {messages.map((msg, i) => {
+        const isLast = i === messages.length - 1;
+        const isLastAssistant = isLast && msg.role === "assistant";
+        return (
+          <ChatMessage
+            key={msg.id}
+            msg={msg}
+            streaming={status === "streaming" && isLastAssistant}
+            interrupted={wasInterrupted && status !== "streaming" && isLastAssistant}
+          />
+        );
+      })}
       {error && <ErrorMessage message={error.message} />}
     </SessionShell>
   );

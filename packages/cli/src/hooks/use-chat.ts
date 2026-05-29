@@ -1,22 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useChat as useAiChat } from "@ai-sdk/react";
 import {
   DefaultChatTransport,
   type InferUITools,
   lastAssistantMessageIsCompleteWithToolCalls,
-  type LanguageModelUsage,
   type UIMessage,
 } from "ai";
-import { type ModeType, type SupportedChatModelId, type ToolContracts } from "@koincode/shared";
+import { type ChatMessageMetadata, type ModeType, type SupportedChatModelId, type ToolContracts } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
 import { executeLocalTool } from "../lib/local-tools";
 
-export type ChatMessageMetadata = {
-  mode?: ModeType;
-  model?: SupportedChatModelId | string;
-  durationMs?: number;
-  usage?: LanguageModelUsage;
-};
 
 type ChatTools = {
   [Name in keyof InferUITools<ToolContracts>]: {
@@ -28,6 +21,7 @@ type ChatTools = {
 export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
 export function useChat(sessionId: string, initialMessages: Message[]) {
+  const [wasInterrupted, setWasInterrupted] = useState(false);
   const transport = useMemo(() => {
     return new DefaultChatTransport<Message>({
       api: apiClient.chat.$url().toString(),
@@ -87,7 +81,9 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     messages: chat.messages,
     status: chat.status,
     error: chat.error,
+    wasInterrupted,
     submit: (params: { userText: string; mode: ModeType; model: SupportedChatModelId }) => {
+      setWasInterrupted(false);
       return chat.sendMessage({
         text: params.userText,
         metadata: {
@@ -97,6 +93,9 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
       })
     },
     abort: chat.stop,
-    interrupt: chat.stop,
+    interrupt: () => {
+      setWasInterrupted(true);
+      chat.stop();
+    },
   };
 };
