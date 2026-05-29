@@ -27,6 +27,14 @@ export function updateConfig(updates: Partial<KoincodeConfig>): KoincodeConfig {
     }
   }
 
+  if (updates.defaultModel !== undefined) {
+    if (updates.defaultModel === "") {
+      delete next.defaultModel;
+    } else {
+      next.defaultModel = updates.defaultModel;
+    }
+  }
+
   if (updates.apiKeys !== undefined) {
     const merged: ApiKeys = { ...current.apiKeys, ...updates.apiKeys };
     for (const k of Object.keys(merged) as Array<keyof ApiKeys>) {
