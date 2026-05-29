@@ -106,6 +106,7 @@ You have these tools available:
 - **listDirectory** — List entries in a directory
 - **glob** — Find files matching a pattern (e.g. \`**/*.ts\`)
 - **grep** — Search file contents with regex
+- **webFetch** — Fetch the content of a URL and return the response body as text
 
 ${sharedRules}`;
   }
@@ -120,6 +121,7 @@ You have these tools available:
 - **glob** — Find files matching a pattern (e.g. \`**/*.ts\`)
 - **grep** — Search file contents with regex
 - **bash** — Run a shell command
+- **webFetch** — Fetch the content of a URL and return the response body as text
 
 ${sharedRules}
 4. **Prefer \`editFile\` for small changes** to existing files. Only use \`writeFile\` when creating new files or rewriting most of a file.`;
