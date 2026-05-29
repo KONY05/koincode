@@ -6,7 +6,7 @@ type SystemPromptParams = {
   userMemory?: string; // TODO: fetch from memory table when implemented (see progress-tracker.md)
 };
 
-export function buildSystemPrompt({ mode }: SystemPromptParams): string {
+export function buildSystemPrompt({ mode, userMemory }: SystemPromptParams): string {
   const parts: string[] = [];
 
   parts.push(getIdentitySection());
@@ -18,10 +18,9 @@ export function buildSystemPrompt({ mode }: SystemPromptParams): string {
   parts.push(getCodingGuidelinesSection());
   parts.push(getOperationalSection());
 
-  // TODO: uncomment when memory table is implemented (see progress-tracker.md)
-  // if (userMemory) {
-  //   parts.push(getMemorySection(userMemory));
-  // }
+  if (userMemory) {
+    parts.push(getMemorySection(userMemory));
+  }
 
   return parts.join("\n\n");
 }
@@ -187,13 +186,12 @@ Keep going until the query is completely resolved before yielding back to the us
 Prioritize technical accuracy over validating the user's beliefs. Provide direct, objective guidance. Disagree respectfully when necessary — honest correction is more valuable than false agreement.`;
 }
 
-// TODO: uncomment and activate when memory table is implemented (see progress-tracker.md)
-// function getMemorySection(memory: string): string {
-//   return `# Remembered Context
-//
-// The following was stored from previous interactions:
-//
-// ${memory}
-//
-// Use this to personalize responses and maintain consistency.`;
-// }
+function getMemorySection(memory: string): string {
+  return `# Remembered Context
+
+The following was stored from previous interactions:
+
+${memory}
+
+Use this to personalize responses and maintain consistency.`;
+}

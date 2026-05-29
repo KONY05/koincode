@@ -3,17 +3,17 @@ import path from "path";
 import fs from "fs";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+
+import { getTime } from "./lib/helpers";
 import { CONFIG_DIR, DB_PATH, SERVER_PORT } from "@koincode/shared";
 // import type { KoincodeConfig } from "@koincode/shared";
 
 import sessions from "./routes/sessions";
 import chat from "./routes/chat";
+import memory from "./routes/memory";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
-function ts(): string {
-  return new Date().toISOString().replace("T", " ").slice(0, 19);
-}
 
 // Inject config file API keys into the process env so provider SDKs can find them.
 // Covers both prod (server-manager injects them) and dev (bun run dev:server, independent).
@@ -38,7 +38,7 @@ try {
     stdio: "pipe",
   });
 } catch (e) {
-  console.error(`[${ts()}] Startup failed:`, e instanceof Error ? e.message : e);
+  console.error(`[${getTime()}] Startup failed:`, e instanceof Error ? e.message : e);
   process.exit(1);
 }
 
@@ -56,20 +56,21 @@ app.onError((error, c) => {
     return c.json({ error: error.message || "Request failed" }, error.status);
   }
 
-  console.error(`[${ts()}] Unhandled server error`, error);
+  console.error(`[${getTime()}] Unhandled server error`, error);
   return c.json({ error: "Internal server error" }, 500);
 });
 
 const routes = app
   .get("/health", (c) => c.json({ ok: true }))
   .route("/sessions", sessions)
-  .route("/chat", chat);
+  .route("/chat", chat)
+  .route("/memory", memory);
 
 export type AppType = typeof routes;
 
 setInterval(() => {
   if (Date.now() - lastRequestAt > IDLE_TIMEOUT_MS) {
-    console.log(`[${ts()}] Server idle for 30 minutes, shutting down.`);
+    console.log(`[${getTime()}] Server idle for 30 minutes, shutting down.`);
     process.exit(0);
   }
 }, 60_000).unref();

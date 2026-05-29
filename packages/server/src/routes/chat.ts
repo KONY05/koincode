@@ -78,6 +78,10 @@ const app = new Hono()
       const startTime = Date.now();
       const tools = getToolContracts(mode);
       const resolvedModel = resolveChatModel(model);
+      const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
+      const userMemory = memories.length > 0
+        ? memories.map((m) => `- ${m.key}: ${m.value}`).join("\n")
+        : undefined;
       const previousMessages = Array.isArray(session.messages)
         ? (session.messages as unknown as KoincodeUIMessage[]).filter(
             (m) => m.id && m.parts.length > 0,
@@ -121,7 +125,7 @@ const app = new Hono()
 
       const result = streamText({
         model: resolvedModel.model,
-        system: buildSystemPrompt({ mode }),
+        system: buildSystemPrompt({ mode, userMemory }),
         messages: modelMessages,
         tools,
         providerOptions: resolvedModel.providerOptions,
