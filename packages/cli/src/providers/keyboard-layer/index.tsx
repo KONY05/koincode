@@ -64,9 +64,9 @@ export function KeyboardLayerProvider({ children }: { children: React.ReactNode 
     }
   }, []);
 
-  // Single ctrl+c handler that walks the responder chain
+  // Single ctrl+c / cmd+c handler that walks the responder chain
   useKeyboard((key) => {
-    if (!key.ctrl || key.name !== "c") return;
+    if ((!key.ctrl && !key["super"]) || key.name !== "c") return;
 
     const currentStack = stackRef.current;
     for (let i = currentStack.length - 1; i >= 0; i--) {

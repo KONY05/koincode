@@ -280,6 +280,11 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   const onSubmitRef = useRef<() => void>(() => {});
   const activeMentionRef = useRef<MentionMatch | null>(null);
   const mentionScrollRef = useRef<ScrollBoxRenderable>(null);
+  const historyRef = useRef<string[]>([]);
+  const historyIndexRef = useRef(-1);
+  const undoStackRef = useRef<string[]>([]);
+  const prevTextRef = useRef("");
+  const skipUndoRef = useRef(false);
 
   const renderer = useRenderer();
   const navigate = useNavigate();
@@ -343,9 +348,14 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    const text = textarea.plainText;
+    if (!skipUndoRef.current) {
+      undoStackRef.current.push(prevTextRef.current); // push the OLD text
+      if (undoStackRef.current.length > 100) undoStackRef.current.shift();
+    }
+    prevTextRef.current = textarea.plainText; // record the NEW text
 
-    handleContentChange(textarea.plainText);
+    const text = textarea.plainText;
+    handleContentChange(text);
     syncMentionMenu(text, textarea.cursorOffset);
   }, [handleContentChange, syncMentionMenu]);
 
@@ -358,8 +368,15 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     const text = textarea.plainText.trim();
     if (text.length === 0) return;
 
+    historyRef.current = [text, ...historyRef.current.filter((h) => h !== text)];
+    historyIndexRef.current = -1;
+    undoStackRef.current = [];
+    prevTextRef.current = "";
+
     onSubmit(text);
+    skipUndoRef.current = true;
     textarea.setText("");
+    skipUndoRef.current = false;
   }, [disabled, onSubmit])
 
   const handleMentionExecute = useCallback((index: number) => {
@@ -375,7 +392,9 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
 
     const nextText = `${textarea.plainText.slice(0, mention.start)}@${insertion}${textarea.plainText.slice(mention.end)}`;
 
+    skipUndoRef.current = true;
     textarea.replaceText(nextText);
+    skipUndoRef.current = false;
     textarea.cursorOffset = mention.start + insertion.length + 1;
     syncMentionMenu(nextText, textarea.cursorOffset);
   }, [mentionCandidates, syncMentionMenu]);
@@ -386,7 +405,10 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     const textarea = textareaRef.current;
     if (!textarea || !command) return;
 
+    skipUndoRef.current = true;
     textarea.setText("");
+    skipUndoRef.current = false;
+    prevTextRef.current = "";
 
     if (command.action) {
       command.action({
@@ -399,7 +421,9 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
         setModel,
       });
     } else {
+      skipUndoRef.current = true;
       textarea.insertText(command.value + " ");
+      skipUndoRef.current = false;
     }
   }, [renderer, toast, dialog, navigate, mode, setMode, setModel]);
 
@@ -483,21 +507,90 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     }
   });
 
-  // Register the base layer responder for ctrl+c dismissal
+  useKeyboard((key) => {
+    if (disabled) return;
+    if (!isTopLayer("base")) return;
+    if (showCommandMenu || showMentionMenu) return;
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    if (key.name === "up") {
+      const text = textarea.plainText;
+      const cursorOnFirstLine = !text.slice(0, textarea.cursorOffset).includes("\n");
+      if (!cursorOnFirstLine) return;
+
+      const history = historyRef.current;
+      if (history.length === 0) return;
+
+      key.preventDefault();
+      const nextIndex = Math.min(historyIndexRef.current + 1, history.length - 1);
+      historyIndexRef.current = nextIndex;
+      skipUndoRef.current = true;
+      textarea.setText(history[nextIndex]!);
+      skipUndoRef.current = false;
+      textarea.cursorOffset = history[nextIndex]!.length;
+    } else if (key.name === "down") {
+      if (historyIndexRef.current === -1) return;
+
+      const text = textarea.plainText;
+      const cursorOnLastLine = !text.slice(textarea.cursorOffset).includes("\n");
+      if (!cursorOnLastLine) return;
+
+      key.preventDefault();
+      const nextIndex = historyIndexRef.current - 1;
+      historyIndexRef.current = nextIndex;
+
+      skipUndoRef.current = true;
+      if (nextIndex < 0) {
+        textarea.setText("");
+      } else {
+        textarea.setText(historyRef.current[nextIndex]!);
+        textarea.cursorOffset = historyRef.current[nextIndex]!.length;
+      }
+      skipUndoRef.current = false;
+    } else if ((key.ctrl || key["super"]) && key.name === "z") {
+      key.preventDefault();
+      const stack = undoStackRef.current;
+      if (stack.length === 0) return;
+      const prev = stack.pop()!;
+      skipUndoRef.current = true;
+      textarea.setText(prev);
+      textarea.cursorOffset = prev.length;
+      skipUndoRef.current = false;
+      prevTextRef.current = prev;
+    }
+  });
+
+  // Ctrl+C: copy active selection; or clear the textarea.
   useEffect(() => {
     setResponder("base", () => {
+      const selection = renderer.getSelection();
+      if (selection?.isActive) {
+        const text = selection.getSelectedText();
+        if (text) {
+          renderer.copyToClipboardOSC52(text);
+          return true;
+        }
+      }
+
       if (disabled) return false;
 
       const textarea = textareaRef.current;
       if (textarea && textarea.plainText.length > 0) {
+        skipUndoRef.current = true;
         textarea.setText("");
+        skipUndoRef.current = false;
+        prevTextRef.current = "";
+        historyIndexRef.current = -1;
+        undoStackRef.current = [];
         return true;
       }
       return false;
     });
 
     return () => setResponder("base", null);
-  }, [disabled, setResponder]);
+  }, [disabled, renderer, setResponder]);
 
   useKeyboard((key) => {
     if (disabled) return;

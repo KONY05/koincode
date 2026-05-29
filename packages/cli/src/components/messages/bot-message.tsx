@@ -1,11 +1,13 @@
+import { useCallback, useMemo } from "react";
 import prettyMs from "pretty-ms";
 import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 import type { Message } from "../../hooks/use-chat";
 import { Mode, type ModeType } from "@koincode/shared";
-import { SyntaxStyle, TextAttributes } from "@opentui/core";
+import { getTreeSitterClient, TextAttributes } from "@opentui/core";
+import { createMarkdownSyntaxStyle } from "../../lib/syntax-style";
 
-const syntaxStyle = SyntaxStyle.create();
+const treeSitterClient = getTreeSitterClient();
 
 type ClientMessagePart = Message["parts"][number];
 type ToolPart = Extract<ClientMessagePart, { type: `tool-${string}` | "dynamic-tool" }>;
@@ -59,7 +61,7 @@ function groupConsecutiveParts(parts: ClientMessagePart[]): PartGroup[] {
   return groups;
 };
 
-export function BotMessage({ 
+export function BotMessage({
   parts,
   model,
   mode,
@@ -67,6 +69,19 @@ export function BotMessage({
   streaming = false,
 }: Props) {
   const { colors } = useTheme();
+
+  const syntaxStyle = useMemo(() => createMarkdownSyntaxStyle(colors), [colors]);
+
+  const renderCodeBlock = useCallback(
+    (token: { type: string }, ctx: { defaultRender: () => { bg?: string } | null }) => {
+      if (token.type !== "code") return undefined;
+      const renderable = ctx.defaultRender();
+      if (renderable) renderable.bg = "#313131ff";
+      return renderable;
+    },
+    []
+  );
+
   return (
     <box width="100%" alignItems="center">
       {groupConsecutiveParts(parts).map((group, i) => (
@@ -126,6 +141,8 @@ export function BotMessage({
                   <markdown
                     content={part.text}
                     syntaxStyle={syntaxStyle}
+                    treeSitterClient={treeSitterClient}
+                    renderNode={renderCodeBlock as never}
                     streaming={streaming}
                     conceal
                     width="100%"
