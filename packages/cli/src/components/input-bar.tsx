@@ -126,6 +126,7 @@ async function getMentionCandidates(query: string): Promise<MentionCandidate[]> 
 
     const directMatches = entries
       .filter((entry) => showHiddenEntries || !entry.name.startsWith("."))
+      .filter((entry) => !(entry.isDirectory() && RECURSIVE_MENTION_IGNORED_DIRECTORIES.has(entry.name)))
       .filter((entry) => {
         return lowercasePrefix === "" || entry.name.toLowerCase().startsWith(lowercasePrefix);
       })
@@ -270,8 +271,6 @@ type Props = {
 export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
   { name: "return", action: "submit" },
   { name: "enter", action: "submit" },
-  { name: "return", shift: true, action: "newline" },
-  { name: "enter", shift: true, action: "newline" },
 ];
 
 export function InputBar({ onSubmit, disabled = false }: Props) {
@@ -559,6 +558,14 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
       textarea.cursorOffset = prev.length;
       skipUndoRef.current = false;
       prevTextRef.current = prev;
+    } else if (
+      (key.name === "return" || key.name === "enter") &&
+      (key.shift || key.meta)
+    ) {
+      // shift+return: works on Kitty-protocol terminals (shift modifier forwarded)
+      // meta+return (opt+enter on macOS): works on all standard terminals
+      key.preventDefault();
+      textarea.insertText("\n");
     }
   });
 

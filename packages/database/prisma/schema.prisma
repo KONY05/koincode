@@ -19,3 +19,11 @@ model Session {
   updatedAt DateTime @updatedAt
   messages  Json     @default("[]")
 }
+
+model Memory {
+  id        String   @id @default(cuid())
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

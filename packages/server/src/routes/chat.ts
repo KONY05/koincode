@@ -15,18 +15,11 @@ import type { Prisma } from "@koincode/database";
 import {
   getToolContracts,
   modeSchema,
-  type ModeType,
+  type ChatMessageMetadata,
   type ToolContracts
 } from "@koincode/shared";
 import { buildSystemPrompt } from "../system-prompt";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
-
-type ChatMessageMetadata = {
-  mode?: ModeType;
-  model?: string;
-  durationMs?: number;
-  usage?: LanguageModelUsage;
-};
 
 type KoincodeUIMessage = UIMessage<ChatMessageMetadata, never, InferUITools<ToolContracts>>;
 
@@ -78,6 +71,10 @@ const app = new Hono()
       const startTime = Date.now();
       const tools = getToolContracts(mode);
       const resolvedModel = resolveChatModel(model);
+      const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
+      const userMemory = memories.length > 0
+        ? memories.map((m) => `- ${m.key}: ${m.value}`).join("\n")
+        : undefined;
       const previousMessages = Array.isArray(session.messages)
         ? (session.messages as unknown as KoincodeUIMessage[]).filter(
             (m) => m.id && m.parts.length > 0,
@@ -121,9 +118,10 @@ const app = new Hono()
 
       const result = streamText({
         model: resolvedModel.model,
-        system: buildSystemPrompt({ mode }),
+        system: buildSystemPrompt({ mode, userMemory }),
         messages: modelMessages,
         tools,
+        abortSignal: c.req.raw.signal,
         providerOptions: resolvedModel.providerOptions,
         onFinish(event) {
           completedUsage = event.totalUsage;
@@ -148,18 +146,21 @@ const app = new Hono()
           };
         },
         async onFinish(event) {
-          if (event.isAborted) return;
-
           if (event.finishReason === "error") return;
 
-          if (hasPendingToolCalls(event.responseMessage)) return;
+          if (!event.isAborted && hasPendingToolCalls(event.responseMessage)) return;
 
           try {
-            // event.messages is the originalMessages passed in (nextMessages), without the
-            // new response appended. Explicitly include responseMessage so the AI reply is saved.
+            const responseMessage = event.isAborted
+              ? {
+                  ...event.responseMessage,
+                  metadata: { ...event.responseMessage.metadata, interrupted: true },
+                }
+              : event.responseMessage;
+
             const allMessages = event.isContinuation
-              ? [...nextMessages.slice(0, -1), event.responseMessage]
-              : [...nextMessages, event.responseMessage];
+              ? [...nextMessages.slice(0, -1), responseMessage]
+              : [...nextMessages, responseMessage];
 
             await db.session.update({
               where: { id },
@@ -174,6 +175,17 @@ const app = new Hono()
         },
         onError(error) {
           return error instanceof Error ? error.message : String(error);
+        },
+        consumeSseStream({ stream }) {
+          // Drain the tee'd SSE stream server-side so the pipe chain never backs up
+          // when the HTTP client disconnects. Without this, backpressure from the
+          // dropped response stalls the chain and onFinish never fires.
+          const reader = stream.getReader();
+          void (async () => {
+            try {
+              while (!(await reader.read()).done) { /* drain */ }
+            } catch { /* ignore */ }
+          })();
         },
       });
     },

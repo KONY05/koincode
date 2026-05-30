@@ -29,6 +29,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 - None.
 
+## Recently Completed
+
+- **Tool refactor** — `packages/cli/src/lib/local-tools.ts` split into `packages/cli/src/tools/` with one file per tool (`read-file.ts`, `list-directory.ts`, `glob.ts`, `grep.ts`, `write-file.ts`, `edit-file.ts`, `bash.ts`). Shared helpers/constants live in `tools/utils.ts`. `tools/index.ts` exports `executeLocalTool` with the same switch-based dispatch. Import in `hooks/use-chat.ts` updated; old `lib/local-tools.ts` deleted.
+- **Tool call styling** — `editFile` now renders a diff view: removed lines in red with `- ` prefix, added lines in green with `+` prefix, capped at 8 lines per side with truncation notices. `writeFile` shows a file creation preview: header with path + first 3 lines of content (dimmed), with `…` if the file has more. Both components show a ` …` spinner while the tool is pending and surface error text if the call fails. All other tools retain the existing plain-text display. Change is in `packages/cli/src/components/messages/bot-message.tsx`.
+
 ## Next Up
 
 ### Phase 2 — Local-First Pivot
@@ -37,6 +42,14 @@ Update this file whenever the current phase, active feature, or implementation s
 - **P2-F02:** ✅ Done. Swapped `@prisma/adapter-pg` → `@prisma/adapter-better-sqlite3`. Schema changed to `provider = "sqlite"`. DB path: `~/.config/koincode/data.db`. Initial migration generated at `packages/database/prisma/migrations/`. `prisma.config.ts` now computes the path dynamically (no `.env` required for DB). Server runs `prisma migrate deploy` on startup. CLI spawns the server on first run via `server-manager.ts` — health-check at `/health`, polls until ready, restarts on `ECONNREFUSED`. Server auto-shuts after 30 min of idle, CLI restarts it transparently. Port updated from 3000 → 37420 everywhere.
 - **P2-F03 + P2-F04:** ✅ Done. OpenRouter integration and multi-provider key support implemented together. Keys stored in `~/.koincode/config.json` (`KoincodeConfig` type in `@koincode/shared`). CLI reads config and passes keys as env vars when spawning the server. Server model resolver checks for a direct provider key first (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) and falls back to OpenRouter (`OPENROUTER_API_KEY`) for any model whose native key is absent. `/setup` command opens a dialog with rows for OpenRouter, Anthropic, OpenAI, and Gemini keys — navigate with ↑↓, Enter to edit, Esc to cancel/close. Keys can also be saved non-interactively: `koincode --openrouter-key sk-xxx`, `--anthropic-key`, `--openai-key`, `--gemini-key`.
 - **P2-F05:** Update server port from 3000 → 37420 across server config, `API_URL` default, and CLAUDE.md.
+- **P2-F06:** ✅ Done. `Memory` model added to Prisma schema (`id`, `content`, `createdAt`, `updatedAt`). Migration `20260529172100_add_memory` created and applied. CRUD routes at `/memory` (GET list, POST create, PATCH `:id`, DELETE `:id`). Chat route fetches all memories on each request and passes concatenated content to `buildSystemPrompt` as `userMemory`. System prompt injects a `# Remembered Context` section when memories exist. Memory tool calls (so the agent can manage memory itself) are deferred — see Deferred section.
+
+## Deferred (Future Implementation)
+
+These were scoped out and should be revisited:
+
+- **Memory tool calls** — Expose the memory CRUD routes as agent tool calls (add, update, delete, list) so the AI can manage user memory directly during a session. Routes and DB table are already implemented; only the tool contracts and CLI-side execution handlers need to be added.
+- **Compression prompt** — Implement context window compression. When conversation length approaches the model's limit, summarize completed work into a structured continuation prompt (original goal, completed actions, current state, remaining tasks, next step, key context) and replace the history. Prevents context overflow mid-task.
 
 ## Open Questions
 

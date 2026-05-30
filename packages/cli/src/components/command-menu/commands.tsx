@@ -1,6 +1,7 @@
 import { SUPPORTED_CHAT_MODELS } from "@koincode/shared";
 import {
   AgentsDialogContent,
+  HelpDialogContent,
   ModelsDialogContent,
   SessionsDialogContent,
   SetupDialogContent,
@@ -74,6 +75,17 @@ export const COMMANDS: Command[] = [
       ctx.dialog.open({
         title: "API Key Setup",
         children: <SetupDialogContent />,
+      });
+    },
+  },
+  {
+    name: "help",
+    description: "Show keyboard shortcuts",
+    value: "/help",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "Keyboard Shortcuts",
+        children: <HelpDialogContent />,
       });
     },
   },

@@ -1,11 +1,15 @@
 import { useCallback, useMemo } from "react";
 import prettyMs from "pretty-ms";
+import { getTreeSitterClient, TextAttributes } from "@opentui/core";
+
 import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 import type { Message } from "../../hooks/use-chat";
 import { Mode, type ModeType } from "@koincode/shared";
-import { getTreeSitterClient, TextAttributes } from "@opentui/core";
 import { createMarkdownSyntaxStyle } from "../../lib/syntax-style";
+import EditFileDiff from "../tool-view/edit-file";
+import WriteFilePreview from "../tool-view/write-file";
+import TodoList from "../tool-view/todo-list";
 
 const treeSitterClient = getTreeSitterClient();
 
@@ -18,6 +22,7 @@ type Props = {
   mode: ModeType;
   durationMs?: number;
   streaming?: boolean;
+  interrupted?: boolean;
 };
 
 function formatToolName(name: string): string {
@@ -67,6 +72,7 @@ export function BotMessage({
   mode,
   durationMs,
   streaming = false,
+  interrupted = false,
 }: Props) {
   const { colors } = useTheme();
 
@@ -110,6 +116,10 @@ export function BotMessage({
             if (isToolPart(part)) {
               const toolName =
                 part.type === "dynamic-tool" ? part.toolName : part.type.slice("tool-".length);
+              const pending = part.state !== "output-available" && part.state !== "output-error";
+              const hasInput = "input" in part && part.input != null && part.state !== "input-streaming";
+
+              const errorText = part.state === "output-error" ? part.errorText : undefined;
 
               return (
                 <box
@@ -123,14 +133,19 @@ export function BotMessage({
                   width="100%"
                   paddingX={2}
                 >
-                  <text attributes={TextAttributes.DIM}>
-                    <em fg={colors.info}>{formatToolName(toolName)}:</em> {formatToolArgs(part)}
-                    {part.state !== "output-available" && part.state !== "output-error" 
-                      ? " …" 
-                      : ""
-                    }
-                    {part.state === "output-error" ? ` ${part.errorText}` : ""}
-                  </text>
+                  {hasInput && toolName === "editFile" ? (
+                    <EditFileDiff input={part.input} pending={pending} error={errorText} colors={colors} syntaxStyle={syntaxStyle} treeSitterClient={treeSitterClient}/>
+                  ) : hasInput && toolName === "writeFile" ? (
+                    <WriteFilePreview input={part.input} pending={pending} error={errorText} colors={colors} />
+                  ) : hasInput && (toolName === "createTodos" || toolName === "updateTodos") ? (
+                    <TodoList input={part.input} toolName={toolName} pending={pending} colors={colors} />
+                  ) : (
+                    <text attributes={TextAttributes.DIM}>
+                      <em fg={colors.info}>{formatToolName(toolName)}:</em> {formatToolArgs(part)}
+                      {pending ? " …" : ""}
+                      {errorText ? ` ${errorText}` : ""}
+                    </text>
+                  )}
                 </box>
               );
             }
@@ -175,6 +190,14 @@ export function BotMessage({
                 <text attributes={TextAttributes.DIM}>
                   {prettyMs(durationMs)}
                 </text>
+              </>
+            )}
+            {interrupted && (
+              <>
+                <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+                  ›
+                </text>
+                <text fg={colors.error}>agent interrupted</text>
               </>
             )}
           </box>

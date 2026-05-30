@@ -10,6 +10,14 @@ export const modeSchema = z.enum([Mode.BUILD, Mode.PLAN]);
 
 export type ModeType = (typeof Mode)[keyof typeof Mode];
 
+const todoItemSchema = z.object({
+  id: z.number().describe("Unique todo item ID starting from 1"),
+  text: z.string().describe("Description of the task"),
+  completed: z.boolean().describe("Whether the task is done"),
+});
+
+export type TodoItem = z.infer<typeof todoItemSchema>;
+
 export const toolInputSchemas = {
   readFile: z.object({
     path: z.string().describe("Relative path to the file to read"),
@@ -40,6 +48,20 @@ export const toolInputSchemas = {
     description: z.string().optional().describe("Short description of the command"),
     timeout: z.number().optional().describe("Timeout in milliseconds"),
   }),
+  createTodos: z.object({
+    todos: z.array(todoItemSchema).describe("Ordered list of tasks to complete"),
+  }),
+  updateTodos: z.object({
+    todos: z.array(todoItemSchema).describe("Full updated list with current completion state"),
+  }),
+  webFetch: z.object({
+    url: z.url().describe("URL to fetch"),
+    timeout: z.number().min(5).max(120).default(30).describe("Request timeout in seconds (5–120, default 30)"),
+  }),
+  webSearch: z.object({
+    query: z.string().describe("Search query"),
+    maxResults: z.number().int().min(1).max(20).default(10).describe("Maximum number of results to return"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -59,6 +81,25 @@ export const readOnlyToolContracts = {
     description:
       "Search file contents with a regular expression under the current project directory.",
     inputSchema: toolInputSchemas.grep,
+  }),
+  createTodos: tool({
+    description:
+      "Create a numbered todo list to plan your approach before implementing. Call this at the start of any non-trivial task.",
+    inputSchema: toolInputSchemas.createTodos,
+  }),
+  updateTodos: tool({
+    description:
+      "Update the todo list to reflect current progress. Mark items completed as you finish them.",
+    inputSchema: toolInputSchemas.updateTodos,
+  }),
+  webFetch: tool({
+    description: "Fetch the content of a URL and return the response body as text.",
+    inputSchema: toolInputSchemas.webFetch,
+  }),
+  webSearch: tool({
+    description:
+      "Search the web using DuckDuckGo and return a list of results with title, URL, and snippet.",
+    inputSchema: toolInputSchemas.webSearch,
   }),
 } as const;
 
