@@ -58,6 +58,10 @@ export const toolInputSchemas = {
     url: z.url().describe("URL to fetch"),
     timeout: z.number().min(5).max(120).default(30).describe("Request timeout in seconds (5–120, default 30)"),
   }),
+  webSearch: z.object({
+    query: z.string().describe("Search query"),
+    maxResults: z.number().int().min(1).max(20).default(10).describe("Maximum number of results to return"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -91,6 +95,11 @@ export const readOnlyToolContracts = {
   webFetch: tool({
     description: "Fetch the content of a URL and return the response body as text.",
     inputSchema: toolInputSchemas.webFetch,
+  }),
+  webSearch: tool({
+    description:
+      "Search the web using DuckDuckGo and return a list of results with title, URL, and snippet.",
+    inputSchema: toolInputSchemas.webSearch,
   }),
 } as const;
 
