@@ -1,8 +1,13 @@
 import { MacOSScrollAccel, TextAttributes } from "@opentui/core";
 import { useMemo, type ReactNode } from "react";
+
 import { InputBar } from "./input-bar";
+import { ApprovalWidget } from "./approval-widget";
+import { AskUserWidget } from "./ask-user-widget";
 import { Spinner } from "./spinner";
 import { usePromptConfig } from "../providers/prompt-config";
+import type { ApprovalResponse, PendingApproval } from "../lib/permissions";
+import type { PendingUserQuestion } from "../hooks/use-chat";
 
 type Props = {
   children?: ReactNode;
@@ -10,6 +15,10 @@ type Props = {
   inputDisabled?: boolean;
   loading?: boolean;
   interruptible?: boolean;
+  pendingApproval?: PendingApproval | null;
+  onApprovalResponse?: (response: ApprovalResponse) => void;
+  pendingUserQuestion?: PendingUserQuestion | null;
+  onUserQuestionResponse?: (value: string | null) => void;
 };
 
 export function SessionShell({
@@ -18,6 +27,10 @@ export function SessionShell({
   inputDisabled = false,
   loading = false,
   interruptible = false,
+  pendingApproval = null,
+  onApprovalResponse,
+  pendingUserQuestion = null,
+  onUserQuestionResponse,
 }: Props) {
   const { mode } = usePromptConfig();
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
@@ -36,7 +49,13 @@ export function SessionShell({
         <box>{children}</box>
       </scrollbox>
       <box flexShrink={0}>
-        <InputBar onSubmit={onSubmit} disabled={inputDisabled} />
+        {pendingApproval && onApprovalResponse ? (
+          <ApprovalWidget approval={pendingApproval} onResponse={onApprovalResponse} />
+        ) : pendingUserQuestion && onUserQuestionResponse ? (
+          <AskUserWidget question={pendingUserQuestion} onResponse={onUserQuestionResponse} />
+        ) : (
+          <InputBar onSubmit={onSubmit} disabled={inputDisabled} />
+        )}
       </box>
       <box
         flexShrink={0}

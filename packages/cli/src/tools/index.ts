@@ -9,7 +9,7 @@ import { runWebFetch } from "./web-fetch";
 import { runWriteFile } from "./write-file";
 import { runWebSearch } from "./web-search";
 
-const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "createTodos", "updateTodos", "webFetch", "webSearch"];
+const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "createTodos", "updateTodos", "webFetch", "webSearch", "askUser"];
 
 export async function executeLocalTool(toolName: string, input: unknown, mode: ModeType) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.includes(toolName)) {
@@ -38,6 +38,7 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
     case "createTodos":
     case "updateTodos":
       return { ok: true };
+    // case "askUser": Fully handled in use-chat.ts before reaching here; this path should never run.
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }

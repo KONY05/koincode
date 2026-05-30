@@ -69,7 +69,7 @@ function SessionChat({
   const [initialMessages] = useState(() => session.messages as unknown as Message[]);
   const { mode, model } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
-  const { messages, status, wasInterrupted, submit, abort, interrupt, error } = useChat(
+  const { messages, status, wasInterrupted, pendingApproval, resolveApproval, pendingUserQuestion, resolveUserQuestion, submit, abort, interrupt, error } = useChat(
     session.id,
     initialMessages
   );
@@ -105,6 +105,10 @@ function SessionChat({
       onSubmit={(text) => submit({ userText: text, mode, model })}
       loading={status === "submitted" || status === "streaming"}
       interruptible={status === "submitted" || status === "streaming"}
+      pendingApproval={pendingApproval}
+      onApprovalResponse={resolveApproval}
+      pendingUserQuestion={pendingUserQuestion}
+      onUserQuestionResponse={resolveUserQuestion}
     >
       {messages.map((msg, i) => {
         const isLast = i === messages.length - 1;

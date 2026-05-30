@@ -62,6 +62,19 @@ export const toolInputSchemas = {
     query: z.string().describe("Search query"),
     maxResults: z.number().int().min(1).max(20).default(10).describe("Maximum number of results to return"),
   }),
+  askUser: z.object({
+    question: z.string().describe("The question to ask the user"),
+    options: z
+      .array(
+        z.object({
+          label: z.string().describe("Display text shown to the user"),
+          value: z.string().describe("Value returned when this option is selected"),
+        }),
+      )
+      .min(1)
+      .describe("Options for the user to choose from"),
+    allowFreeText: z.boolean().optional().default(false).describe("Whether to also accept a custom typed response"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -100,6 +113,11 @@ export const readOnlyToolContracts = {
     description:
       "Search the web using DuckDuckGo and return a list of results with title, URL, and snippet.",
     inputSchema: toolInputSchemas.webSearch,
+  }),
+  askUser: tool({
+    description:
+      "Ask the user a question and wait for their response. Use this when you need a decision or clarification before proceeding. Provide clear options; set allowFreeText: true if the user may need to type a custom answer.",
+    inputSchema: toolInputSchemas.askUser,
   }),
 } as const;
 
