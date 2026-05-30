@@ -17,6 +17,7 @@ import {
 } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
 import { executeLocalTool } from "../tools";
+import { runSpawnAgent } from "../tools/spawn-agent";
 import { getPermissionInfo } from "../utils/permissions";
 import {
   allowForProject,
@@ -118,6 +119,41 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     transport,
     onToolCall({ toolCall }) {
       void (async () => {
+        // spawnAgent: run a headless sub-agent and return its final text output.
+        if (toolCall.toolName === "spawnAgent") {
+          const { name, description, task, startingMode } =
+            toolInputSchemas.spawnAgent.parse(toolCall.input);
+
+          // Determine the current model from the most recent message metadata.
+          const metadata = chat.messages.findLast(
+            (m) => m.metadata?.model,
+          )?.metadata;
+          const model = metadata?.model ?? "claude-opus-4-6";
+
+          try {
+            const result = await runSpawnAgent({
+              name,
+              description,
+              task,
+              startingMode: startingMode ?? "PLAN",
+              model: String(model),
+            });
+            chat.addToolOutput({
+              tool: "spawnAgent" as keyof ChatTools,
+              toolCallId: toolCall.toolCallId,
+              output: { result },
+            });
+          } catch (error) {
+            chat.addToolOutput({
+              tool: "spawnAgent" as keyof ChatTools,
+              toolCallId: toolCall.toolCallId,
+              state: "output-error",
+              errorText: error instanceof Error ? error.message : String(error),
+            });
+          }
+          return;
+        }
+
         // askUser: show widget, return user's answer directly.
         if (toolCall.toolName === "askUser") {
           const { question, options, allowFreeText } =

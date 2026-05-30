@@ -139,6 +139,15 @@ export function BotMessage({
                     <WriteFilePreview input={part.input} pending={pending} error={errorText} colors={colors} />
                   ) : hasInput && (toolName === "createTodos" || toolName === "updateTodos") ? (
                     <TodoList input={part.input} toolName={toolName} pending={pending} colors={colors} />
+                  ) : hasInput && toolName === "spawnAgent" ? (
+                    <text attributes={TextAttributes.DIM}>
+                      <em fg={colors.info}>Subagent:</em>{" "}
+                      {(part.input as { name?: string; description?: string }).name ?? ""}{" "}
+                      —{" "}
+                      {(part.input as { name?: string; description?: string }).description ?? ""}
+                      {pending ? " …" : ""}
+                      {errorText ? ` ${errorText}` : ""}
+                    </text>
                   ) : (
                     <text attributes={TextAttributes.DIM}>
                       <em fg={colors.info}>{formatToolName(toolName)}:</em> {formatToolArgs(part)}

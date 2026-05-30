@@ -10,7 +10,7 @@ import { runWriteFile } from "./write-file";
 import { runWebSearch } from "./web-search";
 import { runMemoryAdd, runMemoryUpdate, runMemoryDelete, runMemoryList } from "./memory";
 
-const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "createTodos", "updateTodos", "webFetch", "webSearch", "askUser", "memoryAdd", "memoryUpdate", "memoryDelete", "memoryList"];
+const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "createTodos", "updateTodos", "webFetch", "webSearch", "askUser", "memoryAdd", "memoryUpdate", "memoryDelete", "memoryList", "spawnAgent"];
 
 export async function executeLocalTool(toolName: string, input: unknown, mode: ModeType) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.includes(toolName)) {

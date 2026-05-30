@@ -91,6 +91,12 @@ export const toolInputSchemas = {
     key: z.string().describe("Key of the memory to delete"),
   }),
   memoryList: z.object({}),
+  spawnAgent: z.object({
+    name: z.string().describe("Short name/identifier for this sub-agent"),
+    description: z.string().describe("Short description of what this sub-agent will do"),
+    task: z.string().describe("The full task to delegate to the sub-agent"),
+    startingMode: modeSchema.optional().default("PLAN").describe("Starting mode for the sub-agent"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -156,6 +162,11 @@ export const readOnlyToolContracts = {
   memoryList: tool({
     description: "List all stored memories.",
     inputSchema: toolInputSchemas.memoryList,
+  }),
+  spawnAgent: tool({
+    description:
+      "Spawn a sub-agent to handle a delegated subtask. The sub-agent runs its own full LLM loop (with tool calls and mode switching) and returns a final text result. Multiple sub-agents can be spawned in parallel in a single turn.",
+    inputSchema: toolInputSchemas.spawnAgent,
   }),
 } as const;
 
