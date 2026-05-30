@@ -50,6 +50,7 @@ These were scoped out and should be revisited:
 
 - **Memory tool calls** — Expose the memory CRUD routes as agent tool calls (add, update, delete, list) so the AI can manage user memory directly during a session. Routes and DB table are already implemented; only the tool contracts and CLI-side execution handlers need to be added.
 - **Compression prompt** — Implement context window compression. When conversation length approaches the model's limit, summarize completed work into a structured continuation prompt (original goal, completed actions, current state, remaining tasks, next step, key context) and replace the history. Prevents context overflow mid-task.
+- **Permissions system** — Per-command user approval flow for the bash tool. Before executing a shell command, prompt the user to allow/deny (with optional "always allow" for a pattern). Builds on the blocked-commands foundation already in `packages/cli/src/tools/bash.ts`.
 
 ## Open Questions
 
