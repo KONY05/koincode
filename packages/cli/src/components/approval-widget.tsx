@@ -5,7 +5,7 @@ import { useKeyboard } from "@opentui/react";
 import { useTheme } from "../providers/theme";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { EmptyBorder } from "./border";
-import type { ApprovalResponse, PendingApproval } from "../lib/permissions";
+import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
 
 type Option = {
   response: ApprovalResponse;

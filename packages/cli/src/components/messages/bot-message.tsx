@@ -6,7 +6,7 @@ import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 import type { Message } from "../../hooks/use-chat";
 import { Mode, type ModeType } from "@koincode/shared";
-import { createMarkdownSyntaxStyle } from "../../lib/syntax-style";
+import { createMarkdownSyntaxStyle } from "../../utils/syntax-style";
 import EditFileDiff from "../tool-view/edit-file";
 import WriteFilePreview from "../tool-view/write-file";
 import TodoList from "../tool-view/todo-list";

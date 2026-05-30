@@ -10,6 +10,7 @@
     "link:cli": "bun run build:cli && cd packages/cli && bun link",
     "db:migrate": "bun run --cwd packages/database db:migrate",
     "db:studio": "bun run --cwd packages/database db:studio",
+    "typecheck": "bun run --cwd packages/shared tsc --noEmit && bun run --cwd packages/cli tsc --noEmit && bun run --cwd packages/server tsc --noEmit",
     "lint": "eslint packages/",
     "lint:fix": "eslint packages/ --fix"
   },

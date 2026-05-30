@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import type { PermissionKey } from "./permissions";
+import type { PermissionKey } from "../utils/permissions";
 
 type ProjectConfig = {
   permissions?: Partial<Record<PermissionKey, "allowed">>;

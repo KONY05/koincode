@@ -6,7 +6,7 @@ import { ApprovalWidget } from "./approval-widget";
 import { AskUserWidget } from "./ask-user-widget";
 import { Spinner } from "./spinner";
 import { usePromptConfig } from "../providers/prompt-config";
-import type { ApprovalResponse, PendingApproval } from "../lib/permissions";
+import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
 import type { PendingUserQuestion } from "../hooks/use-chat";
 
 type Props = {
@@ -45,14 +45,26 @@ export function SessionShell({
       paddingX={2}
       gap={1}
     >
-      <scrollbox flexGrow={1} width="100%" stickyScroll stickyStart="bottom" scrollAcceleration={scrollAccel}>
+      <scrollbox
+        flexGrow={1}
+        width="100%"
+        stickyScroll
+        stickyStart="bottom"
+        scrollAcceleration={scrollAccel}
+      >
         <box>{children}</box>
       </scrollbox>
       <box flexShrink={0}>
         {pendingApproval && onApprovalResponse ? (
-          <ApprovalWidget approval={pendingApproval} onResponse={onApprovalResponse} />
+          <ApprovalWidget
+            approval={pendingApproval}
+            onResponse={onApprovalResponse}
+          />
         ) : pendingUserQuestion && onUserQuestionResponse ? (
-          <AskUserWidget question={pendingUserQuestion} onResponse={onUserQuestionResponse} />
+          <AskUserWidget
+            question={pendingUserQuestion}
+            onResponse={onUserQuestionResponse}
+          />
         ) : (
           <InputBar onSubmit={onSubmit} disabled={inputDisabled} />
         )}
@@ -96,4 +108,4 @@ export function SessionShell({
       </box>
     </box>
   );
-};
+}

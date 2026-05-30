@@ -16,9 +16,13 @@ import {
 } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
 import { executeLocalTool } from "../tools";
-import { getPermissionInfo } from "../lib/permissions";
-import { allowForProject, isPermittedForProject, readProjectConfig } from "../lib/project-config";
-import type { ApprovalResponse, PendingApproval } from "../lib/permissions";
+import { getPermissionInfo } from "../utils/permissions";
+import {
+  allowForProject,
+  isPermittedForProject,
+  readProjectConfig,
+} from "../utils/project-config";
+import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
 
 export type { ApprovalResponse, PendingApproval };
 
@@ -39,11 +43,17 @@ export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
 export function useChat(sessionId: string, initialMessages: Message[]) {
   const [wasInterrupted, setWasInterrupted] = useState(false);
-  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
-  const [pendingUserQuestion, setPendingUserQuestion] = useState<PendingUserQuestion | null>(null);
+  const [pendingApproval, setPendingApproval] =
+    useState<PendingApproval | null>(null);
+  const [pendingUserQuestion, setPendingUserQuestion] =
+    useState<PendingUserQuestion | null>(null);
 
-  const resolveApprovalRef = useRef<((r: ApprovalResponse) => void) | null>(null);
-  const resolveUserQuestionRef = useRef<((value: string | null) => void) | null>(null);
+  const resolveApprovalRef = useRef<((r: ApprovalResponse) => void) | null>(
+    null,
+  );
+  const resolveUserQuestionRef = useRef<
+    ((value: string | null) => void) | null
+  >(null);
   // Shared mutex — serializes approvals and askUser questions so only one widget shows at a time.
   const interactionMutexRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -85,7 +95,8 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
 
         // askUser: model-initiated question — show widget, return user's answer directly.
         if (toolCall.toolName === "askUser") {
-          const { question, options, allowFreeText } = toolInputSchemas.askUser.parse(toolCall.input);
+          const { question, options, allowFreeText } =
+            toolInputSchemas.askUser.parse(toolCall.input);
 
           const answerPromise = new Promise<string | null>((outerResolve) => {
             interactionMutexRef.current = interactionMutexRef.current
@@ -96,7 +107,11 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
                       outerResolve(value);
                       releaseMutex();
                     };
-                    setPendingUserQuestion({ question, options, allowFreeText: allowFreeText ?? false });
+                    setPendingUserQuestion({
+                      question,
+                      options,
+                      allowFreeText: allowFreeText ?? false,
+                    });
                   }),
               )
               .then(() => {
@@ -118,7 +133,11 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
         // Permission gate for all other tools.
         const extraPatterns = readProjectConfig().sensitivePatterns ?? [];
         // checks if incoming tool call requires approval
-        const permInfo = getPermissionInfo(toolCall.toolName, toolCall.input, extraPatterns);
+        const permInfo = getPermissionInfo(
+          toolCall.toolName,
+          toolCall.input,
+          extraPatterns,
+        );
 
         // checks if tool requires approval and is not permitted for this project
         if (permInfo.requiresApproval && !isPermittedForProject(permInfo.key)) {
@@ -132,24 +151,26 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
           // NOTE: .then is used here (not async/await) because the mutex read-and-update
           // must be atomic. Awaiting inside the Promise constructor would introduce a race
           // if two tool calls arrive in the same tick.
-          const responsePromise = new Promise<ApprovalResponse>((outerResolve) => {
-            interactionMutexRef.current = interactionMutexRef.current
-              .then(
-                () =>
-                  // Only runs when the previous approval is done
-                  new Promise<void>((releaseMutex) => {
-                    resolveApprovalRef.current = (r) => {
-                      outerResolve(r); // resolves the response for the awaiting onToolCall
-                      releaseMutex(); // releases the mutex, allowing the next approval to proceed
-                    };
-                    setPendingApproval(approval); // shows the widget
-                  }),
-              )
-              .then(() => {
-                setPendingApproval(null); // hides the widget after mutex releases
-                resolveApprovalRef.current = null;
-              });
-          });
+          const responsePromise = new Promise<ApprovalResponse>(
+            (outerResolve) => {
+              interactionMutexRef.current = interactionMutexRef.current
+                .then(
+                  () =>
+                    // Only runs when the previous approval is done
+                    new Promise<void>((releaseMutex) => {
+                      resolveApprovalRef.current = (r) => {
+                        outerResolve(r); // resolves the response for the awaiting onToolCall
+                        releaseMutex(); // releases the mutex, allowing the next approval to proceed
+                      };
+                      setPendingApproval(approval); // shows the widget
+                    }),
+                )
+                .then(() => {
+                  setPendingApproval(null); // hides the widget after mutex releases
+                  resolveApprovalRef.current = null;
+                });
+            },
+          );
 
           const response = await responsePromise;
 
@@ -168,7 +189,11 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
         }
 
         try {
-          const output = await executeLocalTool(toolCall.toolName, toolCall.input, mode);
+          const output = await executeLocalTool(
+            toolCall.toolName,
+            toolCall.input,
+            mode,
+          );
           chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
             toolCallId: toolCall.toolCallId,
@@ -204,7 +229,11 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     resolveApproval,
     pendingUserQuestion,
     resolveUserQuestion,
-    submit: (params: { userText: string; mode: ModeType; model: SupportedChatModelId }) => {
+    submit: (params: {
+      userText: string;
+      mode: ModeType;
+      model: SupportedChatModelId;
+    }) => {
       setWasInterrupted(false);
       return chat.sendMessage({
         text: params.userText,
