@@ -43,7 +43,7 @@ export const toolInputSchemas = {
     oldString: z.string().describe("Exact text to replace; must be unique"),
     newString: z.string().describe("Replacement text"),
   }),
-  bash: z.object({
+  shell: z.object({
     command: z.string().describe("Shell command to run"),
     description: z.string().optional().describe("Short description of the command"),
     timeout: z.number().optional().describe("Timeout in milliseconds"),
@@ -113,9 +113,9 @@ export const buildToolContracts = {
     description: "Replace exact text in a file under the current project directory.",
     inputSchema: toolInputSchemas.editFile,
   }),
-  bash: tool({
+  shell: tool({
     description: "Run a shell command in the current project directory.",
-    inputSchema: toolInputSchemas.bash,
+    inputSchema: toolInputSchemas.shell,
   }),
 } as const;
 

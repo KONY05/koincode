@@ -1,5 +1,5 @@
 import { Mode, type ModeType } from "@koincode/shared";
-import { runBash } from "./bash";
+import { runShellCommand } from "./shell";
 import { runEditFile } from "./edit-file";
 import { runGlob } from "./glob";
 import { runGrep } from "./grep";
@@ -29,8 +29,8 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
       return runWriteFile(input);
     case "editFile":
       return runEditFile(input);
-    case "bash":
-      return runBash(input);
+    case "shell":
+      return runShellCommand(input);
     case "webFetch":
       return runWebFetch(input);
     case "webSearch":
