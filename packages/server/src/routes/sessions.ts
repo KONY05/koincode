@@ -18,7 +18,7 @@ const createSessionValidator = zValidator(
 const app = new Hono()
   .get("/", async (c) => {
     const sessions = await db.session.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: { updatedAt: "desc" },
       select: {
         id: true,
         title: true,

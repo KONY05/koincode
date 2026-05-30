@@ -8,8 +8,9 @@ import { runReadFile } from "./read-file";
 import { runWebFetch } from "./web-fetch";
 import { runWriteFile } from "./write-file";
 import { runWebSearch } from "./web-search";
+import { runMemoryAdd, runMemoryUpdate, runMemoryDelete, runMemoryList } from "./memory";
 
-const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "createTodos", "updateTodos", "webFetch", "webSearch", "askUser"];
+const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "createTodos", "updateTodos", "webFetch", "webSearch", "askUser", "memoryAdd", "memoryUpdate", "memoryDelete", "memoryList"];
 
 export async function executeLocalTool(toolName: string, input: unknown, mode: ModeType) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.includes(toolName)) {
@@ -38,6 +39,14 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
     case "createTodos":
     case "updateTodos":
       return { ok: true };
+    case "memoryAdd":
+      return runMemoryAdd(input);
+    case "memoryUpdate":
+      return runMemoryUpdate(input);
+    case "memoryDelete":
+      return runMemoryDelete(input);
+    case "memoryList":
+      return runMemoryList(input);
     // These are fully handled in use-chat.ts before reaching here; these paths should never run.
     // case "askUser":
     // case "switchMode":

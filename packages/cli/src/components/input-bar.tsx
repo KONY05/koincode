@@ -4,11 +4,13 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { useRef, useState, useCallback, useEffect, type RefObject } from "react";
 
 import { TextAttributes } from "@opentui/core";
-
+import type { PasteEvent } from "@opentui/core";
+import { decodePasteBytes } from "@opentui/core";
 import type { TextareaRenderable, ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useRenderer } from "@opentui/react";
 import type { KeyBinding } from "@opentui/core";
 import { useNavigate } from "react-router";
+
 import { EmptyBorder } from "./border";
 import { StatusBar } from "./status-bar";
 import { CommandMenu } from "./command-menu";
@@ -23,6 +25,10 @@ import { Mode } from "@koincode/shared";
 
 const MAX_VISIBLE_MENTIONS = 8;
 const CURRENT_DIRECTORY = process.cwd();
+const PASTE_THRESHOLD_LINES = 5;
+const PASTE_THRESHOLD_CHARS = 200;
+// Matches placeholders inserted for long pastes, e.g. [paste:p1: 12 lines]
+const PASTE_PLACEHOLDER_RE = /\[paste:(p\d+): [^\]]+\]/g;
 const MAX_FALLBACK_MENTION_CANDIDATES = 32;
 const MENTION_QUERY_CHARACTER = /[A-Za-z0-9._/-]/;
 const RECURSIVE_MENTION_IGNORED_DIRECTORIES = new Set(["node_modules"]);
@@ -284,6 +290,8 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   const undoStackRef = useRef<string[]>([]);
   const prevTextRef = useRef("");
   const skipUndoRef = useRef(false);
+  const pasteCounterRef = useRef(0);
+  const pasteContentRef = useRef<Map<string, string>>(new Map());
 
   const renderer = useRenderer();
   const navigate = useNavigate();
@@ -358,14 +366,23 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     syncMentionMenu(text, textarea.cursorOffset);
   }, [handleContentChange, syncMentionMenu]);
 
+  const expandPastes = useCallback((raw: string): string => {
+    return raw.replace(PASTE_PLACEHOLDER_RE, (_, id: string) => {
+      return pasteContentRef.current.get(id) ?? "";
+    });
+  }, []);
+
   const handleSubmit = useCallback(() => {
     if (disabled) return;
 
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    const text = textarea.plainText.trim();
-    if (text.length === 0) return;
+    const raw = textarea.plainText.trim();
+    if (raw.length === 0) return;
+
+    const text = expandPastes(raw);
+    pasteContentRef.current.clear();
 
     historyRef.current = [text, ...historyRef.current.filter((h) => h !== text)];
     historyIndexRef.current = -1;
@@ -376,7 +393,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     skipUndoRef.current = true;
     textarea.setText("");
     skipUndoRef.current = false;
-  }, [disabled, onSubmit])
+  }, [disabled, onSubmit, expandPastes])
 
   const handleMentionExecute = useCallback((index: number) => {
     const textarea = textareaRef.current;
@@ -598,6 +615,39 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
 
     return () => setResponder("base", null);
   }, [disabled, renderer, setResponder]);
+
+  // Intercept long pastes: store full content and insert a short placeholder instead.
+  useEffect(() => {
+    const internalKeyInput = renderer._internalKeyInput;
+
+    const handlePaste = (event: PasteEvent) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const text = decodePasteBytes(event.bytes);
+      const lines = text.split("\n");
+      const isLong =
+        lines.length > PASTE_THRESHOLD_LINES ||
+        text.length > PASTE_THRESHOLD_CHARS;
+
+      if (!isLong) return;
+
+      event.preventDefault();
+
+      const id = `p${++pasteCounterRef.current}`;
+      pasteContentRef.current.set(id, text);
+
+      const label =
+        lines.length > PASTE_THRESHOLD_LINES
+          ? `${lines.length} lines`
+          : `${text.length} chars`;
+
+      textarea.insertText(`[paste:${id}: ${label}]`);
+    };
+
+    internalKeyInput.onInternal("paste", handlePaste);
+    return () => internalKeyInput.offInternal("paste", handlePaste);
+  }, [renderer]);
 
   useKeyboard((key) => {
     if (disabled) return;

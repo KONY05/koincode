@@ -79,6 +79,18 @@ export const toolInputSchemas = {
     target: modeSchema.describe("The mode to switch into"),
     reason: z.string().describe("Short explanation of why the switch is needed"),
   }),
+  memoryAdd: z.object({
+    key: z.string().describe("Unique identifier for this memory"),
+    value: z.string().describe("Content to remember"),
+  }),
+  memoryUpdate: z.object({
+    key: z.string().describe("Key of the memory to update"),
+    value: z.string().describe("New content to store"),
+  }),
+  memoryDelete: z.object({
+    key: z.string().describe("Key of the memory to delete"),
+  }),
+  memoryList: z.object({}),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -127,6 +139,23 @@ export const readOnlyToolContracts = {
     description:
       "Switch between PLAN (read-only analysis) and BUILD (file editing and shell) modes. Use when the task requires capabilities not available in the current mode. No-op if already in the target mode.",
     inputSchema: toolInputSchemas.switchMode,
+  }),
+  memoryAdd: tool({
+    description:
+      "Save a new memory with a unique key. Use this to remember facts, preferences, or context that should persist across sessions.",
+    inputSchema: toolInputSchemas.memoryAdd,
+  }),
+  memoryUpdate: tool({
+    description: "Update the value of an existing memory by key.",
+    inputSchema: toolInputSchemas.memoryUpdate,
+  }),
+  memoryDelete: tool({
+    description: "Delete a memory by key.",
+    inputSchema: toolInputSchemas.memoryDelete,
+  }),
+  memoryList: tool({
+    description: "List all stored memories.",
+    inputSchema: toolInputSchemas.memoryList,
   }),
 } as const;
 
