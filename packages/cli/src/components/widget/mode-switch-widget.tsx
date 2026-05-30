@@ -2,40 +2,41 @@ import { useEffect, useState } from "react";
 import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 
-import { useTheme } from "../providers/theme";
-import { useKeyboardLayer } from "../providers/keyboard-layer";
-import { EmptyBorder } from "./border";
-import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
+import { useTheme } from "../../providers/theme";
+import { useKeyboardLayer } from "../../providers/keyboard-layer";
+import { EmptyBorder } from "../border";
+
+export type PendingModeSwitch = {
+  target: "BUILD";
+  reason: string;
+};
+
+export type ModeSwitchResponse =
+  | { type: "allow-once" }
+  | { type: "always-allow" }
+  | { type: "deny" };
 
 type Option = {
-  response: ApprovalResponse;
+  response: ModeSwitchResponse;
   label: string;
   shortcut: string;
 };
 
 const OPTIONS: Option[] = [
   { response: { type: "allow-once" }, label: "Allow once", shortcut: "1" },
-  {
-    response: { type: "allow-for-project" },
-    label: "Allow for project",
-    shortcut: "2",
-  },
+  { response: { type: "always-allow" }, label: "Always allow (set to auto)", shortcut: "2" },
   { response: { type: "deny" }, label: "Deny", shortcut: "3" },
 ];
 
 type Props = {
-  approval: PendingApproval;
-  onResponse: (response: ApprovalResponse) => void;
+  pending: PendingModeSwitch;
+  onResponse: (response: ModeSwitchResponse) => void;
 };
 
-export function ApprovalWidget({ approval, onResponse }: Props) {
+export function ModeSwitchWidget({ pending, onResponse }: Props) {
   const { colors } = useTheme();
   const { push, pop, isTopLayer } = useKeyboardLayer();
   const [selectedIndex, setSelectedIndex] = useState(0);
-
-  const borderColor =
-    approval.tier === "destructive" ? colors.error : colors.primary;
-  const icon = approval.tier === "destructive" ? "!" : "?";
 
   const confirm = (index: number) => {
     const opt = OPTIONS[index];
@@ -43,15 +44,15 @@ export function ApprovalWidget({ approval, onResponse }: Props) {
   };
 
   useEffect(() => {
-    push("approval", () => {
+    push("mode-switch", () => {
       onResponse({ type: "deny" });
       return true;
     });
-    return () => pop("approval");
+    return () => pop("mode-switch");
   }, [onResponse, pop, push]);
 
   useKeyboard((key) => {
-    if (!isTopLayer("approval")) return;
+    if (!isTopLayer("mode-switch")) return;
 
     if (key.name === "escape") {
       key.preventDefault();
@@ -81,7 +82,7 @@ export function ApprovalWidget({ approval, onResponse }: Props) {
     <box width="100%" alignItems="center">
       <box
         border={["left"]}
-        borderColor={borderColor}
+        borderColor={colors.primary}
         customBorderChars={{
           ...EmptyBorder,
           vertical: "┃",
@@ -96,20 +97,16 @@ export function ApprovalWidget({ approval, onResponse }: Props) {
           width="100%"
           gap={1}
         >
-          {/* Header: icon + label + permission key */}
           <box flexDirection="row" gap={2} alignItems="center">
-            <text fg={borderColor} attributes={TextAttributes.BOLD}>
-              {icon} {approval.label}
+            <text fg={colors.primary} attributes={TextAttributes.BOLD}>
+              ⚡ Switch to BUILD mode?
             </text>
-            <text fg={colors.dimSeparator}>{approval.key}</text>
           </box>
 
-          {/* Command / path being requested */}
           <box>
-            <text fg="gray">$ {approval.description}</text>
+            <text fg="gray">{pending.reason}</text>
           </box>
 
-          {/* Option list */}
           <box gap={0}>
             {OPTIONS.map((opt, i) => {
               const isSelected = i === selectedIndex;

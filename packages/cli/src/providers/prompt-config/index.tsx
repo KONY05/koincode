@@ -15,6 +15,8 @@ type PromptConfigContextValue = {
   setMode: (mode: ModeType) => void;
   model: SupportedChatModelId;
   setModel: (model: SupportedChatModelId) => void;
+  autoModeSwitch: "confirm" | "auto";
+  setAutoModeSwitch: (v: "confirm" | "auto") => void;
 };
 
 const PromptConfigContext = createContext<PromptConfigContextValue | null>(
@@ -46,6 +48,9 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   const [mode, setMode] = useState<ModeType>(Mode.BUILD);
   const [model, setModelState] =
     useState<SupportedChatModelId>(resolveInitialModel);
+  const [autoModeSwitch, setAutoModeSwitchState] = useState<"confirm" | "auto">(
+    () => readConfig().autoModeSwitch ?? "confirm",
+  );
 
   const toggleMode = useCallback(() => {
     setMode((m) => (m === Mode.BUILD ? Mode.PLAN : Mode.BUILD));
@@ -56,9 +61,14 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     updateConfig({ defaultModel: m });
   }, []);
 
+  const setAutoModeSwitch = useCallback((v: "confirm" | "auto") => {
+    setAutoModeSwitchState(v);
+    updateConfig({ autoModeSwitch: v });
+  }, []);
+
   return (
     <PromptConfigContext.Provider
-      value={{ mode, toggleMode, setMode, model, setModel }}
+      value={{ mode, toggleMode, setMode, model, setModel, autoModeSwitch, setAutoModeSwitch }}
     >
       {children}
     </PromptConfigContext.Provider>

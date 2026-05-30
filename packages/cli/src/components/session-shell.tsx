@@ -2,8 +2,10 @@ import { MacOSScrollAccel, TextAttributes } from "@opentui/core";
 import { useMemo, type ReactNode } from "react";
 
 import { InputBar } from "./input-bar";
-import { ApprovalWidget } from "./approval-widget";
-import { AskUserWidget } from "./ask-user-widget";
+import { ApprovalWidget } from "./widget/approval-widget";
+import { AskUserWidget } from "./widget/ask-user-widget";
+import { ModeSwitchWidget } from "./widget/mode-switch-widget";
+import type { PendingModeSwitch, ModeSwitchResponse } from "./widget/mode-switch-widget";
 import { Spinner } from "./spinner";
 import { usePromptConfig } from "../providers/prompt-config";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
@@ -19,6 +21,8 @@ type Props = {
   onApprovalResponse?: (response: ApprovalResponse) => void;
   pendingUserQuestion?: PendingUserQuestion | null;
   onUserQuestionResponse?: (value: string | null) => void;
+  pendingModeSwitch?: PendingModeSwitch | null;
+  onModeSwitchResponse?: (response: ModeSwitchResponse) => void;
 };
 
 export function SessionShell({
@@ -31,6 +35,8 @@ export function SessionShell({
   onApprovalResponse,
   pendingUserQuestion = null,
   onUserQuestionResponse,
+  pendingModeSwitch = null,
+  onModeSwitchResponse,
 }: Props) {
   const { mode } = usePromptConfig();
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
@@ -59,6 +65,11 @@ export function SessionShell({
           <ApprovalWidget
             approval={pendingApproval}
             onResponse={onApprovalResponse}
+          />
+        ) : pendingModeSwitch && onModeSwitchResponse ? (
+          <ModeSwitchWidget
+            pending={pendingModeSwitch}
+            onResponse={onModeSwitchResponse}
           />
         ) : pendingUserQuestion && onUserQuestionResponse ? (
           <AskUserWidget

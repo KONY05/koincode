@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat as useAiChat } from "@ai-sdk/react";
 import {
   DefaultChatTransport,
@@ -9,6 +9,7 @@ import {
 
 import {
   type ChatMessageMetadata,
+  Mode,
   type ModeType,
   type SupportedChatModelId,
   type ToolContracts,
@@ -22,14 +23,20 @@ import {
   isPermittedForProject,
   readProjectConfig,
 } from "../utils/project-config";
+import { usePromptConfig } from "../providers/prompt-config";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
-
-export type { ApprovalResponse, PendingApproval };
+import type { PendingModeSwitch, ModeSwitchResponse } from "../components/widget/mode-switch-widget";
 
 export type PendingUserQuestion = {
   question: string;
   options: { label: string; value: string }[];
   allowFreeText: boolean;
+};
+
+export type SystemEvent = {
+  id: string;
+  text: string;
+  afterMessageCount: number;
 };
 
 type ChatTools = {
@@ -42,11 +49,16 @@ type ChatTools = {
 export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
 export function useChat(sessionId: string, initialMessages: Message[]) {
+  const { mode, setMode, autoModeSwitch, setAutoModeSwitch } = usePromptConfig();
+
   const [wasInterrupted, setWasInterrupted] = useState(false);
   const [pendingApproval, setPendingApproval] =
     useState<PendingApproval | null>(null);
   const [pendingUserQuestion, setPendingUserQuestion] =
     useState<PendingUserQuestion | null>(null);
+  const [pendingModeSwitch, setPendingModeSwitch] =
+    useState<PendingModeSwitch | null>(null);
+  const [systemEvents, setSystemEvents] = useState<SystemEvent[]>([]);
 
   const resolveApprovalRef = useRef<((r: ApprovalResponse) => void) | null>(
     null,
@@ -54,8 +66,23 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
   const resolveUserQuestionRef = useRef<
     ((value: string | null) => void) | null
   >(null);
-  // Shared mutex — serializes approvals and askUser questions so only one widget shows at a time.
+  const resolveModeSwitchRef = useRef<((r: ModeSwitchResponse) => void) | null>(
+    null,
+  );
+
+  // Shared mutex — serializes approvals, askUser, and mode switch widgets so only one shows at a time.
   const interactionMutexRef = useRef<Promise<void>>(Promise.resolve());
+
+  // Tracks the effective mode synchronously across tool calls within a streaming turn.
+  const currentModeRef = useRef<ModeType>(mode);
+  const autoModeSwitchRef = useRef(autoModeSwitch);
+  const setModeRef = useRef(setMode);
+  const setAutoModeSwitchRef = useRef(setAutoModeSwitch);
+
+  useEffect(() => { currentModeRef.current = mode; }, [mode]);
+  useEffect(() => { autoModeSwitchRef.current = autoModeSwitch; }, [autoModeSwitch]);
+  useEffect(() => { setModeRef.current = setMode; }, [setMode]);
+  useEffect(() => { setAutoModeSwitchRef.current = setAutoModeSwitch; }, [setAutoModeSwitch]);
 
   const transport = useMemo(() => {
     return new DefaultChatTransport<Message>({
@@ -91,9 +118,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     transport,
     onToolCall({ toolCall }) {
       void (async () => {
-        const mode = chat.messages.at(-1)?.metadata?.mode ?? "BUILD";
-
-        // askUser: model-initiated question — show widget, return user's answer directly.
+        // askUser: show widget, return user's answer directly.
         if (toolCall.toolName === "askUser") {
           const { question, options, allowFreeText } =
             toolInputSchemas.askUser.parse(toolCall.input);
@@ -130,6 +155,94 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
           return;
         }
 
+        // switchMode: autonomous mode switching.
+        if (toolCall.toolName === "switchMode") {
+          const { target, reason } = toolInputSchemas.switchMode.parse(toolCall.input);
+
+          // Same-mode guard — no-op.
+          if (currentModeRef.current === target) {
+            chat.addToolOutput({
+              tool: "switchMode" as keyof ChatTools,
+              toolCallId: toolCall.toolCallId,
+              output: { result: `already in ${target} mode` },
+            });
+            return;
+          }
+
+          // BUILD → PLAN or auto config → switch silently.
+          if (target === Mode.PLAN || autoModeSwitchRef.current === "auto") {
+            setModeRef.current(target);
+            currentModeRef.current = target;
+            setSystemEvents((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                text: `Switched to ${target} mode`,
+                afterMessageCount: chat.messages.length,
+              },
+            ]);
+            chat.addToolOutput({
+              tool: "switchMode" as keyof ChatTools,
+              toolCallId: toolCall.toolCallId,
+              output: { result: `switched to ${target} mode` },
+            });
+            return;
+          }
+
+          // PLAN → BUILD with confirm — show ModeSwitchWidget.
+          const responsePromise = new Promise<ModeSwitchResponse>(
+            (outerResolve) => {
+              interactionMutexRef.current = interactionMutexRef.current
+                .then(
+                  () =>
+                    new Promise<void>((releaseMutex) => {
+                      resolveModeSwitchRef.current = (r) => {
+                        outerResolve(r);
+                        releaseMutex();
+                      };
+                      setPendingModeSwitch({ target, reason });
+                    }),
+                )
+                .then(() => {
+                  setPendingModeSwitch(null);
+                  resolveModeSwitchRef.current = null;
+                });
+            },
+          );
+
+          const response = await responsePromise;
+
+          if (response.type === "deny") {
+            chat.addToolOutput({
+              tool: "switchMode" as keyof ChatTools,
+              toolCallId: toolCall.toolCallId,
+              output: { denied: true, reason: "User declined the mode switch" },
+            });
+            return;
+          }
+
+          if (response.type === "always-allow") {
+            setAutoModeSwitchRef.current("auto");
+          }
+
+          setModeRef.current(target);
+          currentModeRef.current = target;
+          setSystemEvents((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              text: `Switched to ${target} mode`,
+              afterMessageCount: chat.messages.length,
+            },
+          ]);
+          chat.addToolOutput({
+            tool: "switchMode" as keyof ChatTools,
+            toolCallId: toolCall.toolCallId,
+            output: { result: `switched to ${target} mode` },
+          });
+          return;
+        }
+
         // Permission gate for all other tools.
         const extraPatterns = readProjectConfig().sensitivePatterns ?? [];
         // checks if incoming tool call requires approval
@@ -159,10 +272,10 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
                     // Only runs when the previous approval is done
                     new Promise<void>((releaseMutex) => {
                       resolveApprovalRef.current = (r) => {
-                        outerResolve(r); // resolves the response for the awaiting onToolCall
-                        releaseMutex(); // releases the mutex, allowing the next approval to proceed
+                        outerResolve(r);
+                        releaseMutex();
                       };
-                      setPendingApproval(approval); // shows the widget
+                      setPendingApproval(approval);
                     }),
                 )
                 .then(() => {
@@ -192,7 +305,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
           const output = await executeLocalTool(
             toolCall.toolName,
             toolCall.input,
-            mode,
+            currentModeRef.current,
           );
           chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
@@ -220,6 +333,10 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     resolveUserQuestionRef.current?.(value);
   }, []);
 
+  const resolveModeSwitch = useCallback((response: ModeSwitchResponse) => {
+    resolveModeSwitchRef.current?.(response);
+  }, []);
+
   return {
     messages: chat.messages,
     status: chat.status,
@@ -229,6 +346,9 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     resolveApproval,
     pendingUserQuestion,
     resolveUserQuestion,
+    pendingModeSwitch,
+    resolveModeSwitch,
+    systemEvents,
     submit: (params: {
       userText: string;
       mode: ModeType;

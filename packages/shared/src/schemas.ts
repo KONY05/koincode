@@ -75,6 +75,10 @@ export const toolInputSchemas = {
       .describe("Options for the user to choose from"),
     allowFreeText: z.boolean().optional().default(false).describe("Whether to also accept a custom typed response"),
   }),
+  switchMode: z.object({
+    target: modeSchema.describe("The mode to switch into"),
+    reason: z.string().describe("Short explanation of why the switch is needed"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -118,6 +122,11 @@ export const readOnlyToolContracts = {
     description:
       "Ask the user a question and wait for their response. Use this when you need a decision or clarification before proceeding. Provide clear options; set allowFreeText: true if the user may need to type a custom answer.",
     inputSchema: toolInputSchemas.askUser,
+  }),
+  switchMode: tool({
+    description:
+      "Switch between PLAN (read-only analysis) and BUILD (file editing and shell) modes. Use when the task requires capabilities not available in the current mode. No-op if already in the target mode.",
+    inputSchema: toolInputSchemas.switchMode,
   }),
 } as const;
 

@@ -38,7 +38,9 @@ export async function executeLocalTool(toolName: string, input: unknown, mode: M
     case "createTodos":
     case "updateTodos":
       return { ok: true };
-    // case "askUser": Fully handled in use-chat.ts before reaching here; this path should never run.
+    // These are fully handled in use-chat.ts before reaching here; these paths should never run.
+    // case "askUser":
+    // case "switchMode":
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }

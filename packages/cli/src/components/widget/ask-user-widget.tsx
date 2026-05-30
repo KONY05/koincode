@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import type { TextareaRenderable } from "@opentui/core";
-import { useTheme } from "../providers/theme";
-import { useKeyboardLayer } from "../providers/keyboard-layer";
-import { EmptyBorder } from "./border";
-import type { PendingUserQuestion } from "../hooks/use-chat";
+import { useTheme } from "../../providers/theme";
+import { useKeyboardLayer } from "../../providers/keyboard-layer";
+import { EmptyBorder } from "../border";
+import type { PendingUserQuestion } from "../../hooks/use-chat";
 
 type Props = {
   question: PendingUserQuestion;
@@ -135,7 +135,11 @@ export function AskUserWidget({ question, onResponse }: Props) {
 
                 return (
                   <box
-                    key={opt.value === "__free_text__" ? "__free_text__" : opt.value}
+                    key={
+                      opt.value === "__free_text__"
+                        ? "__free_text__"
+                        : opt.value
+                    }
                     flexDirection="row"
                     gap={1}
                     height={1}
@@ -148,7 +152,10 @@ export function AskUserWidget({ question, onResponse }: Props) {
                       }
                     }}
                   >
-                    <text fg={fg} attributes={isSelected ? TextAttributes.BOLD : undefined}>
+                    <text
+                      fg={fg}
+                      attributes={isSelected ? TextAttributes.BOLD : undefined}
+                    >
                       {isSelected ? "›" : " "} [{shortcut}]
                     </text>
                     <text
