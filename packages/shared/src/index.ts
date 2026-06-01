@@ -13,6 +13,8 @@ export {
   modeSchema,
   toolInputSchemas,
   getToolContracts,
+  readOnlyToolContracts,
+  buildToolContracts,
   type ToolContracts,
   type ModeType,
   type TodoItem,

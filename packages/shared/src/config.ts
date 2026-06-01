@@ -9,4 +9,5 @@ export type KoincodeConfig = {
   themeName?: string;
   defaultModel?: string;
   apiKeys?: ApiKeys;
+  autoModeSwitch?: "confirm" | "auto";
 };

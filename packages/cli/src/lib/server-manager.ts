@@ -2,7 +2,7 @@ import { spawn, execSync } from "child_process";
 import path from "path";
 import fs from "fs";
 import { CONFIG_DIR, PID_FILE, SERVER_PORT } from "@koincode/shared";
-import { readConfig } from "./config";
+import { readConfig } from "../utils/config";
 
 const LOG_FILE = `${CONFIG_DIR}/server.log`;
 
@@ -16,7 +16,9 @@ const SERVER_ENTRY = isDev
 
 function killPortIfInUse(): void {
   try {
-    execSync(`lsof -ti tcp:${SERVER_PORT} | xargs kill -9`, { stdio: "ignore" });
+    execSync(`lsof -ti tcp:${SERVER_PORT} | xargs kill -9`, {
+      stdio: "ignore",
+    });
   } catch {
     // Nothing was using the port — that's fine.
   }
@@ -62,10 +64,16 @@ function spawnServer() {
       PORT: String(SERVER_PORT),
       NODE_ENV: process.env.NODE_ENV ?? "production",
       // Config file keys take precedence over shell env vars
-      ...(config.apiKeys?.anthropic  && { ANTHROPIC_API_KEY: config.apiKeys.anthropic }),
-      ...(config.apiKeys?.openai     && { OPENAI_API_KEY: config.apiKeys.openai }),
-      ...(config.apiKeys?.gemini     && { GOOGLE_GENERATIVE_AI_API_KEY: config.apiKeys.gemini }),
-      ...(config.apiKeys?.openrouter && { OPENROUTER_API_KEY: config.apiKeys.openrouter }),
+      ...(config.apiKeys?.anthropic && {
+        ANTHROPIC_API_KEY: config.apiKeys.anthropic,
+      }),
+      ...(config.apiKeys?.openai && { OPENAI_API_KEY: config.apiKeys.openai }),
+      ...(config.apiKeys?.gemini && {
+        GOOGLE_GENERATIVE_AI_API_KEY: config.apiKeys.gemini,
+      }),
+      ...(config.apiKeys?.openrouter && {
+        OPENROUTER_API_KEY: config.apiKeys.openrouter,
+      }),
     },
   });
 

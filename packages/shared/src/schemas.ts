@@ -62,6 +62,41 @@ export const toolInputSchemas = {
     query: z.string().describe("Search query"),
     maxResults: z.number().int().min(1).max(20).default(10).describe("Maximum number of results to return"),
   }),
+  askUser: z.object({
+    question: z.string().describe("The question to ask the user"),
+    options: z
+      .array(
+        z.object({
+          label: z.string().describe("Display text shown to the user"),
+          value: z.string().describe("Value returned when this option is selected"),
+        }),
+      )
+      .min(1)
+      .describe("Options for the user to choose from"),
+    allowFreeText: z.boolean().optional().default(false).describe("Whether to also accept a custom typed response"),
+  }),
+  switchMode: z.object({
+    target: modeSchema.describe("The mode to switch into"),
+    reason: z.string().describe("Short explanation of why the switch is needed"),
+  }),
+  memoryAdd: z.object({
+    key: z.string().describe("Unique identifier for this memory"),
+    value: z.string().describe("Content to remember"),
+  }),
+  memoryUpdate: z.object({
+    key: z.string().describe("Key of the memory to update"),
+    value: z.string().describe("New content to store"),
+  }),
+  memoryDelete: z.object({
+    key: z.string().describe("Key of the memory to delete"),
+  }),
+  memoryList: z.object({}),
+  spawnAgent: z.object({
+    name: z.string().describe("Short name/identifier for this sub-agent"),
+    description: z.string().describe("Short description of what this sub-agent will do"),
+    task: z.string().describe("The full task to delegate to the sub-agent"),
+    startingMode: modeSchema.optional().default("PLAN").describe("Starting mode for the sub-agent"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -100,6 +135,38 @@ export const readOnlyToolContracts = {
     description:
       "Search the web using DuckDuckGo and return a list of results with title, URL, and snippet.",
     inputSchema: toolInputSchemas.webSearch,
+  }),
+  askUser: tool({
+    description:
+      "Ask the user a question and wait for their response. Use this when you need a decision or clarification before proceeding. Provide clear options; set allowFreeText: true if the user may need to type a custom answer.",
+    inputSchema: toolInputSchemas.askUser,
+  }),
+  switchMode: tool({
+    description:
+      "Switch between PLAN (read-only analysis) and BUILD (file editing and shell) modes. Use when the task requires capabilities not available in the current mode. No-op if already in the target mode.",
+    inputSchema: toolInputSchemas.switchMode,
+  }),
+  memoryAdd: tool({
+    description:
+      "Save a new memory with a unique key. Use this to remember facts, preferences, or context that should persist across sessions.",
+    inputSchema: toolInputSchemas.memoryAdd,
+  }),
+  memoryUpdate: tool({
+    description: "Update the value of an existing memory by key.",
+    inputSchema: toolInputSchemas.memoryUpdate,
+  }),
+  memoryDelete: tool({
+    description: "Delete a memory by key.",
+    inputSchema: toolInputSchemas.memoryDelete,
+  }),
+  memoryList: tool({
+    description: "List all stored memories.",
+    inputSchema: toolInputSchemas.memoryList,
+  }),
+  spawnAgent: tool({
+    description:
+      "Spawn a sub-agent to handle a delegated subtask. The sub-agent runs its own full LLM loop (with tool calls and mode switching) and returns a final text result. Multiple sub-agents can be spawned in parallel in a single turn.",
+    inputSchema: toolInputSchemas.spawnAgent,
   }),
 } as const;
 

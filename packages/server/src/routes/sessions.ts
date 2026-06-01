@@ -6,6 +6,13 @@ import { db } from "@koincode/database/client";
 
 const createSessionSchema = z.object({
   title: z.string(),
+  cwd: z.string().optional(),
+  gitBranch: z.string().optional(),
+});
+
+const listSessionsSchema = z.object({
+  cwd: z.string().optional(),
+  gitBranch: z.string().optional(),
 });
 
 const createSessionValidator = zValidator(
@@ -15,10 +22,23 @@ const createSessionValidator = zValidator(
   }
 });
 
+const listSessionsValidator = zValidator(
+  "query", listSessionsSchema, (result, c) => {
+  if (!result.success) {
+    return c.json({ error: "Invalid query params" }, 400);
+  }
+});
+
 const app = new Hono()
-  .get("/", async (c) => {
+  .get("/", listSessionsValidator, async (c) => {
+    const { cwd, gitBranch } = c.req.valid("query");
+
     const sessions = await db.session.findMany({
-      orderBy: { createdAt: "desc" },
+      where: {
+        ...(cwd ? { cwd } : {}),
+        ...(gitBranch ? { gitBranch } : {}),
+      },
+      orderBy: { updatedAt: "desc" },
       select: {
         id: true,
         title: true,
@@ -60,10 +80,10 @@ const app = new Hono()
     //   { message: "Mock error: session loading failed" }
     // )
 
-    const data = c.req.valid("json");
+    const { title, cwd, gitBranch } = c.req.valid("json");
 
     const session = await db.session.create({
-      data,
+      data: { title, cwd, gitBranch },
     });
 
     return c.json(session, 201);

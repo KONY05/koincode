@@ -7,7 +7,7 @@ import {
   type ModeType,
   type SupportedChatModelId,
 } from "@koincode/shared";
-import { readConfig, updateConfig } from "../../lib/config";
+import { readConfig, updateConfig } from "../../utils/config";
 
 type PromptConfigContextValue = {
   mode: ModeType;
@@ -15,17 +15,23 @@ type PromptConfigContextValue = {
   setMode: (mode: ModeType) => void;
   model: SupportedChatModelId;
   setModel: (model: SupportedChatModelId) => void;
+  autoModeSwitch: "confirm" | "auto";
+  setAutoModeSwitch: (v: "confirm" | "auto") => void;
 };
 
-const PromptConfigContext = createContext<PromptConfigContextValue | null>(null);
+const PromptConfigContext = createContext<PromptConfigContextValue | null>(
+  null,
+);
 
 export function usePromptConfig(): PromptConfigContextValue {
   const value = useContext(PromptConfigContext);
   if (!value) {
-    throw new Error("usePromptConfig must be used within a PromptConfigProvider");
+    throw new Error(
+      "usePromptConfig must be used within a PromptConfigProvider",
+    );
   }
   return value;
-};
+}
 
 type PromptConfigProviderProps = {
   children: ReactNode;
@@ -33,13 +39,18 @@ type PromptConfigProviderProps = {
 
 function resolveInitialModel(): SupportedChatModelId {
   const saved = readConfig().defaultModel;
-  if (saved && findSupportedChatModel(saved)) return saved as SupportedChatModelId;
+  if (saved && findSupportedChatModel(saved))
+    return saved as SupportedChatModelId;
   return DEFAULT_CHAT_MODEL_ID;
 }
 
 export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   const [mode, setMode] = useState<ModeType>(Mode.BUILD);
-  const [model, setModelState] = useState<SupportedChatModelId>(resolveInitialModel);
+  const [model, setModelState] =
+    useState<SupportedChatModelId>(resolveInitialModel);
+  const [autoModeSwitch, setAutoModeSwitchState] = useState<"confirm" | "auto">(
+    () => readConfig().autoModeSwitch ?? "confirm",
+  );
 
   const toggleMode = useCallback(() => {
     setMode((m) => (m === Mode.BUILD ? Mode.PLAN : Mode.BUILD));
@@ -50,9 +61,16 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     updateConfig({ defaultModel: m });
   }, []);
 
+  const setAutoModeSwitch = useCallback((v: "confirm" | "auto") => {
+    setAutoModeSwitchState(v);
+    updateConfig({ autoModeSwitch: v });
+  }, []);
+
   return (
-    <PromptConfigContext.Provider value={{ mode, toggleMode, setMode, model, setModel }}>
+    <PromptConfigContext.Provider
+      value={{ mode, toggleMode, setMode, model, setModel, autoModeSwitch, setAutoModeSwitch }}
+    >
       {children}
     </PromptConfigContext.Provider>
   );
-};
+}

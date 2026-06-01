@@ -4,8 +4,11 @@ import { z } from "zod";
 import {
   convertToModelMessages,
   generateId,
+  generateText,
+  stepCountIs,
   streamText,
   validateUIMessages,
+  type ModelMessage,
   type InferUITools,
   type LanguageModelUsage,
   type UIMessage,
@@ -191,4 +194,58 @@ const app = new Hono()
     },
   );
 
-export default app;
+// ─── /agent-step ─────────────────────────────────────────────────────────────
+// Ephemeral, single-step endpoint for sub-agent orchestration.
+// No session ID required — messages are passed in directly.
+
+// Permissive schema — the ai SDK's ModelMessage type is complex with recursive generics.
+// We validate structural shape loosely and rely on the SDK to reject malformed messages at runtime.
+const coreMessageSchema = z.object({
+  role: z.enum(["user", "assistant", "tool", "system"]),
+  content: z.any(),
+}) as z.ZodType<ModelMessage>;
+
+const agentStepSchema = z.object({
+  messages: z.array(coreMessageSchema).min(1),
+  mode: modeSchema,
+  model: z.string().refine(isSupportedChatModel, "Unsupported model"),
+});
+
+const agentStepValidator = zValidator("json", agentStepSchema, (result, c) => {
+  if (!result.success) {
+    return c.json({ error: "Invalid request body" }, 400);
+  }
+});
+
+const appWithAgentStep = app.post(
+  "/agent-step",
+  agentStepValidator,
+  async (c) => {
+    const { messages, mode, model } = c.req.valid("json");
+
+    const tools = getToolContracts(mode);
+    const resolvedModel = resolveChatModel(model);
+    const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
+    const userMemory =
+      memories.length > 0
+        ? memories.map((m) => `- ${m.key}: ${m.value}`).join("\n")
+        : undefined;
+
+    const result = await generateText({
+      model: resolvedModel.model,
+      system: buildSystemPrompt({ mode, userMemory }),
+      messages,
+      tools,
+      stopWhen: stepCountIs(1),
+      providerOptions: resolvedModel.providerOptions,
+    });
+
+    return c.json({
+      text: result.text,
+      toolCalls: result.toolCalls,
+      finishReason: result.finishReason,
+    });
+  },
+);
+
+export default appWithAgentStep;

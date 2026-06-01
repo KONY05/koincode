@@ -5,7 +5,7 @@ import { useKeyboard } from "@opentui/react";
 import { useKeyboardLayer } from "../../providers/keyboard-layer";
 import { useToast } from "../../providers/toast";
 import { useTheme } from "../../providers/theme";
-import { readConfig, updateConfig } from "../../lib/config";
+import { readConfig, updateConfig } from "../../utils/config";
 import { restartServer } from "../../lib/server-manager";
 import type { ApiKeys, KoincodeConfig } from "@koincode/shared";
 import { TEXTAREA_KEY_BINDINGS } from "../input-bar";
@@ -19,9 +19,9 @@ type ProviderEntry = {
 
 const PROVIDERS: ProviderEntry[] = [
   { key: "openrouter", label: "OpenRouter" },
-  { key: "anthropic",  label: "Anthropic"  },
-  { key: "openai",     label: "OpenAI"     },
-  { key: "gemini",     label: "Gemini"     },
+  { key: "anthropic", label: "Anthropic" },
+  { key: "openai", label: "OpenAI" },
+  { key: "gemini", label: "Gemini" },
 ];
 
 function maskKey(value: string | undefined): string {
@@ -37,7 +37,12 @@ type EditKeyViewProps = {
   onCancel: () => void;
 };
 
-function EditKeyView({ providerLabel, initialValue, onSave, onCancel }: EditKeyViewProps) {
+function EditKeyView({
+  providerLabel,
+  initialValue,
+  onSave,
+  onCancel,
+}: EditKeyViewProps) {
   const textareaRef = useRef<TextareaRenderable>(null);
   const { isTopLayer } = useKeyboardLayer();
 
@@ -122,7 +127,9 @@ function KeyListView({ config, selectedIndex, onSelect }: KeyListViewProps) {
         );
       })}
       <box marginTop={1} paddingX={1}>
-        <text attributes={TextAttributes.DIM}>↑↓ navigate · enter to edit · esc to close</text>
+        <text attributes={TextAttributes.DIM}>
+          ↑↓ navigate · enter to edit · esc to close
+        </text>
       </box>
     </box>
   );
@@ -148,12 +155,17 @@ export function SetupDialogContent() {
 
   const handleSave = useCallback(
     (key: ApiKeyName, value: string) => {
-      const newConfig = updateConfig({ apiKeys: { [key]: value.trim() || undefined } });
+      const newConfig = updateConfig({
+        apiKeys: { [key]: value.trim() || undefined },
+      });
       setConfig(newConfig);
       setEditingKey(null);
       pop("setup-edit");
       void restartServer().catch(() => {});
-      toast.show({ message: "Key saved — server restarting", variant: "success" });
+      toast.show({
+        message: "Key saved — server restarting",
+        variant: "success",
+      });
     },
     [pop, toast],
   );

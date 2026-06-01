@@ -1,8 +1,15 @@
 import { MacOSScrollAccel, TextAttributes } from "@opentui/core";
 import { useMemo, type ReactNode } from "react";
+
 import { InputBar } from "./input-bar";
+import { ApprovalWidget } from "./widget/approval-widget";
+import { AskUserWidget } from "./widget/ask-user-widget";
+import { ModeSwitchWidget } from "./widget/mode-switch-widget";
+import type { PendingModeSwitch, ModeSwitchResponse } from "./widget/mode-switch-widget";
 import { Spinner } from "./spinner";
 import { usePromptConfig } from "../providers/prompt-config";
+import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
+import type { PendingUserQuestion } from "../hooks/use-chat";
 
 type Props = {
   children?: ReactNode;
@@ -10,6 +17,12 @@ type Props = {
   inputDisabled?: boolean;
   loading?: boolean;
   interruptible?: boolean;
+  pendingApproval?: PendingApproval | null;
+  onApprovalResponse?: (response: ApprovalResponse) => void;
+  pendingUserQuestion?: PendingUserQuestion | null;
+  onUserQuestionResponse?: (value: string | null) => void;
+  pendingModeSwitch?: PendingModeSwitch | null;
+  onModeSwitchResponse?: (response: ModeSwitchResponse) => void;
 };
 
 export function SessionShell({
@@ -18,6 +31,12 @@ export function SessionShell({
   inputDisabled = false,
   loading = false,
   interruptible = false,
+  pendingApproval = null,
+  onApprovalResponse,
+  pendingUserQuestion = null,
+  onUserQuestionResponse,
+  pendingModeSwitch = null,
+  onModeSwitchResponse,
 }: Props) {
   const { mode } = usePromptConfig();
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
@@ -32,11 +51,34 @@ export function SessionShell({
       paddingX={2}
       gap={1}
     >
-      <scrollbox flexGrow={1} width="100%" stickyScroll stickyStart="bottom" scrollAcceleration={scrollAccel}>
+      <scrollbox
+        flexGrow={1}
+        width="100%"
+        stickyScroll
+        stickyStart="bottom"
+        scrollAcceleration={scrollAccel}
+      >
         <box>{children}</box>
       </scrollbox>
       <box flexShrink={0}>
-        <InputBar onSubmit={onSubmit} disabled={inputDisabled} />
+        {pendingApproval && onApprovalResponse ? (
+          <ApprovalWidget
+            approval={pendingApproval}
+            onResponse={onApprovalResponse}
+          />
+        ) : pendingModeSwitch && onModeSwitchResponse ? (
+          <ModeSwitchWidget
+            pending={pendingModeSwitch}
+            onResponse={onModeSwitchResponse}
+          />
+        ) : pendingUserQuestion && onUserQuestionResponse ? (
+          <AskUserWidget
+            question={pendingUserQuestion}
+            onResponse={onUserQuestionResponse}
+          />
+        ) : (
+          <InputBar onSubmit={onSubmit} disabled={inputDisabled} />
+        )}
       </box>
       <box
         flexShrink={0}
@@ -77,4 +119,4 @@ export function SessionShell({
       </box>
     </box>
   );
-};
+}

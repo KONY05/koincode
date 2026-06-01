@@ -1,5 +1,12 @@
 import os from "os";
-import type { ModeType } from "@koincode/shared";
+import type { Tool } from "ai";
+
+import {
+  buildToolContracts,
+  Mode,
+  type ModeType,
+  readOnlyToolContracts,
+} from "@koincode/shared";
 
 type SystemPromptParams = {
   mode: ModeType;
@@ -80,7 +87,8 @@ function getModeSection(mode: ModeType): string {
 You are in planning mode. Your job is to analyze, research, and propose solutions — but NOT make changes.
 - Use your available tools to explore the codebase
 - Present your analysis and a clear plan of action
-- Explain trade-offs and ask for clarification when needed`;
+- Explain trade-offs and ask for clarification when needed
+- If the task requires writing or running code, call \`switchMode\` with target "BUILD" and a short reason before proceeding`;
   }
 
   return `# Mode: BUILD
@@ -89,7 +97,14 @@ You are in build mode. Your job is to implement changes directly.
 - Read and understand the relevant code before making changes
 - Use \`writeFile\` to create new files, \`editFile\` for targeted modifications
 - Use \`shell\` to run commands (tests, builds, git operations)
-- After making changes, verify the work when possible`;
+- After making changes, verify the work when possible
+- If the task only requires reading or analysis, call \`switchMode\` with target "PLAN" and a short reason`;
+}
+
+function formatToolList(contracts: Record<string, Tool>): string {
+  return Object.entries(contracts)
+    .map(([name, c]) => `- **${name}** — ${c.description ?? name}`)
+    .join("\n");
 }
 
 function getToolUsageSection(mode: ModeType): string {
@@ -98,39 +113,19 @@ function getToolUsageSection(mode: ModeType): string {
 2. **Never re-read files** you already read in this conversation.
 3. **Batch tool calls.** Call multiple independent tools in parallel when possible (e.g. read 5 files at once, not one at a time).`;
 
-  if (mode === "PLAN") {
-    return `# Tool Usage
-
-You have these tools available:
-- **readFile** — Read a file's contents
-- **listDirectory** — List entries in a directory
-- **glob** — Find files matching a pattern (e.g. \`**/*.ts\`)
-- **grep** — Search file contents with regex
-- **createTodos** — Create a numbered todo list to lay out your plan
-- **updateTodos** — Update the todo list to mark items complete as you work
-- **webFetch** — Fetch the content of a URL and return the response body as text
-- **webSearch** — Search the web via DuckDuckGo (returns title, url, snippet per result)
-
-${sharedRules}`;
-  }
+  const contracts = mode === Mode.PLAN ? readOnlyToolContracts : buildToolContracts;
+  const toolList = formatToolList(contracts);
+  const buildOnlyRule =
+    mode === Mode.BUILD
+      ? "\n4. **Prefer `editFile` for small changes** to existing files. Only use `writeFile` when creating new files or rewriting most of a file."
+      : "";
 
   return `# Tool Usage
 
 You have these tools available:
-- **readFile** — Read a file's contents
-- **writeFile** — Create or overwrite a file
-- **editFile** — Make a targeted string replacement in a file (oldString must be unique)
-- **listDirectory** — List entries in a directory
-- **glob** — Find files matching a pattern (e.g. \`**/*.ts\`)
-- **grep** — Search file contents with regex
-- **shell** — Run a shell command
-- **createTodos** — Create a numbered todo list to lay out your plan before implementing
-- **updateTodos** — Update the todo list to mark items complete as you work
-- **webFetch** — Fetch the content of a URL and return the response body as text
-- **webSearch** — Search the web via DuckDuckGo (returns title, url, snippet per result)
+${toolList}
 
-${sharedRules}
-4. **Prefer \`editFile\` for small changes** to existing files. Only use \`writeFile\` when creating new files or rewriting most of a file.`;
+${sharedRules}${buildOnlyRule}`;
 }
 
 function getSecuritySection(): string {
@@ -159,6 +154,10 @@ function getCodingGuidelinesSection(): string {
 
 function getOperationalSection(): string {
   return `# Operational Guidelines
+
+## Shell Commands
+
+- **Do not \`cd\` into the current directory.** Shell commands already run in the project's working directory — a redundant \`cd /path/to/project\` at the start of every command is wasteful and adds noise.
 
 ## Tone and Style
 

@@ -1,4 +1,5 @@
 import fs from "fs";
+
 import { CONFIG_DIR, CONFIG_FILE } from "@koincode/shared";
 import type { ApiKeys, KoincodeConfig } from "@koincode/shared";
 
@@ -33,6 +34,10 @@ export function updateConfig(updates: Partial<KoincodeConfig>): KoincodeConfig {
     } else {
       next.defaultModel = updates.defaultModel;
     }
+  }
+
+  if (updates.autoModeSwitch !== undefined) {
+    next.autoModeSwitch = updates.autoModeSwitch;
   }
 
   if (updates.apiKeys !== undefined) {

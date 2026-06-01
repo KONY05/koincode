@@ -8,6 +8,7 @@ import { apiClient } from "../../lib/api-client";
 import { getErrorMessage } from "../../lib/http-errors";
 import { DialogSearchList } from "../dialog-search-list";
 import type { InferResponseType } from "hono/client";
+import { getGitBranch } from "../../utils/helper";
 
 type Session = InferResponseType<(typeof apiClient.sessions)["$get"], 200>[number];
 
@@ -23,7 +24,13 @@ export const SessionsDialogContent = () => {
 
     const fetchSessions = async () => {
       try {
-        const res = await apiClient.sessions.$get();
+        const gitBranch = getGitBranch();
+        const res = await apiClient.sessions.$get({
+          query: {
+            cwd: process.cwd(),
+            ...(gitBranch ? { gitBranch } : {}),
+          },
+        });
         if (!res.ok) {
           throw new Error(await getErrorMessage(res));
         }

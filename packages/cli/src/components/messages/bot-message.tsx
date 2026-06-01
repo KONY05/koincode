@@ -6,7 +6,7 @@ import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 import type { Message } from "../../hooks/use-chat";
 import { Mode, type ModeType } from "@koincode/shared";
-import { createMarkdownSyntaxStyle } from "../../lib/syntax-style";
+import { createMarkdownSyntaxStyle } from "../../utils/syntax-style";
 import EditFileDiff from "../tool-view/edit-file";
 import WriteFilePreview from "../tool-view/write-file";
 import TodoList from "../tool-view/todo-list";
@@ -139,6 +139,15 @@ export function BotMessage({
                     <WriteFilePreview input={part.input} pending={pending} error={errorText} colors={colors} />
                   ) : hasInput && (toolName === "createTodos" || toolName === "updateTodos") ? (
                     <TodoList input={part.input} toolName={toolName} pending={pending} colors={colors} />
+                  ) : hasInput && toolName === "spawnAgent" ? (
+                    <text attributes={TextAttributes.DIM}>
+                      <em fg={colors.info}>Subagent:</em>{" "}
+                      {(part.input as { name?: string; description?: string }).name ?? ""}{" "}
+                      —{" "}
+                      {(part.input as { name?: string; description?: string }).description ?? ""}
+                      {pending ? " …" : ""}
+                      {errorText ? ` ${errorText}` : ""}
+                    </text>
                   ) : (
                     <text attributes={TextAttributes.DIM}>
                       <em fg={colors.info}>{formatToolName(toolName)}:</em> {formatToolArgs(part)}

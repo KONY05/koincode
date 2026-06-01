@@ -1,0 +1,2 @@
+ALTER TABLE "Session" ADD COLUMN "cwd" TEXT;
+ALTER TABLE "Session" ADD COLUMN "gitBranch" TEXT;

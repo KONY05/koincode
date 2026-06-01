@@ -2,13 +2,15 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useLocation, useNavigate } from "react-router";
 import { z } from "zod";
 import { useKeyboard } from "@opentui/react";
-import { type ModeType, type SupportedChatModelId } from "@koincode/shared";
 import type { InferResponseType } from "hono/client";
+
+import { type ModeType, type SupportedChatModelId } from "@koincode/shared";
 import { SessionShell } from "../components/session-shell";
-import { 
-  UserMessage, 
-  BotMessage, 
-  ErrorMessage
+import {
+  UserMessage,
+  BotMessage,
+  ErrorMessage,
+  SystemMessage,
 } from "../components/messages";
 import { useToast } from "../providers/toast";
 import { useChat } from "../hooks/use-chat";
@@ -69,10 +71,22 @@ function SessionChat({
   const [initialMessages] = useState(() => session.messages as unknown as Message[]);
   const { mode, model } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
-  const { messages, status, wasInterrupted, submit, abort, interrupt, error } = useChat(
-    session.id,
-    initialMessages
-  );
+  const {
+    messages,
+    status,
+    wasInterrupted,
+    pendingApproval,
+    resolveApproval,
+    pendingUserQuestion,
+    resolveUserQuestion,
+    pendingModeSwitch,
+    resolveModeSwitch,
+    systemEvents,
+    submit,
+    abort,
+    interrupt,
+    error,
+  } = useChat(session.id, initialMessages);
   const hasSubmittedInitialPromptRef = useRef(false);
 
   // Stop the pending reply when the user leaves this session.
@@ -100,14 +114,67 @@ function SessionChat({
     });
   }, [initialPrompt, submit]);
 
+  // Merge AI messages and system events (e.g. mode switch dividers) into one ordered list.
+  //
+  // systemEvents are tagged with `afterMessageCount` — how many messages existed when the
+  // event fired. eventIdx is a forward-only cursor so each event is placed exactly once.
+  //
+  // For each message at index i, we insert any events whose afterMessageCount <= i+1,
+  // meaning they fired while there were at most i+1 messages, so they belong right after
+  // message i. The trailing while handles events that outlast all current messages (fired
+  // while the last message was still streaming).
+  const transcript = useMemo(() => {
+    type Item =
+      | { type: "message"; msg: Message; index: number }
+      | { type: "system"; id: string; text: string };
+
+    const items: Item[] = [];
+    let eventIdx = 0;
+
+    for (let i = 0; i < messages.length; i++) {
+      items.push({ type: "message", msg: messages[i]!, index: i });
+      while (
+        eventIdx < systemEvents.length &&
+        systemEvents[eventIdx]!.afterMessageCount <= i + 1
+      ) {
+        items.push({
+          type: "system",
+          id: systemEvents[eventIdx]!.id,
+          text: systemEvents[eventIdx]!.text,
+        });
+        eventIdx++;
+      }
+    }
+    while (eventIdx < systemEvents.length) {
+      items.push({
+        type: "system",
+        id: systemEvents[eventIdx]!.id,
+        text: systemEvents[eventIdx]!.text,
+      });
+      eventIdx++;
+    }
+
+    return items;
+  }, [messages, systemEvents]);
+
   return (
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
       loading={status === "submitted" || status === "streaming"}
       interruptible={status === "submitted" || status === "streaming"}
+      pendingApproval={pendingApproval}
+      onApprovalResponse={resolveApproval}
+      pendingUserQuestion={pendingUserQuestion}
+      onUserQuestionResponse={resolveUserQuestion}
+      pendingModeSwitch={pendingModeSwitch}
+      onModeSwitchResponse={resolveModeSwitch}
     >
-      {messages.map((msg, i) => {
-        const isLast = i === messages.length - 1;
+      {transcript.map((item) => {
+        if (item.type === "system") {
+          return <SystemMessage key={item.id} text={item.text} />;
+        }
+        const { msg, index } = item;
+        const isLast = index === messages.length - 1;
         const isLastAssistant = isLast && msg.role === "assistant";
         return (
           <ChatMessage
