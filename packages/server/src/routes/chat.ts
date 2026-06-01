@@ -154,9 +154,18 @@ const app = new Hono()
           if (!event.isAborted && hasPendingToolCalls(event.responseMessage)) return;
 
           try {
+            // When aborted mid-tool-call, strip any tool parts that never received a
+            // result so the stored message passes validateUIMessages on the next request.
             const responseMessage = event.isAborted
               ? {
                   ...event.responseMessage,
+                  parts: event.responseMessage.parts.filter((part) => {
+                    if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
+                      const state = (part as { state?: string }).state;
+                      return state === "output-available" || state === "output-error";
+                    }
+                    return true;
+                  }),
                   metadata: { ...event.responseMessage.metadata, interrupted: true },
                 }
               : event.responseMessage;
@@ -225,15 +234,10 @@ const appWithAgentStep = app.post(
 
     const tools = getToolContracts(mode);
     const resolvedModel = resolveChatModel(model);
-    const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
-    const userMemory =
-      memories.length > 0
-        ? memories.map((m) => `- ${m.key}: ${m.value}`).join("\n")
-        : undefined;
 
     const result = await generateText({
       model: resolvedModel.model,
-      system: buildSystemPrompt({ mode, userMemory }),
+      system: buildSystemPrompt({ mode }),
       messages,
       tools,
       stopWhen: stepCountIs(1),

@@ -6,7 +6,7 @@
  * No React, no UI — purely async.
  */
 
-import { Mode, type ModeType, toolInputSchemas } from "@koincode/shared";
+import { type ModeType, toolInputSchemas } from "@koincode/shared";
 import { executeLocalTool } from "./index";
 import { getPermissionInfo } from "../utils/permissions";
 import { isPermittedForProject } from "../utils/project-config";
@@ -59,11 +59,28 @@ type SpawnAgentInput = {
 };
 
 export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
-  const { task, startingMode = "PLAN", model } = input;
+  const { name, description, task, startingMode = "PLAN", model } = input;
 
   let currentMode: ModeType = startingMode;
+
+  // Wrap the task with sub-agent guardrails — keeps the LLM focused on
+  // the specific delegation goal and signals it should be concise.
+  const subagentPrompt = [
+    `You are a specialized sub-agent (${name}) with a specific task to complete.`,
+    `${description}`,
+    ``,
+    `YOUR TASK:`,
+    task,
+    ``,
+    `IMPORTANT:`,
+    `- Focus only on completing the specified task`,
+    `- Do not engage in unrelated actions`,
+    `- Once you have completed the task or have the answer, provide your final response`,
+    `- Be concise and direct in your output`,
+  ].join("\n");
+
   const messages: AgentMessage[] = [
-    { role: "user", content: task },
+    { role: "user", content: subagentPrompt },
   ];
 
   for (let step = 0; step < MAX_STEPS; step++) {
