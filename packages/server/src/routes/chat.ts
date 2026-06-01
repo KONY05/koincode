@@ -225,15 +225,10 @@ const appWithAgentStep = app.post(
 
     const tools = getToolContracts(mode);
     const resolvedModel = resolveChatModel(model);
-    const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
-    const userMemory =
-      memories.length > 0
-        ? memories.map((m) => `- ${m.key}: ${m.value}`).join("\n")
-        : undefined;
 
     const result = await generateText({
       model: resolvedModel.model,
-      system: buildSystemPrompt({ mode, userMemory }),
+      system: buildSystemPrompt({ mode }),
       messages,
       tools,
       stopWhen: stepCountIs(1),

@@ -10,6 +10,7 @@ import { createMarkdownSyntaxStyle } from "../../utils/syntax-style";
 import EditFileDiff from "../tool-view/edit-file";
 import WriteFilePreview from "../tool-view/write-file";
 import TodoList from "../tool-view/todo-list";
+import { Spinner } from "../spinner";
 
 const treeSitterClient = getTreeSitterClient();
 
@@ -182,7 +183,9 @@ export function BotMessage({
 
       <box paddingX={3} paddingY={1} gap={1} width="100%">
         <box flexDirection="row" gap={2}>
-          <text fg={mode === Mode.PLAN ? colors.planMode : colors.primary}>◉</text>
+          {streaming ? (
+            <Spinner activeColor={mode === Mode.PLAN ? colors.planMode : colors.primary} />
+          ): <text fg={mode === Mode.PLAN ? colors.planMode : colors.primary}>◉</text>}
           <box flexDirection="row" gap={1}>
             <text>
               {mode === Mode.PLAN ? "Plan" : "Build"}

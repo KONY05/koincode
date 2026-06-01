@@ -1,14 +1,14 @@
+import { TextAttributes } from "@opentui/core";
 import "opentui-spinner/react";
-import { Mode, type ModeType } from "@koincode/shared";
-import { useTheme } from "../providers/theme";
 
 type Props = {
-  mode?: ModeType;
+  activeColor: string;
 };
 
-export function Spinner({ mode = Mode.BUILD }: Props) {
-  const { colors } = useTheme();
-  const activeColor = mode === Mode.PLAN ? colors.planMode : colors.primary;
-
-  return <spinner name="star" color={activeColor} />;
-};
+export function Spinner({ activeColor }: Props) {
+  return (
+  <box flexDirection="row" alignItems="center" gap={1}>
+    <spinner name="star" color={activeColor} />
+    <text attributes={TextAttributes.DIM}><em>koincoding</em>...</text>
+  </box>
+)};

@@ -6,8 +6,6 @@ import { ApprovalWidget } from "./widget/approval-widget";
 import { AskUserWidget } from "./widget/ask-user-widget";
 import { ModeSwitchWidget } from "./widget/mode-switch-widget";
 import type { PendingModeSwitch, ModeSwitchResponse } from "./widget/mode-switch-widget";
-import { Spinner } from "./spinner";
-import { usePromptConfig } from "../providers/prompt-config";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
 import type { PendingUserQuestion } from "../hooks/use-chat";
 
@@ -38,7 +36,6 @@ export function SessionShell({
   pendingModeSwitch = null,
   onModeSwitchResponse,
 }: Props) {
-  const { mode } = usePromptConfig();
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
 
   return (
@@ -90,12 +87,7 @@ export function SessionShell({
         paddingLeft={1}
       >
         <box flexDirection="row" alignItems="center" gap={2}>
-          {loading ? (
-            <>
-              <Spinner mode={mode} />
-              {interruptible ? <text>esc to interrupt</text> : null}
-            </>
-          ) : null}
+          {loading  && interruptible ?<text>esc to interrupt</text> : null}
         </box>
 
         <box flexDirection="row" gap={2} flexShrink={0} marginLeft="auto">
