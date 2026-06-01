@@ -74,7 +74,7 @@ export function SessionShell({
             onResponse={onUserQuestionResponse}
           />
         ) : (
-          <InputBar onSubmit={onSubmit} disabled={inputDisabled} />
+          <InputBar onSubmit={onSubmit} disabled={inputDisabled || loading} />
         )}
       </box>
       <box

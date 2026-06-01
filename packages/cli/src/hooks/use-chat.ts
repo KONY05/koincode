@@ -96,8 +96,18 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
           (m) => m.metadata?.mode && m.metadata?.model,
         )?.metadata;
         const previousMessage = messages[messages.length - 2];
+
+        // If the previous assistant message was interrupted, do NOT send it back —
+        // it's already saved (clean, without pending tool calls) on the server.
+        // Sending it would cause validateUIMessages to throw on the next round.
+        const previousIsInterrupted =
+          previousMessage?.role === "assistant" &&
+          previousMessage.metadata?.interrupted;
+
         const requestMessages =
-          message.role === "assistant" && previousMessage?.role === "user"
+          !previousIsInterrupted &&
+          message.role === "assistant" &&
+          previousMessage?.role === "user"
             ? [previousMessage, message]
             : [message];
 

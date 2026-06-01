@@ -693,7 +693,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     <box width="100%" alignItems="center">
       <box
         border={["left"]}
-        borderColor={mode === Mode.BUILD ? colors.primary : colors.planMode}
+        borderColor={disabled ? colors.dimSeparator : mode === Mode.BUILD ? colors.primary : colors.planMode}
         customBorderChars={{
           ...EmptyBorder,
           vertical: "┃",
@@ -754,7 +754,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
             }
             keyBindings={TEXTAREA_KEY_BINDINGS}
             onContentChange={handleTextareaContentChange}
-            placeholder={`Ask anything... "Fix a bug in the database"`}
+            placeholder={disabled ? "Agent is thinking… press esc to interrupt" : `Ask anything... "Fix a bug in the database"`}
           />
           <StatusBar />
         </box>
