@@ -157,7 +157,8 @@ function getOperationalSection(): string {
 
 ## Shell Commands
 
-- **Do not \`cd\` into the current directory.** Shell commands already run in the project's working directory — a redundant \`cd /path/to/project\` at the start of every command is wasteful and adds noise.
+- **Never \`cd\` into a directory redundantly.** Shell commands already run in the project's working directory — prefixing every command with \`cd /path/to/project &&\` is wasteful, adds noise, and triggers unnecessary permission prompts.
+- **Avoid concatenating \`cd\` with other commands when unnecessary.** If you need to run a command in a different directory, prefer passing the path directly to the command (e.g. \`git -C /some/path status\`) over \`cd /some/path && git status\`. Only concatenate when no path argument exists for that tool.
 
 ## Tone and Style
 
