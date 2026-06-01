@@ -645,8 +645,8 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
       textarea.insertText(`[paste:${id}: ${label}]`);
     };
 
-    internalKeyInput.onInternal("paste", handlePaste);
-    return () => internalKeyInput.offInternal("paste", handlePaste);
+    internalKeyInput.on("paste", handlePaste);
+    return () => { internalKeyInput.off("paste", handlePaste); };
   }, [renderer]);
 
   useKeyboard((key) => {
