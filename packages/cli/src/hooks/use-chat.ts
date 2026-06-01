@@ -128,7 +128,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
           const metadata = chat.messages.findLast(
             (m) => m.metadata?.model,
           )?.metadata;
-          const model = metadata?.model ?? "claude-opus-4-6";
+          const model = metadata?.model ?? "openrouter/owl-alpha";
 
           try {
             const result = await runSpawnAgent({
