@@ -5,6 +5,7 @@ export type PermissionTier = "normal" | "destructive";
 export type PermissionKey =
   | "shell:git"
   | "shell:npm"
+  | "shell:cd"
   | "shell:rm"
   | "shell:write"
   | "shell:unknown"
@@ -34,6 +35,7 @@ const SHELL_BIN_MAP: Record<string, { key: PermissionKey; label: string; tier: P
   pnpm: { key: "shell:npm", label: "Run pnpm",          tier: "normal" },
   npx:  { key: "shell:npm", label: "Run npx",           tier: "normal" },
   bunx: { key: "shell:npm", label: "Run bunx",          tier: "normal" },
+  cd:   { key: "shell:cd", label: "Change directory",    tier: "normal" },
   rm:    { key: "shell:rm",    label: "Delete files",       tier: "destructive" },
   rmdir: { key: "shell:rm",    label: "Delete directory",   tier: "destructive" },
   mv:   { key: "shell:write", label: "Move files",         tier: "normal" },

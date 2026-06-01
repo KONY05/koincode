@@ -21,16 +21,16 @@ export default function WriteFilePreview({
 }) {
   if (!input || typeof input !== "object") return null;
   const { path, content } = input as { path?: string; content?: string };
-  if (!path) return null;
+  if (typeof path !== "string") return null;
 
-  const lines = content != null ? content.split("\n") : [];
+  const lines = typeof content === "string" ? content.split("\n") : [];
   const preview = lines.slice(0, 3);
   const hasMore = lines.length > 3;
 
   return (
     <box width="100%">
       <box flexDirection="row" gap={1}>
-        <em fg={colors.success}>Write File</em>
+        <text><em fg={colors.success}>Write File</em></text>
         <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
         <text attributes={TextAttributes.DIM}>{path}</text>
         {pending && <text attributes={TextAttributes.DIM}> …</text>}
@@ -45,7 +45,7 @@ export default function WriteFilePreview({
           )}
         </box>
       )}
-      {error && <text fg={colors.error}>{error}</text>}
+      {!!error && <text fg={colors.error}>{error}</text>}
     </box>
   );
 }

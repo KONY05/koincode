@@ -32,22 +32,22 @@ export default function EditFileDiff({
     oldString?: string;
     newString?: string;
   };
-  if (!path) return null;
+  if (typeof path !== "string") return null;
 
   const filetype = path.split(".").pop();
-  const hasDiff = oldString != null && newString != null;
+  const hasDiff = typeof oldString === "string" && typeof newString === "string";
 
   return (
     <box width="100%">
       <box flexDirection="row" gap={1}>
-        <em fg={colors.info}>Edit File</em>
+        <text><em fg={colors.info}>Edit File</em></text>
         <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
         <text attributes={TextAttributes.DIM}>{path}</text>
         {pending && <text attributes={TextAttributes.DIM}> …</text>}
       </box>
       {hasDiff && (
         <diff
-          diff={buildUnifiedDiff(path, oldString!, newString!)}
+          diff={buildUnifiedDiff(path, oldString, newString)}
           view="unified"
           filetype={filetype}
           syntaxStyle={syntaxStyle}
@@ -58,7 +58,7 @@ export default function EditFileDiff({
           width="100%"
         />
       )}
-      {error && <text fg={colors.error}>{error}</text>}
+      {!!error && <text fg={colors.error}>{error}</text>}
     </box>
   );
 }

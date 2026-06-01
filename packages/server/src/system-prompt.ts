@@ -155,6 +155,10 @@ function getCodingGuidelinesSection(): string {
 function getOperationalSection(): string {
   return `# Operational Guidelines
 
+## Shell Commands
+
+- **Do not \`cd\` into the current directory.** Shell commands already run in the project's working directory — a redundant \`cd /path/to/project\` at the start of every command is wasteful and adds noise.
+
 ## Tone and Style
 
 - **Concise and direct.** Professional tone suitable for a CLI environment.

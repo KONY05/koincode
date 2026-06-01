@@ -24,7 +24,7 @@ export default function TodoList({
   return (
     <box width="100%">
       <box flexDirection="row" gap={1}>
-        <em fg={colors.info}>{label}</em>
+        <text><em fg={colors.info}>{label}</em></text>
         <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
           {completedCount}/{todos.length}
         </text>
@@ -35,7 +35,7 @@ export default function TodoList({
           <text fg={todo.completed ? colors.success : colors.dimSeparator}>
             {todo.completed ? "✓" : "○"}
           </text>
-          <text attributes={todo.completed ? TextAttributes.DIM : TextAttributes.NONE}>
+          <text attributes={todo.completed ? TextAttributes.STRIKETHROUGH : TextAttributes.NONE}>
             {todo.text}
           </text>
         </box>
