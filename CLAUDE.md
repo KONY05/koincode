@@ -26,7 +26,7 @@ Bun workspaces under `packages/`:
 | Package | Purpose |
 |---|---|
 | `@koincode/cli` | Terminal UI client (React 19 + OpenTUI) |
-| `@koincode/server` | Hono API server (port 3000) |
+| `@koincode/server` | Hono API server (port 37420) |
 | `@koincode/database` | Prisma schema + generated client |
 | `@koincode/shared` | Shared Zod schemas, model registry, tool contracts |
 
@@ -53,7 +53,7 @@ Copy `.env.example` to `.env` at the repo root. Required variables:
 
 ```
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/koincode
-API_URL=http://localhost:3000
+API_URL=http://localhost:37420
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 ```
