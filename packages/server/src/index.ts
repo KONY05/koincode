@@ -4,7 +4,7 @@ import fs from "fs";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
-import { getTime } from "./lib/helpers";
+import { logger } from "./lib/helpers";
 import { CONFIG_DIR, DB_PATH, SERVER_PORT } from "@koincode/shared";
 // import type { KoincodeConfig } from "@koincode/shared";
 
@@ -38,7 +38,7 @@ try {
     stdio: "pipe",
   });
 } catch (e) {
-  console.error(`[${getTime()}] Startup failed:`, e instanceof Error ? e.message : e);
+  logger.error("Startup failed:", e instanceof Error ? e.message : e);
   process.exit(1);
 }
 
@@ -56,7 +56,7 @@ app.onError((error, c) => {
     return c.json({ error: error.message || "Request failed" }, error.status);
   }
 
-  console.error(`[${getTime()}] Unhandled server error`, error);
+  logger.error("Unhandled server error", error);
   return c.json({ error: "Internal server error" }, 500);
 });
 
@@ -70,7 +70,7 @@ export type AppType = typeof routes;
 
 setInterval(() => {
   if (Date.now() - lastRequestAt > IDLE_TIMEOUT_MS) {
-    console.log(`[${getTime()}] Server idle for 30 minutes, shutting down.`);
+    logger.info("Server idle for 30 minutes, shutting down.");
     process.exit(0);
   }
 }, 60_000).unref();
