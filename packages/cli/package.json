@@ -28,6 +28,7 @@
     "hono": "^4.12.12",
     "open": "^11.0.0",
     "opentui-spinner": "^0.0.6",
+    "playwright": "^1.49.1",
     "pretty-ms": "^9.3.0",
     "react": "^19.2.4",
     "react-router": "^7.14.0",
