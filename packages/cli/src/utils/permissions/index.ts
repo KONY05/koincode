@@ -9,6 +9,7 @@ export type PermissionKey =
   | "shell:cd"
   | "shell:rm"
   | "shell:write"
+  | "shell:sudo"
   | "shell:unknown"
   | "file:sensitive";
 
@@ -28,6 +29,8 @@ export type PermissionInfo =
   | { requiresApproval: false }
   | ({ requiresApproval: true } & PendingApproval);
 
+
+
 export function getPermissionInfo(
   toolName: string,
   input: unknown,
@@ -36,7 +39,7 @@ export function getPermissionInfo(
   switch (toolName) {
     case "shell": {
       const { command } = input as { command: string };
-      return getShellPermissionInfo(command);
+      return getShellPermissionInfo(command, extraSensitivePatterns);
     }
     case "writeFile":
     case "editFile": {

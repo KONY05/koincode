@@ -1,4 +1,5 @@
 import type { PendingApproval, PermissionInfo, PermissionKey, PermissionTier } from ".";
+import { matchesGlob, SENSITIVE_BASE_NAMES } from "./file";
 
 const SHELL_BIN_MAP: Record<
   string,
@@ -17,6 +18,8 @@ const SHELL_BIN_MAP: Record<
   mv: { key: "shell:write", label: "Move files", tier: "normal" },
   cp: { key: "shell:write", label: "Copy files", tier: "normal" },
   tee: { key: "shell:write", label: "Write via tee", tier: "normal" },
+  sudo: { key: "shell:sudo", label: "Run command as root", tier: "destructive" },
+  su: { key: "shell:sudo", label: "Run command as root", tier: "destructive" },
 };
 
 /**
@@ -102,12 +105,80 @@ const KEY_RANK: Record<PermissionKey, number> = {
   "shell:write": 2,
   "shell:rm": 3,
   "shell:unknown": 4,
+  "shell:sudo": 5,
   "file:sensitive": 5,
 };
 
+const SYSTEM_SENSITIVE_SUBSTRINGS = [
+  ".zshrc",
+  ".bashrc",
+  ".bash_profile",
+  ".bash_history",
+  ".ssh",
+  "/etc/passwd",
+  "/etc/shadow",
+  "~/.config",
+  ".github/workflows",
+];
+
+function isSensitiveShellCommand(command: string, extraPatterns: string[]): boolean {
+  const defaultSubstrings = [
+    ...SENSITIVE_BASE_NAMES,
+    ...SYSTEM_SENSITIVE_SUBSTRINGS,
+  ];
+
+  if (defaultSubstrings.some((sub) => command.includes(sub))) {
+    return true;
+  }
+
+  if (extraPatterns.length > 0) {
+    const tokens = command.split(/\s+/);
+    for (const token of tokens) {
+      if (extraPatterns.some((p) => matchesGlob(token, p))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function hasWriteRedirection(command: string): boolean {
+  // Ignore > or >> inside quotes.
+  let inSingle = false;
+  let inDouble = false;
+
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]!;
+    if (ch === "'" && !inDouble) {
+      inSingle = !inSingle;
+      continue;
+    }
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      continue;
+    }
+    if (!inSingle && !inDouble && ch === ">") {
+      return true;
+    }
+  }
+  return false;
+}
+
 export default function getShellPermissionInfo(
   command: string,
+  extraPatterns: string[] = []
 ): PermissionInfo {
+  if (isSensitiveShellCommand(command, extraPatterns)) {
+    return {
+      requiresApproval: true,
+      key: "file:sensitive",
+      label: "Access sensitive file via shell",
+      description: command,
+      tier: "destructive",
+    };
+  }
+
   const subcommands = splitSubcommands(command);
 
   // Classify each sub-command.
@@ -119,7 +190,7 @@ export default function getShellPermissionInfo(
   const toMerge = meaningful.length > 0 ? meaningful : classified;
 
   // Pick the most-significant classification (highest key rank, then tier).
-  const winner = toMerge.reduce<AtomicClassification | undefined>(
+  let winner = toMerge.reduce<AtomicClassification | undefined>(
     (best, cur) => {
       if (!best) return cur;
       const keyWins = KEY_RANK[cur.key] > KEY_RANK[best.key];
@@ -130,6 +201,20 @@ export default function getShellPermissionInfo(
     },
     undefined,
   );
+
+  if (hasWriteRedirection(command)) {
+    if (!winner || KEY_RANK[winner.key] < KEY_RANK["shell:write"]) {
+      // Elevate to shell:write
+      winner = {
+        requiresApproval: true,
+        key: "shell:write",
+        label: "Write via shell redirection",
+        description: command,
+        tier: "normal",
+        isCdOnly: false,
+      };
+    }
+  }
 
   if (!winner) {
     return {

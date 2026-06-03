@@ -1,21 +1,30 @@
 import { isAbsolute, relative, resolve } from "path";
 
-const DEFAULT_SENSITIVE_PATTERNS = [
+// Single source of truth for sensitive files
+export const SENSITIVE_BASE_NAMES = [
   ".env",
-  ".env.*",
-  "**/.env",
-  "**/.env.*",
-  "**/*.pem",
-  "**/*.key",
-  "**/id_rsa",
-  "**/id_ed25519",
-  "**/id_ecdsa",
+  ".pem",
+  ".key",
+  "id_rsa",
+  "id_ed25519",
+  "id_ecdsa",
   ".git/config",
-  ".github/workflows/**",
   ".koincode/config.json",
 ];
 
-function matchesGlob(filePath: string, pattern: string): boolean {
+// Glob searched patterns generated from SENSITIVE_BASE_NAMES
+const DEFAULT_SENSITIVE_PATTERNS = [
+  ...SENSITIVE_BASE_NAMES.flatMap((name) => [
+    name,
+    `${name}.*`,
+    `**/${name}`,
+    `**/${name}.*`,
+    `**/*.${name.replace(".", "")}`, // For things like **/*.pem
+  ]),
+  ".github/workflows/**",
+];
+
+export function matchesGlob(filePath: string, pattern: string): boolean {
   try {
     return new Bun.Glob(pattern).match(filePath);
   } catch {
