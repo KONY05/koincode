@@ -4,8 +4,9 @@ import { getTreeSitterClient, TextAttributes } from "@opentui/core";
 
 import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
+import { usePromptConfig } from "../../providers/prompt-config";
 import type { Message } from "../../hooks/use-chat";
-import { Mode, type ModeType } from "@koincode/shared";
+import { Mode } from "@koincode/shared";
 import { createMarkdownSyntaxStyle } from "../../utils/syntax-style";
 import EditFileDiff from "../tool-view/edit-file";
 import WriteFilePreview from "../tool-view/write-file";
@@ -20,7 +21,6 @@ type ToolPart = Extract<ClientMessagePart, { type: `tool-${string}` | "dynamic-t
 type Props = {
   parts: ClientMessagePart[];
   model: string;
-  mode: ModeType;
   durationMs?: number;
   streaming?: boolean;
   interrupted?: boolean;
@@ -58,7 +58,7 @@ function groupConsecutiveParts(parts: ClientMessagePart[]): PartGroup[] {
      if (lastGroup && lastGroup.type === part.type) {
       lastGroup.parts.push(part);
      } else {
-      const key = 
+      const key =
         isToolPart(part) ? `group-tc-${part.toolCallId}` : `group-${part.type}-${i}`;
       groups.push({ type: part.type, parts: [part], key });
      }
@@ -70,12 +70,12 @@ function groupConsecutiveParts(parts: ClientMessagePart[]): PartGroup[] {
 export function BotMessage({
   parts,
   model,
-  mode,
   durationMs,
   streaming = false,
   interrupted = false,
 }: Props) {
   const { colors } = useTheme();
+  const { mode: currentMode } = usePromptConfig();
 
   const syntaxStyle = useMemo(() => createMarkdownSyntaxStyle(colors), [colors]);
 
@@ -89,11 +89,29 @@ export function BotMessage({
     []
   );
 
+  const shouldHidePart = (part: ClientMessagePart): boolean => {
+    if (!isToolPart(part)) return false;
+    const tn = part.type === "dynamic-tool" ? part.toolName : part.type.slice("tool-".length);
+    const hasInput = "input" in part && part.input != null && part.state !== "input-streaming";
+    return (hasInput && tn.includes("memory")) || tn === "askUser";
+  };
+
+  const groups = groupConsecutiveParts(parts).filter(
+    (group) => !group.parts.every(shouldHidePart)
+  );
+
+  const modeColor = currentMode === Mode.PLAN ? colors.planMode : colors.primary;
+  const modeLabel = currentMode === Mode.PLAN ? "Plan" : "Build";
+
   return (
     <box width="100%" alignItems="center">
-      {groupConsecutiveParts(parts).map((group, i) => (
+      {groups.map((group, i) => (
         <box key={group.key} width="100%" paddingTop={i === 0 ? 0 : 1}>
           {group.parts.map((part, j) => {
+            if (shouldHidePart(part)) {
+              return null;
+            }
+
             if (part.type === "reasoning") {
               return (
                 <box
@@ -149,7 +167,8 @@ export function BotMessage({
                       {pending ? " …" : ""}
                       {errorText ? ` ${errorText}` : ""}
                     </text>
-                  ) : (
+                  ) :
+                  (
                     <text attributes={TextAttributes.DIM}>
                       <em fg={colors.info}>{formatToolName(toolName)}:</em> {formatToolArgs(part)}
                       {pending ? " …" : ""}
@@ -175,7 +194,7 @@ export function BotMessage({
                 </box>
               );
             }
-            
+
             return null;
           })}
         </box>
@@ -184,11 +203,11 @@ export function BotMessage({
       <box paddingX={3} paddingY={1} gap={1} width="100%">
         <box flexDirection="row" gap={2}>
           {streaming ? (
-            <Spinner activeColor={mode === Mode.PLAN ? colors.planMode : colors.primary} />
-          ): <text fg={mode === Mode.PLAN ? colors.planMode : colors.primary}>◉</text>}
+            <Spinner activeColor={modeColor} />
+          ): <text fg={modeColor}>◉</text>}
           <box flexDirection="row" gap={1}>
             <text>
-              {mode === Mode.PLAN ? "Plan" : "Build"}
+              {modeLabel}
             </text>
             <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
               ›

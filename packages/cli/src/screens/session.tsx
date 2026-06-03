@@ -53,7 +53,6 @@ function ChatMessage(
     <BotMessage
       parts={msg.parts}
       model={msg.metadata?.model ?? "unknown"}
-      mode={msg.metadata?.mode ?? "BUILD"}
       durationMs={msg.metadata?.durationMs}
       streaming={streaming}
       interrupted={interrupted || msg.metadata?.interrupted}
