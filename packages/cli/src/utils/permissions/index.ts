@@ -10,8 +10,10 @@ export type PermissionKey =
   | "shell:rm"
   | "shell:write"
   | "shell:sudo"
-  | "shell:unknown"
-  | "file:sensitive";
+  | "shell:subshell"
+  | "shell:interpreter"
+  | "file:sensitive"
+  | `shell:bin:${string}`;
 
 export type PendingApproval = {
   key: PermissionKey;

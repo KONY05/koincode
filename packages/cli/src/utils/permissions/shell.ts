@@ -20,6 +20,15 @@ const SHELL_BIN_MAP: Record<
   tee: { key: "shell:write", label: "Write via tee", tier: "normal" },
   sudo: { key: "shell:sudo", label: "Run command as root", tier: "destructive" },
   su: { key: "shell:sudo", label: "Run command as root", tier: "destructive" },
+  bash: { key: "shell:interpreter", label: "Run script via bash", tier: "destructive" },
+  sh: { key: "shell:interpreter", label: "Run script via sh", tier: "destructive" },
+  zsh: { key: "shell:interpreter", label: "Run script via zsh", tier: "destructive" },
+  node: { key: "shell:interpreter", label: "Run script via node", tier: "destructive" },
+  python: { key: "shell:interpreter", label: "Run script via python", tier: "destructive" },
+  python3: { key: "shell:interpreter", label: "Run script via python3", tier: "destructive" },
+  ruby: { key: "shell:interpreter", label: "Run script via ruby", tier: "destructive" },
+  perl: { key: "shell:interpreter", label: "Run script via perl", tier: "destructive" },
+  php: { key: "shell:interpreter", label: "Run script via php", tier: "destructive" },
 };
 
 /**
@@ -69,13 +78,29 @@ function splitSubcommands(command: string): string[] {
   return parts.filter(Boolean);
 }
 
+function extractBaseBinary(cmd: string): string {
+  const tokens = cmd.trim().split(/\s+/);
+  for (const token of tokens) {
+    // Skip environment variables like NODE_ENV=production
+    if (/^[a-zA-Z_][a-zA-Z0-9_]*=/.test(token)) {
+      continue;
+    }
+    return token;
+  }
+  return "";
+}
+
+function hasSubshell(command: string): boolean {
+  return command.includes("$(") || command.includes("`");
+}
+
 type AtomicClassification = { requiresApproval: true } & PendingApproval & {
     isCdOnly: boolean;
   };
 
 /** Classify a single atomic command (no operators) by its leading binary. */
 function classifyAtomicCommand(cmd: string): AtomicClassification {
-  const bin = cmd.trim().split(/\s+/)[0] ?? "";
+  const bin = extractBaseBinary(cmd);
   const mapped = SHELL_BIN_MAP[bin];
 
   if (mapped) {
@@ -87,10 +112,11 @@ function classifyAtomicCommand(cmd: string): AtomicClassification {
     };
   }
 
+  const fallbackBin = bin || "unknown";
   return {
     requiresApproval: true,
-    key: "shell:unknown",
-    label: "Run shell command",
+    key: `shell:bin:${fallbackBin}` as PermissionKey,
+    label: `Run ${fallbackBin}`,
     description: cmd,
     tier: "normal",
     isCdOnly: false,
@@ -98,16 +124,23 @@ function classifyAtomicCommand(cmd: string): AtomicClassification {
 }
 
 const TIER_RANK: Record<PermissionTier, number> = { normal: 0, destructive: 1 };
-const KEY_RANK: Record<PermissionKey, number> = {
-  "shell:cd": 0,
-  "shell:git": 1,
-  "shell:npm": 1,
-  "shell:write": 2,
-  "shell:rm": 3,
-  "shell:unknown": 4,
-  "shell:sudo": 5,
-  "file:sensitive": 5,
-};
+
+function getKeyRank(key: PermissionKey): number {
+  if (key === "shell:cd") return 0;
+  if (key === "shell:git" || key === "shell:npm") return 1;
+  if (key === "shell:write") return 2;
+  if (key === "shell:rm") return 3;
+  if (key.startsWith("shell:bin:")) return 4;
+  if (
+    key === "shell:sudo" ||
+    key === "file:sensitive" ||
+    key === "shell:subshell" ||
+    key === "shell:interpreter"
+  ) {
+    return 5;
+  }
+  return 4; // fallback for any missing key
+}
 
 const SYSTEM_SENSITIVE_SUBSTRINGS = [
   ".zshrc",
@@ -121,7 +154,7 @@ const SYSTEM_SENSITIVE_SUBSTRINGS = [
   ".github/workflows",
 ];
 
-function isSensitiveShellCommand(command: string, extraPatterns: string[]): boolean {
+function isSensitiveFileShellCommand(command: string, extraPatterns: string[]): boolean {
   const defaultSubstrings = [
     ...SENSITIVE_BASE_NAMES,
     ...SYSTEM_SENSITIVE_SUBSTRINGS,
@@ -169,7 +202,17 @@ export default function getShellPermissionInfo(
   command: string,
   extraPatterns: string[] = []
 ): PermissionInfo {
-  if (isSensitiveShellCommand(command, extraPatterns)) {
+  if (hasSubshell(command)) {
+    return {
+      requiresApproval: true,
+      key: "shell:subshell",
+      label: "Run command with subshell",
+      description: command,
+      tier: "destructive",
+    };
+  }
+
+  if (isSensitiveFileShellCommand(command, extraPatterns)) {
     return {
       requiresApproval: true,
       key: "file:sensitive",
@@ -193,9 +236,9 @@ export default function getShellPermissionInfo(
   let winner = toMerge.reduce<AtomicClassification | undefined>(
     (best, cur) => {
       if (!best) return cur;
-      const keyWins = KEY_RANK[cur.key] > KEY_RANK[best.key];
+      const keyWins = getKeyRank(cur.key) > getKeyRank(best.key);
       const tierWins =
-        KEY_RANK[cur.key] === KEY_RANK[best.key] &&
+        getKeyRank(cur.key) === getKeyRank(best.key) &&
         TIER_RANK[cur.tier] > TIER_RANK[best.tier];
       return keyWins || tierWins ? cur : best;
     },
@@ -203,7 +246,7 @@ export default function getShellPermissionInfo(
   );
 
   if (hasWriteRedirection(command)) {
-    if (!winner || KEY_RANK[winner.key] < KEY_RANK["shell:write"]) {
+    if (!winner || getKeyRank(winner.key) < getKeyRank("shell:write")) {
       // Elevate to shell:write
       winner = {
         requiresApproval: true,
@@ -219,7 +262,7 @@ export default function getShellPermissionInfo(
   if (!winner) {
     return {
       requiresApproval: true,
-      key: "shell:unknown",
+      key: "shell:bin:unknown",
       label: "Run shell command",
       description: command,
       tier: "normal",
