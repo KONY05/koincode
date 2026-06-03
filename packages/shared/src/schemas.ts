@@ -32,7 +32,10 @@ export const toolInputSchemas = {
   grep: z.object({
     pattern: z.string().describe("Regex pattern to search for"),
     path: z.string().default(".").describe("Directory to search from"),
-    include: z.string().optional().describe("Optional glob for files to include"),
+    include: z
+      .string()
+      .optional()
+      .describe("Optional glob for files to include"),
   }),
   writeFile: z.object({
     path: z.string().describe("Relative path to write"),
@@ -45,22 +48,40 @@ export const toolInputSchemas = {
   }),
   shell: z.object({
     command: z.string().describe("Shell command to run"),
-    description: z.string().optional().describe("Short description of the command"),
+    description: z
+      .string()
+      .optional()
+      .describe("Short description of the command"),
     timeout: z.number().optional().describe("Timeout in milliseconds"),
   }),
   createTodos: z.object({
-    todos: z.array(todoItemSchema).describe("Ordered list of tasks to complete"),
+    todos: z
+      .array(todoItemSchema)
+      .describe("Ordered list of tasks to complete"),
   }),
   updateTodos: z.object({
-    todos: z.array(todoItemSchema).describe("Full updated list with current completion state"),
+    todos: z
+      .array(todoItemSchema)
+      .describe("Full updated list with current completion state"),
   }),
   webFetch: z.object({
     url: z.url().describe("URL to fetch"),
-    timeout: z.number().min(5).max(120).default(30).describe("Request timeout in seconds (5–120, default 30)"),
+    timeout: z
+      .number()
+      .min(5)
+      .max(120)
+      .default(30)
+      .describe("Request timeout in seconds (5–120, default 30)"),
   }),
   webSearch: z.object({
     query: z.string().describe("Search query"),
-    maxResults: z.number().int().min(1).max(20).default(10).describe("Maximum number of results to return"),
+    maxResults: z
+      .number()
+      .int()
+      .min(1)
+      .max(20)
+      .default(10)
+      .describe("Maximum number of results to return"),
   }),
   askUser: z.object({
     question: z.string().describe("The question to ask the user"),
@@ -68,16 +89,24 @@ export const toolInputSchemas = {
       .array(
         z.object({
           label: z.string().describe("Display text shown to the user"),
-          value: z.string().describe("Value returned when this option is selected"),
+          value: z
+            .string()
+            .describe("Value returned when this option is selected"),
         }),
       )
       .min(1)
       .describe("Options for the user to choose from"),
-    allowFreeText: z.boolean().optional().default(false).describe("Whether to also accept a custom typed response"),
+    allowFreeText: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Whether to also accept a custom typed response"),
   }),
   switchMode: z.object({
     target: modeSchema.describe("The mode to switch into"),
-    reason: z.string().describe("Short explanation of why the switch is needed"),
+    reason: z
+      .string()
+      .describe("Short explanation of why the switch is needed"),
   }),
   memoryAdd: z.object({
     key: z.string().describe("Unique identifier for this memory"),
@@ -93,9 +122,14 @@ export const toolInputSchemas = {
   memoryList: z.object({}),
   spawnAgent: z.object({
     name: z.string().describe("Short name/identifier for this sub-agent"),
-    description: z.string().describe("Short description of what this sub-agent will do"),
+    description: z
+      .string()
+      .describe("Short description of what this sub-agent will do"),
     task: z.string().describe("The full task to delegate to the sub-agent"),
-    startingMode: modeSchema.optional().default("PLAN").describe("Starting mode for the sub-agent"),
+    startingMode: modeSchema
+      .optional()
+      .default("PLAN")
+      .describe("Starting mode for the sub-agent"),
   }),
 } as const;
 
@@ -105,11 +139,13 @@ export const readOnlyToolContracts = {
     inputSchema: toolInputSchemas.readFile,
   }),
   listDirectory: tool({
-    description: "List entries in a directory under the current project directory.",
+    description:
+      "List entries in a directory under the current project directory.",
     inputSchema: toolInputSchemas.listDirectory,
   }),
   glob: tool({
-    description: "Find files matching a glob pattern under the current project directory.",
+    description:
+      "Find files matching a glob pattern under the current project directory.",
     inputSchema: toolInputSchemas.glob,
   }),
   grep: tool({
@@ -128,7 +164,8 @@ export const readOnlyToolContracts = {
     inputSchema: toolInputSchemas.updateTodos,
   }),
   webFetch: tool({
-    description: "Fetch the content of a URL and return the response body as text.",
+    description:
+      "Fetch the content of a URL using a headless browser and return the rendered HTML as text. Can handle JavaScript-rendered content from modern frameworks like Next.js and React.",
     inputSchema: toolInputSchemas.webFetch,
   }),
   webSearch: tool({
@@ -173,11 +210,13 @@ export const readOnlyToolContracts = {
 export const buildToolContracts = {
   ...readOnlyToolContracts,
   writeFile: tool({
-    description: "Create or overwrite a file under the current project directory.",
+    description:
+      "Create or overwrite a file under the current project directory.",
     inputSchema: toolInputSchemas.writeFile,
   }),
   editFile: tool({
-    description: "Replace exact text in a file under the current project directory.",
+    description:
+      "Replace exact text in a file under the current project directory.",
     inputSchema: toolInputSchemas.editFile,
   }),
   shell: tool({
@@ -189,7 +228,5 @@ export const buildToolContracts = {
 export type ToolContracts = typeof buildToolContracts;
 
 export function getToolContracts(mode: ModeType) {
-  return mode === Mode.PLAN 
-    ? readOnlyToolContracts 
-    : buildToolContracts;
-};
+  return mode === Mode.PLAN ? readOnlyToolContracts : buildToolContracts;
+}

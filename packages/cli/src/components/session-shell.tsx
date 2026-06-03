@@ -1,11 +1,19 @@
-import { MacOSScrollAccel, TextAttributes } from "@opentui/core";
-import { useMemo, type ReactNode } from "react";
+import {
+  MacOSScrollAccel,
+  TextAttributes,
+  type ScrollBoxRenderable,
+} from "@opentui/core";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import React from "react";
 
 import { InputBar } from "./input-bar";
 import { ApprovalWidget } from "./widget/approval-widget";
 import { AskUserWidget } from "./widget/ask-user-widget";
 import { ModeSwitchWidget } from "./widget/mode-switch-widget";
-import type { PendingModeSwitch, ModeSwitchResponse } from "./widget/mode-switch-widget";
+import type {
+  PendingModeSwitch,
+  ModeSwitchResponse,
+} from "./widget/mode-switch-widget";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
 import type { PendingUserQuestion } from "../hooks/use-chat";
 
@@ -37,6 +45,24 @@ export function SessionShell({
   onModeSwitchResponse,
 }: Props) {
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
+  const scrollRef = useRef<ScrollBoxRenderable>(null);
+  const prevChildrenCountRef = useRef(0);
+
+  // Auto-scroll to bottom only when a new message is added
+  useEffect(() => {
+    const currentCount = React.Children.count(children);
+    const prevCount = prevChildrenCountRef.current;
+
+    // Only scroll if the number of children increased (new message added)
+    if (currentCount > prevCount) {
+      const scrollbox = scrollRef.current;
+      if (scrollbox) {
+        scrollbox.scrollTo(scrollbox.content.height);
+      }
+    }
+
+    prevChildrenCountRef.current = currentCount;
+  }, [children]);
 
   return (
     <box
@@ -49,6 +75,7 @@ export function SessionShell({
       gap={1}
     >
       <scrollbox
+        ref={scrollRef}
         flexGrow={1}
         width="100%"
         stickyScroll
@@ -87,7 +114,7 @@ export function SessionShell({
         paddingLeft={1}
       >
         <box flexDirection="row" alignItems="center" gap={2}>
-          {loading  && interruptible ?<text>esc to interrupt</text> : null}
+          {loading && interruptible ? <text>esc to interrupt</text> : null}
         </box>
 
         <box flexDirection="row" gap={2} flexShrink={0} marginLeft="auto">

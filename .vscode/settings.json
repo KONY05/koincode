@@ -15,6 +15,7 @@
     "poweroff",
     "qwen",
     "Renderable",
-    "scrollbox"
+    "scrollbox",
+    "subshell"
   ]
 }

@@ -13,6 +13,7 @@ import {
   type LanguageModelUsage,
   type UIMessage,
 } from "ai";
+
 import { db } from "@koincode/database/client";
 import type { Prisma } from "@koincode/database";
 import {
@@ -21,6 +22,7 @@ import {
   type ChatMessageMetadata,
   type ToolContracts
 } from "@koincode/shared";
+import { logger } from "../lib/helpers";
 import { buildSystemPrompt } from "../system-prompt";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
 
@@ -112,8 +114,7 @@ const app = new Hono()
           data: { messages: nextMessages as unknown as Prisma.InputJsonValue },
         });
       } catch (err) {
-        const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
-        console.error(`[${ts}] Failed to pre-save messages for session ${id}:`, err);
+        logger.error(`Failed to pre-save messages for session ${id}:`, err);
       }
 
       const modelMessages = await convertToModelMessages(nextMessages, { tools });
@@ -181,8 +182,7 @@ const app = new Hono()
               },
             });
           } catch (err) {
-            const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
-            console.error(`[${ts}] Failed to save messages for session ${id}:`, err);
+            logger.error(`Failed to save messages for session ${id}:`, err);
           }
         },
         onError(error) {

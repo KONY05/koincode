@@ -20,10 +20,15 @@ import { apiClient } from "../lib/api-client";
 import { getErrorMessage } from "../lib/http-errors";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
 
-type SessionData = InferResponseType<(typeof apiClient.sessions)[":id"]["$get"], 200>;
+type SessionData = InferResponseType<
+  (typeof apiClient.sessions)[":id"]["$get"],
+  200
+>;
 
 const sessionLocationSchema = z.object({
-  session: z.custom<SessionData>((val) => val != null && typeof val === "object" && "id" in val),
+  session: z.custom<SessionData>(
+    (val) => val != null && typeof val === "object" && "id" in val,
+  ),
   initialPrompt: z
     .object({
       message: z.string(),
@@ -33,13 +38,17 @@ const sessionLocationSchema = z.object({
     .optional(),
 });
 
-function ChatMessage(
-  { msg, streaming = false, interrupted = false }: {
-    msg: Message;
-    streaming?: boolean;
-    interrupted?: boolean;
-  }
-) {
+function ChatMessage({
+  msg,
+  streaming = false,
+  interrupted = false,
+  isSubagentRunning = false,
+}: {
+  msg: Message;
+  streaming?: boolean;
+  interrupted?: boolean;
+  isSubagentRunning?: boolean;
+}) {
   if (msg.role === "user") {
     const text = msg.parts
       .filter((p) => p.type === "text")
@@ -53,22 +62,28 @@ function ChatMessage(
     <BotMessage
       parts={msg.parts}
       model={msg.metadata?.model ?? "unknown"}
-      mode={msg.metadata?.mode ?? "BUILD"}
       durationMs={msg.metadata?.durationMs}
       streaming={streaming}
       interrupted={interrupted || msg.metadata?.interrupted}
+      isSubagentRunning={isSubagentRunning}
     />
   );
-};
+}
 
-function SessionChat({ 
+function SessionChat({
   session,
   initialPrompt,
-}: { 
-  session: SessionData,
-  initialPrompt?: { message: string; mode: ModeType; model: SupportedChatModelId };
+}: {
+  session: SessionData;
+  initialPrompt?: {
+    message: string;
+    mode: ModeType;
+    model: SupportedChatModelId;
+  };
 }) {
-  const [initialMessages] = useState(() => session.messages as unknown as Message[]);
+  const [initialMessages] = useState(
+    () => session.messages as unknown as Message[],
+  );
   const { mode, model } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
   const {
@@ -82,6 +97,7 @@ function SessionChat({
     pendingModeSwitch,
     resolveModeSwitch,
     systemEvents,
+    isSubagentRunning,
     submit,
     abort,
     interrupt,
@@ -160,8 +176,12 @@ function SessionChat({
   return (
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
-      loading={status === "submitted" || status === "streaming"}
-      interruptible={status === "submitted" || status === "streaming"}
+      loading={
+        status === "submitted" || status === "streaming" || isSubagentRunning
+      }
+      interruptible={
+        status === "submitted" || status === "streaming" || isSubagentRunning
+      }
       pendingApproval={pendingApproval}
       onApprovalResponse={resolveApproval}
       pendingUserQuestion={pendingUserQuestion}
@@ -181,7 +201,10 @@ function SessionChat({
             key={msg.id}
             msg={msg}
             streaming={status === "streaming" && isLastAssistant}
-            interrupted={wasInterrupted && status !== "streaming" && isLastAssistant}
+            interrupted={
+              wasInterrupted && status !== "streaming" && isLastAssistant
+            }
+            isSubagentRunning={isSubagentRunning}
           />
         );
       })}
@@ -201,7 +224,9 @@ export function Session() {
     return parsed.success ? parsed.data : null;
   }, [location.state]);
 
-  const [session, setSession] = useState<SessionData | null>(prefetched?.session ?? null);
+  const [session, setSession] = useState<SessionData | null>(
+    prefetched?.session ?? null,
+  );
 
   useEffect(() => {
     // Skip fetch if session was passed via location state
@@ -215,7 +240,7 @@ export function Session() {
     let ignore = false;
     const fetchSession = async () => {
       try {
-        const res = await apiClient.sessions[":id"].$get({ 
+        const res = await apiClient.sessions[":id"].$get({
           param: { id },
         });
         if (ignore) return;
@@ -226,7 +251,8 @@ export function Session() {
         if (ignore) return;
         toast.show({
           variant: "error",
-          message: err instanceof Error ? err.message : "Failed to load session",
+          message:
+            err instanceof Error ? err.message : "Failed to load session",
         });
         navigate("/", { replace: true });
       }
@@ -243,10 +269,10 @@ export function Session() {
   }
 
   return (
-    <SessionChat 
-      key={session.id} 
-      session={session} 
+    <SessionChat
+      key={session.id}
+      session={session}
       initialPrompt={prefetched?.initialPrompt}
     />
   );
-};
+}
