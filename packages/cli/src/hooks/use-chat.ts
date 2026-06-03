@@ -60,6 +60,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
   const [pendingModeSwitch, setPendingModeSwitch] =
     useState<PendingModeSwitch | null>(null);
   const [systemEvents, setSystemEvents] = useState<SystemEvent[]>([]);
+  const [isSubagentRunning, setIsSubagentRunning] = useState(false);
 
   const resolveApprovalRef = useRef<((r: ApprovalResponse) => void) | null>(
     null,
@@ -80,10 +81,18 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
   const setModeRef = useRef(setMode);
   const setAutoModeSwitchRef = useRef(setAutoModeSwitch);
 
-  useEffect(() => { currentModeRef.current = mode; }, [mode]);
-  useEffect(() => { autoModeSwitchRef.current = autoModeSwitch; }, [autoModeSwitch]);
-  useEffect(() => { setModeRef.current = setMode; }, [setMode]);
-  useEffect(() => { setAutoModeSwitchRef.current = setAutoModeSwitch; }, [setAutoModeSwitch]);
+  useEffect(() => {
+    currentModeRef.current = mode;
+  }, [mode]);
+  useEffect(() => {
+    autoModeSwitchRef.current = autoModeSwitch;
+  }, [autoModeSwitch]);
+  useEffect(() => {
+    setModeRef.current = setMode;
+  }, [setMode]);
+  useEffect(() => {
+    setAutoModeSwitchRef.current = setAutoModeSwitch;
+  }, [setAutoModeSwitch]);
 
   const transport = useMemo(() => {
     return new DefaultChatTransport<Message>({
@@ -140,6 +149,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
           )?.metadata;
           const model = metadata?.model ?? "openrouter/owl-alpha";
 
+          setIsSubagentRunning(true);
           try {
             const result = await runSpawnAgent({
               name,
@@ -160,6 +170,8 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
               state: "output-error",
               errorText: error instanceof Error ? error.message : String(error),
             });
+          } finally {
+            setIsSubagentRunning(false);
           }
           return;
         }
@@ -395,6 +407,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     pendingModeSwitch,
     resolveModeSwitch,
     systemEvents,
+    isSubagentRunning,
     submit: (params: {
       userText: string;
       mode: ModeType;
