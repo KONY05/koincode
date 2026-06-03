@@ -138,7 +138,7 @@ export const readOnlyToolContracts = {
   }),
   askUser: tool({
     description:
-      "Ask the user a question and wait for their response. Use this when you need a decision or clarification before proceeding. Provide clear options; set allowFreeText: true if the user may need to type a custom answer.",
+      "Ask the user a question and wait for their response. Use this when you need a decision from the user or clarification before proceeding. Provide clear options; set allowFreeText: true if the user may need to type a custom answer.",
     inputSchema: toolInputSchemas.askUser,
   }),
   switchMode: tool({

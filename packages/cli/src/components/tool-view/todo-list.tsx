@@ -35,7 +35,7 @@ export default function TodoList({
           <text fg={todo.completed ? colors.success : colors.dimSeparator}>
             {todo.completed ? "✓" : "○"}
           </text>
-          <text attributes={todo.completed ? TextAttributes.STRIKETHROUGH : TextAttributes.NONE}>
+          <text attributes={todo.completed ? TextAttributes.STRIKETHROUGH | TextAttributes.DIM : TextAttributes.NONE}>
             {todo.text}
           </text>
         </box>
