@@ -2,6 +2,7 @@ import { Hono } from "hono";
 // import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
+
 import { db } from "@koincode/database/client";
 
 const createSessionSchema = z.object({
@@ -16,18 +17,24 @@ const listSessionsSchema = z.object({
 });
 
 const createSessionValidator = zValidator(
-  "json", createSessionSchema, (result, c) => {
-  if (!result.success) {
-    return c.json({ error: "Invalid request body" }, 400);
-  }
-});
+  "json",
+  createSessionSchema,
+  (result, c) => {
+    if (!result.success) {
+      return c.json({ error: "Invalid request body" }, 400);
+    }
+  },
+);
 
 const listSessionsValidator = zValidator(
-  "query", listSessionsSchema, (result, c) => {
-  if (!result.success) {
-    return c.json({ error: "Invalid query params" }, 400);
-  }
-});
+  "query",
+  listSessionsSchema,
+  (result, c) => {
+    if (!result.success) {
+      return c.json({ error: "Invalid query params" }, 400);
+    }
+  },
+);
 
 const app = new Hono()
   .get("/", listSessionsValidator, async (c) => {
@@ -42,7 +49,7 @@ const app = new Hono()
       select: {
         id: true,
         title: true,
-        createdAt: true,
+        updatedAt: true,
       },
     });
 
@@ -68,7 +75,24 @@ const app = new Hono()
       return c.json({ error: "Session not found" }, 404);
     }
 
-    return c.json(session);
+    // Fetch messages from Message table
+    const messageRecords = await db.message.findMany({
+      where: { sessionId: id },
+      orderBy: { order: "asc" },
+    });
+
+    // Parse messages from JSON content
+    const messages = messageRecords
+      .map((m) => {
+        try {
+          return JSON.parse(m.content);
+        } catch {
+          return null;
+        }
+      })
+      .filter((m) => m !== null);
+
+    return c.json({ ...session, messages });
   })
   .post("/", createSessionValidator, async (c) => {
     // MOCK: Uncomment to simulate slow session loading
