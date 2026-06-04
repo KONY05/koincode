@@ -9,7 +9,7 @@
 import { type ModeType, toolInputSchemas } from "@koincode/shared";
 import { executeLocalTool } from "./index";
 import { getPermissionInfo } from "../utils/permissions";
-import { isPermittedForProject } from "../utils/project-config";
+import { isPermittedForProject } from "../utils/configs/project-config";
 import { fetchWithRestart } from "../lib/api-client";
 import { SERVER_PORT } from "@koincode/shared";
 

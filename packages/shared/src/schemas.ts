@@ -157,16 +157,57 @@ export const toolInputSchemas = {
       ),
     hook: z
       .object({
-        type: z.enum(["command", "http", "mcp_tool", "prompt", "agent"]),
-        command: z.string().optional(),
-        args: z.array(z.string()).optional(),
-        timeout: z.number().optional(),
-        shell: z.enum(["bash", "powershell"]).optional(),
-        async: z.boolean().optional(),
-        if: z.string().optional(),
-      })
+          type: z.literal("command"),
+          command: z.string(),
+          args: z.array(z.string()).optional(),
+          timeout: z.number().optional(),
+          shell: z.enum(["bash", "powershell"]).optional(),
+          async: z.boolean().optional(),
+          if: z.string().optional(),
+        })
       .optional()
       .describe("Hook handler configuration"),
+      // eslint-disable-next-line no-irregular-whitespace
+      // * NOTE: FOR WHEN WE WANT TO ADD MORE HOOK TYPES 
+      //  .discriminatedUnion("type", [
+      //   z.object({
+      //     type: z.literal("command"),
+      //     command: z.string(),
+      //     args: z.array(z.string()).optional(),
+      //     timeout: z.number().optional(),
+      //     shell: z.enum(["bash", "powershell"]).optional(),
+      //     async: z.boolean().optional(),
+      //     if: z.string().optional(),
+      //   }),
+      //   z.object({
+      //     type: z.literal("http"),
+      //     url: z.string(),
+      //     method: z.enum(["GET", "POST", "PUT", "DELETE"]).optional(),
+      //     headers: z.record(z.string(), z.string()).optional(),
+      //     timeout: z.number().optional(),
+      //     async: z.boolean().optional(),
+      //     if: z.string().optional(),
+      //   }),
+      //   z.object({
+      //     type: z.literal("mcp_tool"),
+      //     tool: z.string(),
+      //     args: z.record(z.string(), z.any()).optional(),
+      //     timeout: z.number().optional(),
+      //     async: z.boolean().optional(),
+      //     if: z.string().optional(),
+      //   }),
+      //   z.object({
+      //     type: z.literal("prompt"),
+      //     prompt: z.string(),
+      //     if: z.string().optional(),
+      //   }),
+      //   z.object({
+      //     type: z.literal("agent"),
+      //     agent: z.string(),
+      //     task: z.string(),
+      //     if: z.string().optional(),
+      //   }),
+      // ])
   }),
 } as const;
 

@@ -109,7 +109,11 @@ export function BotMessage({
         : part.type.slice("tool-".length);
     const hasInput =
       "input" in part && part.input != null && part.state !== "input-streaming";
-    return (hasInput && tn.includes("memory")) || tn === "askUser";
+    return (
+      (hasInput && tn.includes("memory")) ||
+      tn === "askUser" ||
+      tn === "manageHook"
+    );
   };
 
   const groups = groupConsecutiveParts(parts).filter(

@@ -1,12 +1,16 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
+
 import type { ThemeColors, Theme } from "../../theme";
 import { DEFAULT_THEME, THEMES } from "../../theme";
-import { readConfig, updateConfig } from "../../utils/config";
+import {
+  readGlobalConfig,
+  updateGlobalConfig,
+} from "../../utils/configs/global-config";
 
 function getInitialTheme(): Theme {
   try {
-    const config = readConfig();
+    const config = readGlobalConfig();
     const saved = THEMES.find((t) => t.name === config.themeName);
     return saved ?? DEFAULT_THEME;
   } catch {
@@ -40,7 +44,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const setTheme = useCallback((theme: Theme) => {
     setCurrentTheme(theme);
     try {
-      updateConfig({ themeName: theme.name });
+      updateGlobalConfig({ themeName: theme.name });
     } catch {
       // Ignore write failures so theme switching still works for this session.
     }

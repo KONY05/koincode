@@ -6,7 +6,7 @@ export type ApiKeys = {
 };
 
 // Global Config file type
-export type KoincodeConfig = {
+export type KoincodeGlobalConfig = {
   themeName?: string;
   defaultModel?: string;
   apiKeys?: ApiKeys;
@@ -34,7 +34,46 @@ export type CommandHookHandler = {
   if?: string;
 };
 
-export type HookHandler = CommandHookHandler;
+// export type HttpHookHandler = {
+//   type: "http";
+//   url: string;
+//   method?: "GET" | "POST" | "PUT" | "DELETE";
+//   headers?: Record<string, string>;
+//   timeout?: number;
+//   async?: boolean;
+//   if?: string;
+// };
+
+// export type McpToolHookHandler = {
+//   type: "mcp_tool";
+//   tool: string;
+//   args?: Record<string, unknown>;
+//   timeout?: number;
+//   async?: boolean;
+//   if?: string;
+// };
+
+// export type PromptHookHandler = {
+//   type: "prompt";
+//   prompt: string;
+//   if?: string;
+// };
+
+// export type AgentHookHandler = {
+//   type: "agent";
+//   agent: string;
+//   task: string;
+//   if?: string;
+// };
+
+// export type HookHandler =
+//   | CommandHookHandler
+//   | HttpHookHandler
+//   | McpToolHookHandler
+//   | PromptHookHandler
+//   | AgentHookHandler;
+
+export type HookHandler = CommandHookHandler
 
 export type HookMatcherGroup = {
   matcher: string;

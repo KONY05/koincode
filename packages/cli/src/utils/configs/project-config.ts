@@ -1,8 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
 
-import type { PermissionKey } from "../utils/permissions";
-import type { HooksConfig } from "@koincode/shared";
+import type { PermissionKey } from "../permissions";
+import {
+  PROJECT_CONFIG_DIR,
+  PROJECT_CONFIG_FILE,
+  type HooksConfig,
+} from "@koincode/shared";
 
 type ProjectConfig = {
   permissions?: Partial<Record<PermissionKey, "allowed">>;
@@ -11,8 +14,7 @@ type ProjectConfig = {
 };
 
 function getPaths() {
-  const dir = join(process.cwd(), ".koincode");
-  return { dir, file: join(dir, "config.json") };
+  return { dir: PROJECT_CONFIG_DIR, file: PROJECT_CONFIG_FILE };
 }
 
 export function readProjectConfig(): ProjectConfig {
@@ -27,6 +29,12 @@ export function isPermittedForProject(key: PermissionKey): boolean {
   return readProjectConfig().permissions?.[key] === "allowed";
 }
 
+export function writeProjectConfig(config: ProjectConfig): void {
+  const { dir, file } = getPaths();
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(file, JSON.stringify(config, null, 2));
+}
+
 export function allowForProject(key: PermissionKey): void {
   try {
     const config = readProjectConfig();
@@ -34,9 +42,7 @@ export function allowForProject(key: PermissionKey): void {
       ...config,
       permissions: { ...config.permissions, [key]: "allowed" },
     };
-    const { dir, file } = getPaths();
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(file, JSON.stringify(next, null, 2));
+    writeProjectConfig(next);
   } catch {
     // Degrades to "allow once" — the tool still runs, the decision just isn't persisted.
   }

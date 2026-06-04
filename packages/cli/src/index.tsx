@@ -6,7 +6,7 @@ import { RootLayout } from "./layouts/root-layout";
 import { Home } from "./screens/home";
 import { NewSession } from "./screens/new-session";
 import { Session } from "./screens/session";
-import { updateConfig } from "./utils/config";
+import { updateGlobalConfig } from "./utils/configs/global-config";
 import type { ApiKeys } from "@koincode/shared";
 
 // Handle key-saving flags before starting the TUI
@@ -30,7 +30,7 @@ for (const { flag, apiKey } of KEY_FLAGS) {
       : undefined;
 
   if (value) {
-    updateConfig({ apiKeys: { [apiKey]: value } });
+    updateGlobalConfig({ apiKeys: { [apiKey]: value } });
     process.stdout.write(
       `✓ ${flag.replace("--", "").replace("-key", "")} key saved\n`,
     );

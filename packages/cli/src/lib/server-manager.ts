@@ -2,10 +2,10 @@ import { spawn, execSync } from "child_process";
 import path from "path";
 import fs from "fs";
 
-import { CONFIG_DIR, PID_FILE, SERVER_PORT } from "@koincode/shared";
-import { readConfig } from "../utils/config";
+import { GLOBAL_CONFIG_DIR, PID_FILE, SERVER_PORT } from "@koincode/shared";
+import { readGlobalConfig } from "../utils/configs/global-config";
 
-const LOG_FILE = `${CONFIG_DIR}/server.log`;
+const LOG_FILE = `${GLOBAL_CONFIG_DIR}/server.log`;
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -51,11 +51,11 @@ async function waitForServer(timeoutMs = 15_000): Promise<boolean> {
 }
 
 function spawnServer() {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
 
   const logFd = fs.openSync(LOG_FILE, "w");
   const args = isDev ? ["--hot", SERVER_ENTRY] : [SERVER_ENTRY];
-  const config = readConfig();
+  const config = readGlobalConfig();
 
   const server = spawn("bun", args, {
     detached: true,

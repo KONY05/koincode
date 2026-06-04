@@ -5,14 +5,14 @@
 
 import { spawn } from "child_process";
 
-import { readConfig } from "../config";
-import { readProjectConfig } from "../project-config";
+import { readGlobalConfig } from "../configs/global-config";
+import { readProjectConfig } from "../configs/project-config";
 import { matchHook } from "./matcher";
 import type {
   HookEventType,
-  HookHandler,
   HooksConfig,
   CommandHookHandler,
+  HookHandler,
   HookMatcherGroup,
 } from "@koincode/shared";
 
@@ -44,7 +44,7 @@ export interface HookResult {
  */
 export function loadHooks(): HooksConfig {
   const projectConfig = readProjectConfig();
-  const globalConfig = readConfig();
+  const globalConfig = readGlobalConfig();
 
   // Merge hooks: project config overrides global config
   const mergedHooks: HooksConfig = {

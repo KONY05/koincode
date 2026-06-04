@@ -23,7 +23,7 @@ import {
   allowForProject,
   isPermittedForProject,
   readProjectConfig,
-} from "../utils/project-config";
+} from "../utils/configs/project-config";
 import { usePromptConfig } from "../providers/prompt-config";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
 import type {

@@ -1,51 +1,16 @@
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-
 import {
   toolInputSchemas,
-  CONFIG_FILE,
-  CONFIG_DIR,
   type HookMatcherGroup,
+  type KoincodeGlobalConfig,
 } from "@koincode/shared";
-
-function getProjectPaths() {
-  const dir = join(process.cwd(), ".koincode");
-  return { dir, file: join(dir, "config.json") };
-}
-
-function getGlobalPaths() {
-  return { dir: CONFIG_DIR, file: CONFIG_FILE };
-}
-
-function readProjectConfig() {
-  try {
-    const { file } = getProjectPaths();
-    return JSON.parse(readFileSync(file, "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function readGlobalConfig() {
-  try {
-    const { file } = getGlobalPaths();
-    return JSON.parse(readFileSync(file, "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function writeProjectConfig(config: unknown) {
-  const { dir, file } = getProjectPaths();
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(file, JSON.stringify(config, null, 2));
-}
-
-function writeGlobalConfig(config: unknown) {
-  const { dir, file } = getGlobalPaths();
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(file, JSON.stringify(config, null, 2));
-}
+import {
+  readGlobalConfig,
+  writeGlobalConfig,
+} from "../utils/configs/global-config";
+import {
+  readProjectConfig,
+  writeProjectConfig,
+} from "../utils/configs/project-config";
 
 export async function runManageHook(input: unknown) {
   const { action, eventType, matcher, index, hook } =
@@ -99,14 +64,17 @@ export async function runManageHook(input: unknown) {
       );
       if (existingIndex !== -1) {
         // Add hook to existing group (support multiple hooks per matcher)
-        eventHooks[existingIndex].hooks.push(hook);
+        const existingGroup = eventHooks[existingIndex];
+        if (existingGroup) {
+          existingGroup.hooks.push(hook);
+        }
       } else {
         // Create new hook group
         eventHooks.push({ matcher, hooks: [hook] });
       }
 
       if (scope === "global") {
-        writeGlobalConfig(config);
+        writeGlobalConfig(config as KoincodeGlobalConfig);
       } else {
         writeProjectConfig(config);
       }
@@ -133,6 +101,9 @@ export async function runManageHook(input: unknown) {
       }
 
       const hookGroup = eventHooks[existingGroupIndex];
+      if (!hookGroup) {
+        throw new Error(`Hook group not found for matcher "${matcher}"`);
+      }
 
       // If index is provided, update specific hook in the array
       if (index !== undefined) {
@@ -148,7 +119,7 @@ export async function runManageHook(input: unknown) {
       }
 
       if (scope === "global") {
-        writeGlobalConfig(config);
+        writeGlobalConfig(config as KoincodeGlobalConfig);
       } else {
         writeProjectConfig(config);
       }
@@ -171,11 +142,10 @@ export async function runManageHook(input: unknown) {
           `Hook with matcher "${matcher}" not found for event ${eventType}`,
         );
       }
-
       eventHooks.splice(existingIndex, 1);
 
       if (scope === "global") {
-        writeGlobalConfig(config);
+        writeGlobalConfig(config as KoincodeGlobalConfig);
       } else {
         writeProjectConfig(config);
       }
