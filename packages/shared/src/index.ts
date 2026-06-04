@@ -20,7 +20,13 @@ export {
   type TodoItem,
 } from "./schemas";
 
-export { type ChatMessageMetadata} from "./chat";
+export { type ChatMessageMetadata } from "./chat";
 
-export { SERVER_PORT, CONFIG_DIR, DB_PATH, PID_FILE, CONFIG_FILE } from "./paths";
+export {
+  SERVER_PORT,
+  CONFIG_DIR,
+  DB_PATH,
+  PID_FILE,
+  CONFIG_FILE,
+} from "./paths";
 export type { KoincodeConfig, ApiKeys } from "./config";

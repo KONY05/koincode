@@ -34,6 +34,7 @@ export async function runShellCommand(input: unknown) {
   }
 
   const shell = process.platform === "win32" ? "cmd.exe" : (process.env.SHELL ?? "/bin/sh");
+  
   const shellArgs = process.platform === "win32"
     ? [shell, "/c", command]
     : [shell, "-c", command];
@@ -44,13 +45,18 @@ export async function runShellCommand(input: unknown) {
     stderr: "pipe",
     env: { ...process.env, TERM: "dumb" },
   });
+
   const timer = setTimeout(() => proc.kill(), timeout);
+
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
   ]);
+
   const exitCode = await proc.exited;
+
   clearTimeout(timer);
+
   return {
     stdout: truncate(stdout, MAX_OUTPUT),
     stderr: truncate(stderr, MAX_OUTPUT),

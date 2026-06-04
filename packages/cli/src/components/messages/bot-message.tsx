@@ -248,7 +248,7 @@ export function BotMessage({
 
       <box paddingX={3} paddingY={1} gap={1} width="100%">
         <box flexDirection="row" gap={2}>
-          {streaming ? (
+          {streaming || isSubagentRunning ? (
             <Spinner activeColor={modeColor} />
           ) : (
             <text fg={modeColor}>◉</text>

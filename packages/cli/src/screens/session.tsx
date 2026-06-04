@@ -4,7 +4,11 @@ import { z } from "zod";
 import { useKeyboard } from "@opentui/react";
 import type { InferResponseType } from "hono/client";
 
-import { type ModeType, type SupportedChatModelId } from "@koincode/shared";
+import {
+  SUPPORTED_CHAT_MODELS,
+  type ModeType,
+  type SupportedChatModelId,
+} from "@koincode/shared";
 import { SessionShell } from "../components/session-shell";
 import {
   UserMessage,
@@ -27,13 +31,19 @@ type SessionData = InferResponseType<
 
 const sessionLocationSchema = z.object({
   session: z.custom<SessionData>(
-    (val) => val != null && typeof val === "object" && "id" in val,
+    (val): val is SessionData =>
+      val != null && typeof val === "object" && "id" in val,
   ),
   initialPrompt: z
     .object({
       message: z.string(),
-      mode: z.custom<ModeType>(),
-      model: z.custom<SupportedChatModelId>(),
+      mode: z.custom<ModeType>(
+        (val): val is ModeType => val === "PLAN" || val === "BUILD",
+      ),
+      model: z.custom<SupportedChatModelId>(
+        (val): val is SupportedChatModelId =>
+          typeof val === "string" && val in SUPPORTED_CHAT_MODELS,
+      ),
     })
     .optional(),
 });
@@ -103,6 +113,7 @@ function SessionChat({
     interrupt,
     error,
   } = useChat(session.id, initialMessages);
+
   const hasSubmittedInitialPromptRef = useRef(false);
 
   // Stop the pending reply when the user leaves this session.
@@ -265,7 +276,13 @@ export function Session() {
   }, [id, prefetched, toast, navigate]);
 
   if (!session) {
-    return <SessionShell onSubmit={() => {}} inputDisabled loading />;
+    return (
+      <SessionShell
+        onSubmit={() => {}}
+        inputDisabled
+        loading
+      />
+    );
   }
 
   return (

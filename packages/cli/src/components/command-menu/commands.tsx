@@ -25,8 +25,13 @@ export const COMMANDS: Command[] = [
     action: (ctx) => {
       ctx.dialog.open({
         title: "Select Agent",
-        children: <AgentsDialogContent currentMode={ctx.mode} onSelectMode={ctx.setMode} />,
-      })
+        children: (
+          <AgentsDialogContent
+            currentMode={ctx.mode}
+            onSelectMode={ctx.setMode}
+          />
+        ),
+      });
     },
   },
   {
@@ -42,7 +47,7 @@ export const COMMANDS: Command[] = [
             onSelectModel={ctx.setModel}
           />
         ),
-      })
+      });
     },
   },
   {
@@ -53,7 +58,7 @@ export const COMMANDS: Command[] = [
       ctx.dialog.open({
         title: "Sessions",
         children: <SessionsDialogContent />,
-      })
+      });
     },
   },
   {
@@ -64,7 +69,7 @@ export const COMMANDS: Command[] = [
       ctx.dialog.open({
         title: "Select Theme",
         children: <ThemeDialogContent />,
-      })
+      });
     },
   },
   {
