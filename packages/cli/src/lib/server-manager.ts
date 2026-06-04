@@ -15,24 +15,59 @@ const SERVER_ENTRY = isDev
   ? path.join(import.meta.dirname, "../../../server/src/index.ts")
   : path.join(import.meta.dirname, "../../server/src/index.ts");
 
-function killPortIfInUse(): void {
+function getServerPort(): number {
+  const config = readGlobalConfig();
+  return config.port ?? SERVER_PORT;
+}
+
+function killPortIfInUse(port: number): void {
   try {
-    execSync(`lsof -ti tcp:${SERVER_PORT} | xargs kill -9`, {
-      stdio: "ignore",
-    });
-  } catch {
-    // Nothing was using the port — that's fine.
-  }
-  try {
-    fs.unlinkSync(PID_FILE);
-  } catch {
-    // PID file didn't exist — that's fine.
+    const pids = execSync(`lsof -ti tcp:${port}`, {
+      stdio: "pipe",
+      encoding: "utf-8",
+    }).trim();
+
+    if (pids) {
+      // Check if any of the PIDs are our own server
+      try {
+        const ourPid = Number(fs.readFileSync(PID_FILE, "utf-8").trim());
+        const pidList = pids.split("\n").map(Number);
+
+        // If only our PID is using the port, just kill it
+        if (pidList.length === 1 && pidList[0] === ourPid) {
+          process.kill(ourPid);
+          fs.unlinkSync(PID_FILE);
+          return;
+        }
+
+        // If other processes are using the port, warn the user
+        console.warn(
+          `⚠️  Port ${port} is already in use by another process (PID: ${pids})`,
+        );
+        console.warn(`   Use a different port with: koincode --port <port>`);
+        throw new Error(`Port ${port} is already in use`);
+      } catch {
+        // Couldn't read PID file or PID doesn't match, try to kill
+        execSync(`lsof -ti tcp:${port} | xargs kill -9`, {
+          stdio: "ignore",
+        });
+      }
+    }
+  } catch (e) {
+    // lsof failed or port not in use - that's fine
+    // But if it's our specific error about port in use, rethrow it
+    if (
+      e instanceof Error &&
+      e.message.includes("Port ${port} is already in use")
+    ) {
+      throw e;
+    }
   }
 }
 
-async function isServerHealthy(): Promise<boolean> {
+async function isServerHealthy(port: number): Promise<boolean> {
   try {
-    const res = await fetch(`http://localhost:${SERVER_PORT}/health`, {
+    const res = await fetch(`http://localhost:${port}/health`, {
       signal: AbortSignal.timeout(2000),
     });
     return res.ok;
@@ -41,16 +76,19 @@ async function isServerHealthy(): Promise<boolean> {
   }
 }
 
-async function waitForServer(timeoutMs = 15_000): Promise<boolean> {
+async function waitForServer(
+  port: number,
+  timeoutMs = 15_000,
+): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await isServerHealthy()) return true;
+    if (await isServerHealthy(port)) return true;
     await new Promise((r) => setTimeout(r, 250));
   }
   return false;
 }
 
-function spawnServer() {
+function spawnServer(port: number) {
   fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
 
   const logFd = fs.openSync(LOG_FILE, "w");
@@ -62,7 +100,7 @@ function spawnServer() {
     stdio: ["ignore", logFd, logFd],
     env: {
       ...process.env,
-      PORT: String(SERVER_PORT),
+      PORT: String(port),
       NODE_ENV: process.env.NODE_ENV ?? "production",
       // Config file keys take precedence over shell env vars
       ...(config.apiKeys?.anthropic && {
@@ -88,20 +126,22 @@ function spawnServer() {
 }
 
 export async function ensureServerRunning(): Promise<void> {
-  if (await isServerHealthy()) return;
+  const port = getServerPort();
+  if (await isServerHealthy(port)) return;
 
-  killPortIfInUse();
-  spawnServer();
+  killPortIfInUse(port);
+  spawnServer(port);
 
-  const ready = await waitForServer(30_000);
+  const ready = await waitForServer(port, 30_000);
   if (!ready) {
     throw new Error(
-      `Koincode server failed to start on port ${SERVER_PORT} within 30 seconds.`,
+      `Koincode server failed to start on port ${port} within 30 seconds.`,
     );
   }
 }
 
 export async function restartServer(): Promise<void> {
+  const port = getServerPort();
   // Kill the existing process if we have a PID on record
   try {
     const pid = Number(fs.readFileSync(PID_FILE, "utf8").trim());
@@ -110,13 +150,13 @@ export async function restartServer(): Promise<void> {
     // No PID or already dead — continue to spawn
   }
 
-  killPortIfInUse();
-  spawnServer();
+  killPortIfInUse(port);
+  spawnServer(port);
 
-  const ready = await waitForServer(30_000);
+  const ready = await waitForServer(port, 30_000);
   if (!ready) {
     throw new Error(
-      `Koincode server failed to restart on port ${SERVER_PORT} within 30 seconds.`,
+      `Koincode server failed to restart on port ${port} within 30 seconds.`,
     );
   }
 }

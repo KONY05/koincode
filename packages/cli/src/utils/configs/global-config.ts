@@ -56,6 +56,14 @@ export function updateGlobalConfig(
     }
   }
 
+  if (updates.port !== undefined) {
+    if (updates.port === 0) {
+      delete next.port;
+    } else {
+      next.port = updates.port;
+    }
+  }
+
   writeGlobalConfig(next);
   return next;
 }

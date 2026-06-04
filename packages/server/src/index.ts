@@ -14,7 +14,6 @@ import memory from "./routes/memory";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
-
 // Ensure config dir exists and run pending migrations before accepting requests
 const DATABASE_PKG = path.join(import.meta.dirname, "../../database");
 try {
@@ -63,4 +62,5 @@ setInterval(() => {
 }, 60_000).unref();
 
 // idleTimeout must be high, otherwise LLM tool calls might not complete
-export default { port: SERVER_PORT, fetch: routes.fetch, idleTimeout: 255 };
+const port = Number(process.env.PORT) || SERVER_PORT;
+export default { port, fetch: routes.fetch, idleTimeout: 255 };

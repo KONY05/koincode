@@ -12,6 +12,7 @@ export type KoincodeGlobalConfig = {
   apiKeys?: ApiKeys;
   autoModeSwitch?: "confirm" | "auto";
   hooks?: HooksConfig;
+  port?: number;
 };
 
 // Hook types
@@ -73,7 +74,7 @@ export type CommandHookHandler = {
 //   | PromptHookHandler
 //   | AgentHookHandler;
 
-export type HookHandler = CommandHookHandler
+export type HookHandler = CommandHookHandler;
 
 export type HookMatcherGroup = {
   matcher: string;
