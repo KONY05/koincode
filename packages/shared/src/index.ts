@@ -29,4 +29,14 @@ export {
   PID_FILE,
   CONFIG_FILE,
 } from "./paths";
-export type { KoincodeConfig, ApiKeys } from "./config";
+
+export type {
+  KoincodeConfig,
+  ApiKeys,
+  HookEventType,
+  HookHandlerType,
+  CommandHookHandler,
+  HookHandler,
+  HookMatcherGroup,
+  HooksConfig,
+} from "./config";

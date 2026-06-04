@@ -23,16 +23,6 @@ const PromptConfigContext = createContext<PromptConfigContextValue | null>(
   null,
 );
 
-export function usePromptConfig(): PromptConfigContextValue {
-  const value = useContext(PromptConfigContext);
-  if (!value) {
-    throw new Error(
-      "usePromptConfig must be used within a PromptConfigProvider",
-    );
-  }
-  return value;
-}
-
 type PromptConfigProviderProps = {
   children: ReactNode;
 };
@@ -73,4 +63,15 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
       {children}
     </PromptConfigContext.Provider>
   );
+}
+
+
+export function usePromptConfig(): PromptConfigContextValue {
+  const value = useContext(PromptConfigContext);
+  if (!value) {
+    throw new Error(
+      "usePromptConfig must be used within a PromptConfigProvider",
+    );
+  }
+  return value;
 }

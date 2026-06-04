@@ -131,6 +131,43 @@ export const toolInputSchemas = {
       .default("PLAN")
       .describe("Starting mode for the sub-agent"),
   }),
+  manageHook: z.object({
+    action: z
+      .enum(["add", "update", "remove", "list"])
+      .describe("Action to perform on hooks"),
+    scope: z
+      .enum(["project", "global"])
+      .optional()
+      .default("project")
+      .describe(
+        "Config scope: 'project' for .koincode/config.json, 'global' for ~/.koincode/config.json",
+      ),
+    eventType: z
+      .enum(["PreToolUse", "PostToolUse", "PostToolUseFailure"])
+      .describe("Hook event type"),
+    matcher: z
+      .string()
+      .optional()
+      .describe("Matcher pattern (e.g., 'Edit|Write', 'Bash', '*')"),
+    index: z
+      .number()
+      .optional()
+      .describe(
+        "Index of hook to update (for update action). If not provided, replaces all hooks for the matcher",
+      ),
+    hook: z
+      .object({
+        type: z.enum(["command", "http", "mcp_tool", "prompt", "agent"]),
+        command: z.string().optional(),
+        args: z.array(z.string()).optional(),
+        timeout: z.number().optional(),
+        shell: z.enum(["bash", "powershell"]).optional(),
+        async: z.boolean().optional(),
+        if: z.string().optional(),
+      })
+      .optional()
+      .describe("Hook handler configuration"),
+  }),
 } as const;
 
 export const readOnlyToolContracts = {
@@ -204,6 +241,11 @@ export const readOnlyToolContracts = {
     description:
       "Spawn a sub-agent to handle a delegated subtask. The sub-agent runs its own full LLM loop (with tool calls and mode switching) and returns a final text result. Multiple sub-agents can be spawned in parallel in a single turn.",
     inputSchema: toolInputSchemas.spawnAgent,
+  }),
+  manageHook: tool({
+    description:
+      "Manage project hooks in .koincode/config.json. Only modifies the hooks object, leaving permissions and other config untouched. Actions: add (add a hook), update (replace existing hook), remove (delete hook), list (show current hooks).",
+    inputSchema: toolInputSchemas.manageHook,
   }),
 } as const;
 

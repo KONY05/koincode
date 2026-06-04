@@ -8,49 +8,121 @@ import { runReadFile } from "./read-file";
 import { runWebFetch } from "./web-fetch";
 import { runWriteFile } from "./write-file";
 import { runWebSearch } from "./web-search";
-import { runMemoryAdd, runMemoryUpdate, runMemoryDelete, runMemoryList } from "./memory";
+import {
+  runMemoryAdd,
+  runMemoryUpdate,
+  runMemoryDelete,
+  runMemoryList,
+} from "./memory";
+import { runManageHook } from "./manage-hook";
+import { runHooks } from "../utils/hooks";
 
-const PLAN_TOOLS = ["readFile", "listDirectory", "glob", "grep", "createTodos", "updateTodos", "webFetch", "webSearch", "askUser", "memoryAdd", "memoryUpdate", "memoryDelete", "memoryList", "spawnAgent"];
+const PLAN_TOOLS = [
+  "readFile",
+  "listDirectory",
+  "glob",
+  "grep",
+  "createTodos",
+  "updateTodos",
+  "webFetch",
+  "webSearch",
+  "askUser",
+  "memoryAdd",
+  "memoryUpdate",
+  "memoryDelete",
+  "memoryList",
+  "spawnAgent",
+  "manageHook",
+];
 
-export async function executeLocalTool(toolName: string, input: unknown, mode: ModeType) {
+export async function executeLocalTool(
+  toolName: string,
+  input: unknown,
+  mode: ModeType,
+) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.includes(toolName)) {
     throw new Error(`Tool ${toolName} is not available in PLAN mode`);
   }
 
-  switch (toolName) {
-    case "readFile":
-      return runReadFile(input);
-    case "listDirectory":
-      return runListDirectory(input);
-    case "glob":
-      return runGlob(input);
-    case "grep":
-      return runGrep(input);
-    case "writeFile":
-      return runWriteFile(input);
-    case "editFile":
-      return runEditFile(input);
-    case "shell":
-      return runShellCommand(input);
-    case "webFetch":
-      return runWebFetch(input);
-    case "webSearch":
-      return runWebSearch(input);
-    case "createTodos":
-    case "updateTodos":
-      return { ok: true };
-    case "memoryAdd":
-      return runMemoryAdd(input);
-    case "memoryUpdate":
-      return runMemoryUpdate(input);
-    case "memoryDelete":
-      return runMemoryDelete(input);
-    case "memoryList":
-      return runMemoryList(input);
-    // These are fully handled in use-chat.ts before reaching here; these paths should never run.
-    // case "askUser":
-    // case "switchMode":
-    default:
-      throw new Error(`Unknown tool: ${toolName}`);
+  let toolOutput: unknown;
+  try {
+    switch (toolName) {
+      case "readFile":
+        toolOutput = runReadFile(input);
+        break;
+      case "listDirectory":
+        toolOutput = runListDirectory(input);
+        break;
+      case "glob":
+        toolOutput = runGlob(input);
+        break;
+      case "grep":
+        toolOutput = runGrep(input);
+        break;
+      case "writeFile":
+        toolOutput = runWriteFile(input);
+        break;
+      case "editFile":
+        toolOutput = runEditFile(input);
+        break;
+      case "shell":
+        toolOutput = runShellCommand(input);
+        break;
+      case "webFetch":
+        toolOutput = runWebFetch(input);
+        break;
+      case "webSearch":
+        toolOutput = runWebSearch(input);
+        break;
+      case "createTodos":
+      case "updateTodos":
+        toolOutput = { ok: true };
+        break;
+      case "memoryAdd":
+        toolOutput = runMemoryAdd(input);
+        break;
+      case "memoryUpdate":
+        toolOutput = runMemoryUpdate(input);
+        break;
+      case "memoryDelete":
+        toolOutput = runMemoryDelete(input);
+        break;
+      case "memoryList":
+        toolOutput = runMemoryList(input);
+        break;
+      case "manageHook":
+        toolOutput = await runManageHook(input);
+        break;
+      // These are fully handled in use-chat.ts before reaching here; these paths should never run.
+      // case "askUser":
+      // case "switchMode":
+      default:
+        throw new Error(`Unknown tool: ${toolName}`);
+    }
+
+    // Run PostToolUse hooks
+    await runHooks(
+      "PostToolUse",
+      toolName,
+      input,
+      toolOutput,
+    );
+
+    // Log hook results (hooks can log to stdout/stderr which we already capture)
+    // PostToolUse hooks cannot block the tool since it already executed
+    // They can only provide context or notifications
+
+    return toolOutput;
+  } catch (error) {
+    // Run PostToolUseFailure hooks
+    await runHooks(
+      "PostToolUseFailure",
+      toolName,
+      input,
+      undefined,
+      process.cwd(),
+      error instanceof Error ? error.message : String(error),
+    );
+    throw error;
   }
 }

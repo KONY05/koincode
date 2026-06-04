@@ -1,10 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
+
 import type { PermissionKey } from "../utils/permissions";
+import type { HooksConfig } from "@koincode/shared";
 
 type ProjectConfig = {
   permissions?: Partial<Record<PermissionKey, "allowed">>;
   sensitivePatterns?: string[];
+  hooks?: HooksConfig;
 };
 
 function getPaths() {
