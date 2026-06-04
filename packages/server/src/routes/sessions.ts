@@ -2,8 +2,33 @@ import { Hono } from "hono";
 // import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
+import { generateText } from "ai";
 
 import { db } from "@koincode/database/client";
+import { resolveChatModel } from "../lib/models";
+import { logger } from "../lib/helpers";
+
+async function generateTitleFromMessage(message: string): Promise<string> {
+  try {
+    if (!message || message.length < 10) {
+      return message.slice(0, 50) || "New Conversation";
+    }
+
+    // Use OpenRouter free model for title generation
+    const result = await generateText({
+      model: resolveChatModel("google/gemma-4-31b-it:free").model,
+      prompt: `Generate a concise, descriptive title (max 50 characters) for this conversation based on the user's first message:\n\n${message}\n\nReturn only the title, no quotes or extra text.`,
+      maxOutputTokens: 50,
+    });
+
+    const title = result.text.trim().slice(0, 50);
+    return title || message.slice(0, 50);
+  } catch (error) {
+    logger.error("Failed to generate title:", error);
+    // Fallback to using the text content as the title
+    return message.slice(0, 50) || "New Conversation";
+  }
+}
 
 const createSessionSchema = z.object({
   title: z.string(),
@@ -106,8 +131,11 @@ const app = new Hono()
 
     const { title, cwd, gitBranch } = c.req.valid("json");
 
+    // Generate title from first message if provided
+    const finalTitle = await generateTitleFromMessage(title);
+
     const session = await db.session.create({
-      data: { title, cwd, gitBranch },
+      data: { title: finalTitle, cwd, gitBranch },
     });
 
     return c.json(session, 201);

@@ -1,0 +1,1 @@
+after the user sends the first message i want to auto generate a title based on that message and set it as the title of the conversation, don't send anything to the assistant or the backend or anything, just update the title, it can happen in the background
