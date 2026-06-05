@@ -57,8 +57,8 @@ function App() {
 
 if (process.env.TERM_PROGRAM === "Apple_Terminal") {
   process.stderr.write(
-    "\x1b[33m⚠ Warning:\x1b[0m macOS Terminal.app has limited true-color support — themes may render incorrectly.\n" +
-      "For best results use iTerm2, Ghostty, or Warp.\n\n",
+    "\x1b[33m⚠ Note:\x1b[0m macOS Terminal.app detected — theme colors will be adapted to 256-color mode.\n" +
+      "For full true-color themes use iTerm2, Ghostty, or WezTerm.\n\n",
   );
 }
 

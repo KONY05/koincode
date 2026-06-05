@@ -1,6 +1,6 @@
 import { TextAttributes } from "@opentui/core";
 
-import type { ThemeColors } from "../../theme";
+import type { ThemeColors } from "../../providers/theme/theme";
 
 const MAX_LINE_LEN = 80;
 
@@ -30,18 +30,26 @@ export default function WriteFilePreview({
   return (
     <box width="100%">
       <box flexDirection="row" gap={1}>
-        <text><em fg={colors.success}>Write File</em></text>
-        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
+        <text>
+          <em fg={colors.success}>Write File</em>
+        </text>
+        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+          ›
+        </text>
         <text attributes={TextAttributes.DIM}>{path}</text>
         {pending && <text attributes={TextAttributes.DIM}> …</text>}
       </box>
       {preview.length > 0 && (
         <box width="100%" paddingLeft={1}>
           {preview.map((line, i) => (
-            <text key={i} attributes={TextAttributes.DIM}>{clipLine(line)}</text>
+            <text key={i} attributes={TextAttributes.DIM}>
+              {clipLine(line)}
+            </text>
           ))}
           {hasMore && (
-            <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>…</text>
+            <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+              …
+            </text>
           )}
         </box>
       )}

@@ -1,20 +1,35 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
 
-import type { ThemeColors, Theme } from "../../theme";
-import { DEFAULT_THEME, THEMES } from "../../theme";
+import {
+  type ThemeColors,
+  type Theme,
+  DEFAULT_THEME,
+  THEMES,
+} from "./theme";
 import {
   readGlobalConfig,
   updateGlobalConfig,
 } from "../../utils/configs/global-config";
+import {
+  supportsTrueColor,
+  quantizeThemeColors,
+} from "../../utils/color-support";
+
+const IS_TRUE_COLOR = supportsTrueColor();
+
+function applyColorSupport(theme: Theme): Theme {
+  if (IS_TRUE_COLOR) return theme;
+  return { ...theme, colors: quantizeThemeColors(theme.colors) };
+}
 
 function getInitialTheme(): Theme {
   try {
     const config = readGlobalConfig();
     const saved = THEMES.find((t) => t.name === config.themeName);
-    return saved ?? DEFAULT_THEME;
+    return applyColorSupport(saved ?? DEFAULT_THEME);
   } catch {
-    return DEFAULT_THEME;
+    return applyColorSupport(DEFAULT_THEME);
   }
 }
 
@@ -42,7 +57,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [currentTheme, setCurrentTheme] = useState<Theme>(getInitialTheme);
 
   const setTheme = useCallback((theme: Theme) => {
-    setCurrentTheme(theme);
+    setCurrentTheme(applyColorSupport(theme));
     try {
       updateGlobalConfig({ themeName: theme.name });
     } catch {

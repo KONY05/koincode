@@ -2,6 +2,7 @@
   "js/ts.tsdk.path": "node_modules/typescript/lib",
   "cSpell.words": [
     "bunx",
+    "COLORTERM",
     "cuid",
     "deepseek",
     "interruptible",

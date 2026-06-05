@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from "react";
+
 import { useDialog } from "../../providers/dialog";
 import { useTheme } from "../../providers/theme";
 import { DialogSearchList } from "../dialog-search-list";
-import { THEMES } from "../../theme";
-import type { Theme } from "../../theme";
+import { type Theme, THEMES } from "../../providers/theme/theme";
 
 export const ThemeDialogContent = () => {
   const dialog = useDialog();
@@ -42,7 +42,9 @@ export const ThemeDialogContent = () => {
       items={THEMES}
       onSelect={handleSelect}
       onHighlight={handleHighlight}
-      filterFn={(t, query) => t.name.toLowerCase().includes(query.toLowerCase())}
+      filterFn={(t, query) =>
+        t.name.toLowerCase().includes(query.toLowerCase())
+      }
       renderItem={(theme, isSelected) => (
         <text selectable={false} fg={isSelected ? "black" : "white"}>
           {theme.name === originalThemeRef.current.name

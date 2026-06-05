@@ -1,8 +1,16 @@
-import { TextAttributes, TreeSitterClient, type SyntaxStyle } from "@opentui/core";
+import {
+  TextAttributes,
+  TreeSitterClient,
+  type SyntaxStyle,
+} from "@opentui/core";
 
-import type { ThemeColors } from "../../theme";
+import type { ThemeColors } from "../../providers/theme/theme";
 
-function buildUnifiedDiff(path: string, oldString: string, newString: string): string {
+function buildUnifiedDiff(
+  path: string,
+  oldString: string,
+  newString: string,
+): string {
   const oldLines = oldString.split("\n");
   const newLines = newString.split("\n");
   const header = `--- a/${path}\n+++ b/${path}\n@@ -1,${oldLines.length} +1,${newLines.length} @@`;
@@ -17,7 +25,7 @@ export default function EditFileDiff({
   error,
   colors,
   syntaxStyle,
-  treeSitterClient
+  treeSitterClient,
 }: {
   input: unknown;
   pending: boolean;
@@ -35,13 +43,18 @@ export default function EditFileDiff({
   if (typeof path !== "string") return null;
 
   const filetype = path.split(".").pop();
-  const hasDiff = typeof oldString === "string" && typeof newString === "string";
+  const hasDiff =
+    typeof oldString === "string" && typeof newString === "string";
 
   return (
     <box width="100%">
       <box flexDirection="row" gap={1}>
-        <text><em fg={colors.info}>Edit File</em></text>
-        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
+        <text>
+          <em fg={colors.info}>Edit File</em>
+        </text>
+        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+          ›
+        </text>
         <text attributes={TextAttributes.DIM}>{path}</text>
         {pending && <text attributes={TextAttributes.DIM}> …</text>}
       </box>

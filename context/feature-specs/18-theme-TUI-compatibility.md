@@ -1,0 +1,1 @@
+you know you mentioned that the default terminal.app wont show the colors we had is there an alternative to it
