@@ -25,7 +25,7 @@ export function NewSession() {
   const state = useMemo(() => {
     const parsed = newSessionStateSchema.safeParse(location.state);
     return parsed.success ? parsed.data : null;
-  }, [location.state])
+  }, [location.state]);
 
   // Guard: if navigated here directly without state, go home
   useEffect(() => {
@@ -44,6 +44,7 @@ export function NewSession() {
     const createSession = async () => {
       try {
         const gitBranch = getGitBranch();
+
         const res = await apiClient.sessions.$post({
           json: {
             title: state.message.slice(0, 100),
@@ -57,15 +58,13 @@ export function NewSession() {
           throw new Error(await getErrorMessage(res));
         }
         const session = await res.json();
-        navigate(
-          `/sessions/${session.id}`,
-          { replace: true, state: { session, initialPrompt: state } }
-        );
+        navigate(`/sessions/${session.id}`, { state, replace: true });
       } catch (error) {
         if (ignore) return;
         toast.show({
           variant: "error",
-          message: error instanceof Error ? error.message : "Failed to create session",
+          message:
+            error instanceof Error ? error.message : "Failed to create session",
         });
         navigate("/", { replace: true });
       }
@@ -75,7 +74,7 @@ export function NewSession() {
     return () => {
       ignore = true;
     };
-  }, [state, navigate, toast]);
+  }, [state, navigate, toast, hasStartedRef]);
 
   if (!state) return null;
 
@@ -84,4 +83,4 @@ export function NewSession() {
       <UserMessage message={state.message} mode={state.mode} />
     </SessionShell>
   );
-};
+}

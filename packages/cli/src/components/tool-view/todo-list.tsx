@@ -1,6 +1,6 @@
 import { TextAttributes } from "@opentui/core";
 
-import type { ThemeColors } from "../../theme";
+import type { ThemeColors } from "../../providers/theme/theme";
 import type { TodoItem } from "@koincode/shared";
 
 export default function TodoList({
@@ -24,7 +24,9 @@ export default function TodoList({
   return (
     <box width="100%">
       <box flexDirection="row" gap={1}>
-        <text><em fg={colors.info}>{label}</em></text>
+        <text>
+          <em fg={colors.info}>{label}</em>
+        </text>
         <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
           {completedCount}/{todos.length}
         </text>
@@ -35,7 +37,13 @@ export default function TodoList({
           <text fg={todo.completed ? colors.success : colors.dimSeparator}>
             {todo.completed ? "✓" : "○"}
           </text>
-          <text attributes={todo.completed ? TextAttributes.STRIKETHROUGH | TextAttributes.DIM : TextAttributes.NONE}>
+          <text
+            attributes={
+              todo.completed
+                ? TextAttributes.STRIKETHROUGH | TextAttributes.DIM
+                : TextAttributes.NONE
+            }
+          >
             {todo.text}
           </text>
         </box>

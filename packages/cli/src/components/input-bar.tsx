@@ -1,8 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 
-import { useRef, useState, useCallback, useEffect, type RefObject } from "react";
-
 import { TextAttributes } from "@opentui/core";
 import type { PasteEvent } from "@opentui/core";
 import { decodePasteBytes } from "@opentui/core";
@@ -10,6 +8,13 @@ import type { TextareaRenderable, ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useRenderer } from "@opentui/react";
 import type { KeyBinding } from "@opentui/core";
 import { useNavigate } from "react-router";
+import {
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  type RefObject,
+} from "react";
 
 import { EmptyBorder } from "./border";
 import { StatusBar } from "./status-bar";
@@ -46,16 +51,20 @@ type MentionCandidate = {
 
 function isWithinCurrentDirectory(targetPath: string) {
   const relativePath = relative(CURRENT_DIRECTORY, targetPath);
-  return relativePath === "" 
-    || (!relativePath.startsWith("..") 
-    && !isAbsolute(relativePath));
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !isAbsolute(relativePath))
+  );
 }
 
 function isMentionQueryCharacter(character: string) {
   return MENTION_QUERY_CHARACTER.test(character);
 }
 
-function findActiveMention(text: string, cursorOffset: number): MentionMatch | null {
+function findActiveMention(
+  text: string,
+  cursorOffset: number,
+): MentionMatch | null {
   const safeOffset = Math.max(0, Math.min(cursorOffset, text.length));
 
   let start = safeOffset;
@@ -82,7 +91,10 @@ function findActiveMention(text: string, cursorOffset: number): MentionMatch | n
   }
 
   let mentionEnd = mentionStart + 1;
-  while (mentionEnd < token.length && isMentionQueryCharacter(token[mentionEnd]!)) {
+  while (
+    mentionEnd < token.length &&
+    isMentionQueryCharacter(token[mentionEnd]!)
+  ) {
     mentionEnd += 1;
   }
 
@@ -97,7 +109,9 @@ function findActiveMention(text: string, cursorOffset: number): MentionMatch | n
   };
 }
 
-async function getMentionCandidates(query: string): Promise<MentionCandidate[]> {
+async function getMentionCandidates(
+  query: string,
+): Promise<MentionCandidate[]> {
   const normalizedQuery = query.startsWith("./") ? query.slice(2) : query;
   if (normalizedQuery.startsWith("/")) {
     return [];
@@ -132,9 +146,18 @@ async function getMentionCandidates(query: string): Promise<MentionCandidate[]> 
 
     const directMatches = entries
       .filter((entry) => showHiddenEntries || !entry.name.startsWith("."))
-      .filter((entry) => !(entry.isDirectory() && RECURSIVE_MENTION_IGNORED_DIRECTORIES.has(entry.name)))
+      .filter(
+        (entry) =>
+          !(
+            entry.isDirectory() &&
+            RECURSIVE_MENTION_IGNORED_DIRECTORIES.has(entry.name)
+          ),
+      )
       .filter((entry) => {
-        return lowercasePrefix === "" || entry.name.toLowerCase().startsWith(lowercasePrefix);
+        return (
+          lowercasePrefix === "" ||
+          entry.name.toLowerCase().startsWith(lowercasePrefix)
+        );
       })
       .sort((left, right) => {
         if (left.isDirectory() !== right.isDirectory()) {
@@ -143,8 +166,12 @@ async function getMentionCandidates(query: string): Promise<MentionCandidate[]> 
         return left.name.localeCompare(right.name);
       })
       .map((entry) => {
-        const path = directoryPart ? `${directoryPart}/${entry.name}` : entry.name;
-        const kind: MentionCandidate["kind"] = entry.isDirectory() ? "directory" : "file";
+        const path = directoryPart
+          ? `${directoryPart}/${entry.name}`
+          : entry.name;
+        const kind: MentionCandidate["kind"] = entry.isDirectory()
+          ? "directory"
+          : "file";
         return {
           path: kind === "directory" ? `${path}/` : path,
           kind,
@@ -162,8 +189,8 @@ async function getMentionCandidates(query: string): Promise<MentionCandidate[]> 
 
     const fallbackMatches: MentionCandidate[] = [];
     const visit = async (
-      absoluteDirectory: string, 
-      directoryPart: string
+      absoluteDirectory: string,
+      directoryPart: string,
     ): Promise<void> => {
       const entries = await readdir(absoluteDirectory, { withFileTypes: true });
 
@@ -173,15 +200,18 @@ async function getMentionCandidates(query: string): Promise<MentionCandidate[]> 
         }
 
         if (
-          entry.isDirectory() 
-          && RECURSIVE_MENTION_IGNORED_DIRECTORIES.has(entry.name)
+          entry.isDirectory() &&
+          RECURSIVE_MENTION_IGNORED_DIRECTORIES.has(entry.name)
         ) {
           continue;
         }
 
-        const path = directoryPart ? `${directoryPart}/${entry.name}` : entry.name;
-        const kind: MentionCandidate["kind"] = 
-          entry.isDirectory() ? "directory" : "file";
+        const path = directoryPart
+          ? `${directoryPart}/${entry.name}`
+          : entry.name;
+        const kind: MentionCandidate["kind"] = entry.isDirectory()
+          ? "directory"
+          : "file";
 
         if (entry.name.toLowerCase().startsWith(lowercasePrefix)) {
           fallbackMatches.push({
@@ -203,7 +233,9 @@ async function getMentionCandidates(query: string): Promise<MentionCandidate[]> 
     };
 
     await visit(CURRENT_DIRECTORY, "");
-    return fallbackMatches.sort((left, right) => left.path.localeCompare(right.path));
+    return fallbackMatches.sort((left, right) =>
+      left.path.localeCompare(right.path),
+    );
   } catch {
     return [];
   }
@@ -230,7 +262,9 @@ function FileMentionMenu({
   if (candidates.length === 0) {
     return (
       <box paddingX={1}>
-        <text attributes={TextAttributes.DIM}>No matching files or folders</text>
+        <text attributes={TextAttributes.DIM}>
+          No matching files or folders
+        </text>
       </box>
     );
   }
@@ -267,7 +301,7 @@ function FileMentionMenu({
       })}
     </scrollbox>
   );
-};
+}
 
 type Props = {
   onSubmit: (text: string) => void;
@@ -301,7 +335,9 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   const { isTopLayer, push, pop, setResponder } = useKeyboardLayer();
 
   const [activeMention, setActiveMention] = useState<MentionMatch | null>(null);
-  const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([]);
+  const [mentionCandidates, setMentionCandidates] = useState<
+    MentionCandidate[]
+  >([]);
   const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
 
   const {
@@ -323,33 +359,36 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     pop("mention");
   }, [pop]);
 
-  const syncMentionMenu = useCallback((text: string, cursorOffset: number) => {
-    const nextMention = findActiveMention(text, cursorOffset);
-    const previousMention = activeMentionRef.current;
-    const mentionChanged =
-      previousMention?.start !== nextMention?.start ||
-      previousMention?.end !== nextMention?.end ||
-      previousMention?.query !== nextMention?.query;
+  const syncMentionMenu = useCallback(
+    (text: string, cursorOffset: number) => {
+      const nextMention = findActiveMention(text, cursorOffset);
+      const previousMention = activeMentionRef.current;
+      const mentionChanged =
+        previousMention?.start !== nextMention?.start ||
+        previousMention?.end !== nextMention?.end ||
+        previousMention?.query !== nextMention?.query;
 
-    if (!nextMention) {
-      if (previousMention) {
-        closeMentionMenu();
+      if (!nextMention) {
+        if (previousMention) {
+          closeMentionMenu();
+        }
+        return;
       }
-      return;
-    }
 
-    activeMentionRef.current = nextMention;
-    setActiveMention(nextMention);
-    push("mention", () => {
-      closeMentionMenu();
-      return true;
-    });
+      activeMentionRef.current = nextMention;
+      setActiveMention(nextMention);
+      push("mention", () => {
+        closeMentionMenu();
+        return true;
+      });
 
-    if (mentionChanged) {
-      setMentionSelectedIndex(0);
-      mentionScrollRef.current?.scrollTo(0);
-    }
-  }, [closeMentionMenu, push]);
+      if (mentionChanged) {
+        setMentionSelectedIndex(0);
+        mentionScrollRef.current?.scrollTo(0);
+      }
+    },
+    [closeMentionMenu, push],
+  );
 
   const handleTextareaContentChange = useCallback(() => {
     const textarea = textareaRef.current;
@@ -384,7 +423,10 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     const text = expandPastes(raw);
     pasteContentRef.current.clear();
 
-    historyRef.current = [text, ...historyRef.current.filter((h) => h !== text)];
+    historyRef.current = [
+      text,
+      ...historyRef.current.filter((h) => h !== text),
+    ];
     historyIndexRef.current = -1;
     undoStackRef.current = [];
     prevTextRef.current = "";
@@ -393,55 +435,61 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     skipUndoRef.current = true;
     textarea.setText("");
     skipUndoRef.current = false;
-  }, [disabled, onSubmit, expandPastes])
+  }, [disabled, onSubmit, expandPastes]);
 
-  const handleMentionExecute = useCallback((index: number) => {
-    const textarea = textareaRef.current;
-    const mention = activeMentionRef.current;
-    const candidate = mentionCandidates[index];
+  const handleMentionExecute = useCallback(
+    (index: number) => {
+      const textarea = textareaRef.current;
+      const mention = activeMentionRef.current;
+      const candidate = mentionCandidates[index];
 
-    if (!textarea || !mention || !candidate) return;
+      if (!textarea || !mention || !candidate) return;
 
-    const insertion = candidate.kind === "directory" 
-      ? candidate.path 
-      : `${candidate.path} `;
+      const insertion =
+        candidate.kind === "directory" ? candidate.path : `${candidate.path} `;
 
-    const nextText = `${textarea.plainText.slice(0, mention.start)}@${insertion}${textarea.plainText.slice(mention.end)}`;
+      const nextText = `${textarea.plainText.slice(0, mention.start)}@${insertion}${textarea.plainText.slice(mention.end)}`;
 
-    skipUndoRef.current = true;
-    textarea.replaceText(nextText);
-    skipUndoRef.current = false;
-    textarea.cursorOffset = mention.start + insertion.length + 1;
-    syncMentionMenu(nextText, textarea.cursorOffset);
-  }, [mentionCandidates, syncMentionMenu]);
-
-  const handleCommand = useCallback((
-    command: Command | undefined
-  ) => {
-    const textarea = textareaRef.current;
-    if (!textarea || !command) return;
-
-    skipUndoRef.current = true;
-    textarea.setText("");
-    skipUndoRef.current = false;
-    prevTextRef.current = "";
-
-    if (command.action) {
-      command.action({
-        exit: () => { renderer.destroy(); process.exit(0); },
-        toast,
-        dialog,
-        navigate,
-        mode,
-        setMode,
-        setModel,
-      });
-    } else {
       skipUndoRef.current = true;
-      textarea.insertText(command.value + " ");
+      textarea.replaceText(nextText);
       skipUndoRef.current = false;
-    }
-  }, [renderer, toast, dialog, navigate, mode, setMode, setModel]);
+      textarea.cursorOffset = mention.start + insertion.length + 1;
+      syncMentionMenu(nextText, textarea.cursorOffset);
+    },
+    [mentionCandidates, syncMentionMenu],
+  );
+
+  const handleCommand = useCallback(
+    (command: Command | undefined) => {
+      const textarea = textareaRef.current;
+      if (!textarea || !command) return;
+
+      skipUndoRef.current = true;
+      textarea.setText("");
+      skipUndoRef.current = false;
+      prevTextRef.current = "";
+
+      if (command.action) {
+        command.action({
+          exit: () => {
+            renderer.destroy();
+            process.exit(0);
+          },
+          toast,
+          dialog,
+          navigate,
+          mode,
+          setMode,
+          setModel,
+        });
+      } else {
+        skipUndoRef.current = true;
+        textarea.insertText(command.value + " ");
+        skipUndoRef.current = false;
+      }
+    },
+    [renderer, toast, dialog, navigate, mode, setMode, setModel],
+  );
 
   const handleCommandExecute = useCallback(
     (index: number) => {
@@ -533,14 +581,19 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
 
     if (key.name === "up") {
       const text = textarea.plainText;
-      const cursorOnFirstLine = !text.slice(0, textarea.cursorOffset).includes("\n");
+      const cursorOnFirstLine = !text
+        .slice(0, textarea.cursorOffset)
+        .includes("\n");
       if (!cursorOnFirstLine) return;
 
       const history = historyRef.current;
       if (history.length === 0) return;
 
       key.preventDefault();
-      const nextIndex = Math.min(historyIndexRef.current + 1, history.length - 1);
+      const nextIndex = Math.min(
+        historyIndexRef.current + 1,
+        history.length - 1,
+      );
       historyIndexRef.current = nextIndex;
       skipUndoRef.current = true;
       textarea.setText(history[nextIndex]!);
@@ -550,7 +603,9 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
       if (historyIndexRef.current === -1) return;
 
       const text = textarea.plainText;
-      const cursorOnLastLine = !text.slice(textarea.cursorOffset).includes("\n");
+      const cursorOnLastLine = !text
+        .slice(textarea.cursorOffset)
+        .includes("\n");
       if (!cursorOnLastLine) return;
 
       key.preventDefault();
@@ -646,7 +701,9 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     };
 
     internalKeyInput.on("paste", handlePaste);
-    return () => { internalKeyInput.off("paste", handlePaste); };
+    return () => {
+      internalKeyInput.off("paste", handlePaste);
+    };
   }, [renderer]);
 
   useKeyboard((key) => {
@@ -673,7 +730,10 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
           return 0;
         }
 
-        const nextIndex = Math.min(mentionCandidates.length - 1, currentIndex + 1);
+        const nextIndex = Math.min(
+          mentionCandidates.length - 1,
+          currentIndex + 1,
+        );
         const scrollbox = mentionScrollRef.current;
 
         if (scrollbox) {
@@ -693,7 +753,13 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     <box width="100%" alignItems="center">
       <box
         border={["left"]}
-        borderColor={disabled ? colors.dimSeparator : mode === Mode.BUILD ? colors.primary : colors.planMode}
+        borderColor={
+          disabled
+            ? colors.dimSeparator
+            : mode === Mode.BUILD
+              ? colors.primary
+              : colors.planMode
+        }
         customBorderChars={{
           ...EmptyBorder,
           vertical: "┃",
@@ -749,16 +815,22 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
           <textarea
             ref={textareaRef}
             focused={
-              !disabled && 
-              (isTopLayer("base") || isTopLayer("command") || isTopLayer("mention"))
+              !disabled &&
+              (isTopLayer("base") ||
+                isTopLayer("command") ||
+                isTopLayer("mention"))
             }
             keyBindings={TEXTAREA_KEY_BINDINGS}
             onContentChange={handleTextareaContentChange}
-            placeholder={disabled ? "Agent is thinking… press esc to interrupt" : `Ask anything... "Fix a bug in the database"`}
+            placeholder={
+              disabled
+                ? "Agent is thinking… press esc to interrupt"
+                : `Ask anything... "Fix a bug in the database"`
+            }
           />
           <StatusBar />
         </box>
       </box>
     </box>
   );
-};
+}

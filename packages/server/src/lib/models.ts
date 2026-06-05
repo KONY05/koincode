@@ -3,20 +3,21 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { google } from "@ai-sdk/google";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import type { ProviderOptions } from "@ai-sdk/provider-utils";
+import type { LanguageModel } from "ai";
+
 import {
   findSupportedChatModel,
-  CONFIG_FILE,
-  type KoincodeConfig,
+  GLOBAL_CONFIG_FILE,
+  type KoincodeGlobalConfig,
   type SupportedChatModel,
   type SupportedChatModelId,
   type SupportedProvider,
 } from "@koincode/shared";
-import type { ProviderOptions } from "@ai-sdk/provider-utils";
-import type { LanguageModel } from "ai";
 
 type AnthropicModelId = Extract<SupportedChatModel, { provider: "anthropic" }>["id"];
-type OpenAIModelId   = Extract<SupportedChatModel, { provider: "openai"    }>["id"];
-type GoogleModelId   = Extract<SupportedChatModel, { provider: "google"    }>["id"];
+type OpenAIModelId = Extract<SupportedChatModel, { provider: "openai"    }>["id"];
+type GoogleModelId = Extract<SupportedChatModel, { provider: "google"    }>["id"];
 
 export type ResolvedModel = {
   model: LanguageModel;
@@ -40,9 +41,13 @@ function assertUnsupportedProvider(provider: never): never {
   throw new Error(`Unsupported provider: ${provider}`);
 }
 
-function readConfigKey(key: keyof NonNullable<KoincodeConfig["apiKeys"]>): string | undefined {
+function readConfigKey(
+  key: keyof NonNullable<KoincodeGlobalConfig["apiKeys"]>,
+): string | undefined {
   try {
-    const config = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")) as KoincodeConfig;
+    const config = JSON.parse(
+      fs.readFileSync(GLOBAL_CONFIG_FILE, "utf8"),
+    ) as KoincodeGlobalConfig;
     return config.apiKeys?.[key] || undefined;
   } catch {
     return undefined;
@@ -59,7 +64,10 @@ function requireOpenRouterKey(): string {
   return key;
 }
 
-function resolveViaOpenRouter(modelId: string, provider: SupportedProvider): ResolvedModel {
+function resolveViaOpenRouter(
+  modelId: string,
+  provider: SupportedProvider,
+): ResolvedModel {
   const openrouter = createOpenRouter({ apiKey: requireOpenRouterKey() });
   // openrouter-native models already carry their full provider/name ID.
   // anthropic/openai/google models get the provider prefix prepended.
@@ -130,7 +138,9 @@ function resolveSupportedChatModel(model: SupportedChatModel): ResolvedModel {
   }
 }
 
-export function isSupportedChatModel(modelId: string): modelId is SupportedChatModelId {
+export function isSupportedChatModel(
+  modelId: string,
+): modelId is SupportedChatModelId {
   return findSupportedChatModel(modelId) != null;
 }
 

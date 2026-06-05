@@ -9,7 +9,7 @@
 import { type ModeType, toolInputSchemas } from "@koincode/shared";
 import { executeLocalTool } from "./index";
 import { getPermissionInfo } from "../utils/permissions";
-import { isPermittedForProject } from "../utils/project-config";
+import { isPermittedForProject } from "../utils/configs/project-config";
 import { fetchWithRestart } from "../lib/api-client";
 import { SERVER_PORT } from "@koincode/shared";
 
@@ -49,6 +49,15 @@ type AgentStepResponse = {
   finishReason: string;
 };
 
+type SubagentDefinition = {
+  name: string;
+  description: string;
+  goalPrompt: string;
+  allowedTools?: string[];
+  maxTurns?: number;
+  timeoutSeconds?: number;
+};
+
 type SpawnAgentInput = {
   name: string;
   description: string;
@@ -56,34 +65,83 @@ type SpawnAgentInput = {
   startingMode?: ModeType;
   /** The model to use — inherits from parent agent */
   model: string;
+  goalPrompt?: string;
+  allowedTools?: string[];
+  maxTurns?: number;
+  timeoutSeconds?: number;
+};
+
+export const CODE_REVIEWER: SubagentDefinition = {
+  name: "code_reviewer",
+  description:
+    "Reviews code changes and provides feedback on quality, bugs, and improvements",
+  goalPrompt: `You are a code review specialist.
+Your job is to review code and provide constructive feedback.
+Look for bugs, code smells, security issues, and improvement opportunities.
+Use readFile, listDir, grep, writeFile, and editFile to examine and modify the code.
+When you find issues, implement the fixes directly.
+Provide a summary of all changes made at the end.`,
+  allowedTools: ["readFile", "listDirectory", "grep", "writeFile", "editFile"],
+  maxTurns: 10,
+  timeoutSeconds: 300,
 };
 
 export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
-  const { name, description, task, startingMode = "PLAN", model } = input;
+  const {
+    name,
+    description,
+    task,
+    startingMode = "PLAN",
+    model,
+    goalPrompt,
+    allowedTools,
+    maxTurns,
+    timeoutSeconds,
+  } = input;
 
   let currentMode: ModeType = startingMode;
+  const maxSteps = maxTurns ?? MAX_STEPS;
 
   // Wrap the task with sub-agent guardrails — keeps the LLM focused on
   // the specific delegation goal and signals it should be concise.
-  const subagentPrompt = [
-    `You are a specialized sub-agent (${name}) with a specific task to complete.`,
-    `${description}`,
-    ``,
-    `YOUR TASK:`,
-    task,
-    ``,
-    `IMPORTANT:`,
-    `- Focus only on completing the specified task`,
-    `- Do not engage in unrelated actions`,
-    `- Once you have completed the task or have the answer, provide your final response`,
-    `- Be concise and direct in your output`,
-  ].join("\n");
+  const subagentPrompt = goalPrompt
+    ? [
+        goalPrompt,
+        ``,
+        `YOUR TASK:`,
+        task,
+        ``,
+        `IMPORTANT:`,
+        `- Focus only on completing the specified task`,
+        `- Do not engage in unrelated actions`,
+        `- Once you have completed the task or have the answer, provide your final response`,
+        `- Be concise and direct in your output`,
+      ].join("\n")
+    : [
+        `You are a specialized sub-agent (${name}) with a specific task to complete.`,
+        `${description}`,
+        ``,
+        `YOUR TASK:`,
+        task,
+        ``,
+        `IMPORTANT:`,
+        `- Focus only on completing the specified task`,
+        `- Do not engage in unrelated actions`,
+        `- Once you have completed the task or have the answer, provide your final response`,
+        `- Be concise and direct in your output`,
+      ].join("\n");
 
-  const messages: AgentMessage[] = [
-    { role: "user", content: subagentPrompt },
-  ];
+  const messages: AgentMessage[] = [{ role: "user", content: subagentPrompt }];
 
-  for (let step = 0; step < MAX_STEPS; step++) {
+  // Set up timeout if specified
+  const deadline = timeoutSeconds ? Date.now() + timeoutSeconds * 1000 : null;
+
+  for (let step = 0; step < maxSteps; step++) {
+    // Check timeout
+    if (deadline && Date.now() > deadline) {
+      return "(Sub-agent timed out)";
+    }
+
     const response = await fetchWithRestart(AGENT_STEP_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -91,8 +149,12 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => String(response.status));
-      throw new Error(`Sub-agent step failed (${response.status}): ${errorText}`);
+      const errorText = await response
+        .text()
+        .catch(() => String(response.status));
+      throw new Error(
+        `Sub-agent step failed (${response.status}): ${errorText}`,
+      );
     }
 
     const stepResult = (await response.json()) as AgentStepResponse;
@@ -115,11 +177,17 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
 
     messages.push({
       role: "assistant",
-      content: assistantContent.length > 0 ? assistantContent : (stepResult.text ?? ""),
+      content:
+        assistantContent.length > 0
+          ? assistantContent
+          : (stepResult.text ?? ""),
     });
 
     // Stop if no more tool calls.
-    if (stepResult.finishReason !== "tool-calls" || stepResult.toolCalls.length === 0) {
+    if (
+      stepResult.finishReason !== "tool-calls" ||
+      stepResult.toolCalls.length === 0
+    ) {
       return stepResult.text ?? "";
     }
 
@@ -127,6 +195,23 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     const toolResults: ToolResultPart[] = [];
 
     for (const tc of stepResult.toolCalls) {
+      // Filter tools based on allowedTools list
+      if (allowedTools && !allowedTools.includes(tc.toolName)) {
+        toolResults.push({
+          type: "tool-result",
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName,
+          output: {
+            type: "text",
+            value: JSON.stringify({
+              error: `Tool ${tc.toolName} is not allowed for this sub-agent`,
+            }),
+          },
+          isError: true,
+        });
+        continue;
+      }
+
       // switchMode: update local mode silently, no UI.
       if (tc.toolName === "switchMode") {
         const { target } = toolInputSchemas.switchMode.parse(tc.input);
@@ -152,7 +237,12 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
           type: "tool-result",
           toolCallId: tc.toolCallId,
           toolName: tc.toolName,
-          output: { type: "text", value: JSON.stringify({ error: "Nested sub-agent spawning is not supported." }) },
+          output: {
+            type: "text",
+            value: JSON.stringify({
+              error: "Nested sub-agent spawning is not supported.",
+            }),
+          },
           isError: true,
         });
         continue;
@@ -164,7 +254,13 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
           type: "tool-result",
           toolCallId: tc.toolCallId,
           toolName: tc.toolName,
-          output: { type: "text", value: JSON.stringify({ cancelled: true, reason: "Sub-agents cannot prompt the user." }) },
+          output: {
+            type: "text",
+            value: JSON.stringify({
+              cancelled: true,
+              reason: "Sub-agents cannot prompt the user.",
+            }),
+          },
         });
         continue;
       }
@@ -177,7 +273,13 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
           type: "tool-result",
           toolCallId: tc.toolCallId,
           toolName: tc.toolName,
-          output: { type: "text", value: JSON.stringify({ denied: true, reason: `Permission not pre-approved for: ${permInfo.key}` }) },
+          output: {
+            type: "text",
+            value: JSON.stringify({
+              denied: true,
+              reason: `Permission not pre-approved for: ${permInfo.key}`,
+            }),
+          },
           isError: true,
         });
         continue;
@@ -185,7 +287,11 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
 
       // Execute the tool locally.
       try {
-        const toolOutput = await executeLocalTool(tc.toolName, tc.input, currentMode);
+        const toolOutput = await executeLocalTool(
+          tc.toolName,
+          tc.input,
+          currentMode,
+        );
         toolResults.push({
           type: "tool-result",
           toolCallId: tc.toolCallId,
@@ -197,7 +303,12 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
           type: "tool-result",
           toolCallId: tc.toolCallId,
           toolName: tc.toolName,
-          output: { type: "text", value: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }) },
+          output: {
+            type: "text",
+            value: JSON.stringify({
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          },
           isError: true,
         });
       }
@@ -210,7 +321,9 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
   }
 
   // Exceeded max steps — return whatever text we have from the last assistant message.
-  const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+  const lastAssistant = [...messages]
+    .reverse()
+    .find((m) => m.role === "assistant");
   if (lastAssistant && lastAssistant.role === "assistant") {
     const content = lastAssistant.content;
     if (typeof content === "string") return content;

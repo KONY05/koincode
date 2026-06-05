@@ -20,7 +20,29 @@ export {
   type TodoItem,
 } from "./schemas";
 
-export { type ChatMessageMetadata} from "./chat";
+export { type ChatMessageMetadata } from "./chat";
 
-export { SERVER_PORT, CONFIG_DIR, DB_PATH, PID_FILE, CONFIG_FILE } from "./paths";
-export type { KoincodeConfig, ApiKeys } from "./config";
+export {
+  SERVER_PORT,
+  GLOBAL_CONFIG_DIR,
+  GLOBAL_CONFIG_FILE,
+  PROJECT_CONFIG_DIR,
+  PROJECT_CONFIG_FILE,
+  DB_PATH,
+  PID_FILE,
+} from "./paths";
+
+export type {
+  KoincodeGlobalConfig,
+  ApiKeys,
+  HookEventType,
+  HookHandlerType,
+  CommandHookHandler,
+  // HttpHookHandler,
+  // McpToolHookHandler,
+  // PromptHookHandler,
+  // AgentHookHandler,
+  HookHandler,
+  HookMatcherGroup,
+  HooksConfig,
+} from "./config";

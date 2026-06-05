@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
+
 import {
   DEFAULT_CHAT_MODEL_ID,
   findSupportedChatModel,
@@ -7,7 +8,10 @@ import {
   type ModeType,
   type SupportedChatModelId,
 } from "@koincode/shared";
-import { readConfig, updateConfig } from "../../utils/config";
+import {
+  readGlobalConfig,
+  updateGlobalConfig,
+} from "../../utils/configs/global-config";
 
 type PromptConfigContextValue = {
   mode: ModeType;
@@ -23,22 +27,12 @@ const PromptConfigContext = createContext<PromptConfigContextValue | null>(
   null,
 );
 
-export function usePromptConfig(): PromptConfigContextValue {
-  const value = useContext(PromptConfigContext);
-  if (!value) {
-    throw new Error(
-      "usePromptConfig must be used within a PromptConfigProvider",
-    );
-  }
-  return value;
-}
-
 type PromptConfigProviderProps = {
   children: ReactNode;
 };
 
 function resolveInitialModel(): SupportedChatModelId {
-  const saved = readConfig().defaultModel;
+  const saved = readGlobalConfig().defaultModel;
   if (saved && findSupportedChatModel(saved))
     return saved as SupportedChatModelId;
   return DEFAULT_CHAT_MODEL_ID;
@@ -49,7 +43,7 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   const [model, setModelState] =
     useState<SupportedChatModelId>(resolveInitialModel);
   const [autoModeSwitch, setAutoModeSwitchState] = useState<"confirm" | "auto">(
-    () => readConfig().autoModeSwitch ?? "confirm",
+    () => readGlobalConfig().autoModeSwitch ?? "confirm",
   );
 
   const toggleMode = useCallback(() => {
@@ -58,19 +52,37 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
 
   const setModel = useCallback((m: SupportedChatModelId) => {
     setModelState(m);
-    updateConfig({ defaultModel: m });
+    updateGlobalConfig({ defaultModel: m });
   }, []);
 
   const setAutoModeSwitch = useCallback((v: "confirm" | "auto") => {
     setAutoModeSwitchState(v);
-    updateConfig({ autoModeSwitch: v });
+    updateGlobalConfig({ autoModeSwitch: v });
   }, []);
 
   return (
     <PromptConfigContext.Provider
-      value={{ mode, toggleMode, setMode, model, setModel, autoModeSwitch, setAutoModeSwitch }}
+      value={{
+        mode,
+        toggleMode,
+        setMode,
+        model,
+        setModel,
+        autoModeSwitch,
+        setAutoModeSwitch,
+      }}
     >
       {children}
     </PromptConfigContext.Provider>
   );
+}
+
+export function usePromptConfig(): PromptConfigContextValue {
+  const value = useContext(PromptConfigContext);
+  if (!value) {
+    throw new Error(
+      "usePromptConfig must be used within a PromptConfigProvider",
+    );
+  }
+  return value;
 }

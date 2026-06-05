@@ -3,9 +3,11 @@
 Update this file whenever the current phase, active feature, or implementation state changes.
 
 ## Current Phase
+
 - Phase 2: Local-First Pivot — planning
 
 ## Current Goal
+
 - Phase 2 Feature 01: Strip auth & billing, switch to SQLite, add OpenRouter + direct provider key support
 
 ## Completed
@@ -43,16 +45,17 @@ Update this file whenever the current phase, active feature, or implementation s
 
 - **P2-F01:** ✅ Done. Removed Clerk auth middleware, all auth routes, Polar billing middleware and billing routes. Removed `@clerk/backend` and `@polar-sh/sdk` dependencies. Removed all `userId` references from routes, schema, and generated Prisma client. Server is now unauthenticated — all endpoints accessible from localhost only. Removed `/login`, `/logout`, `/upgrade`, `/usage` CLI commands.
 - **P2-F02:** ✅ Done. Swapped `@prisma/adapter-pg` → `@prisma/adapter-better-sqlite3`. Schema changed to `provider = "sqlite"`. DB path: `~/.config/koincode/data.db`. Initial migration generated at `packages/database/prisma/migrations/`. `prisma.config.ts` now computes the path dynamically (no `.env` required for DB). Server runs `prisma migrate deploy` on startup. CLI spawns the server on first run via `server-manager.ts` — health-check at `/health`, polls until ready, restarts on `ECONNREFUSED`. Server auto-shuts after 30 min of idle, CLI restarts it transparently. Port updated from 3000 → 37420 everywhere.
-- **P2-F03 + P2-F04:** ✅ Done. OpenRouter integration and multi-provider key support implemented together. Keys stored in `~/.koincode/config.json` (`KoincodeConfig` type in `@koincode/shared`). CLI reads config and passes keys as env vars when spawning the server. Server model resolver checks for a direct provider key first (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) and falls back to OpenRouter (`OPENROUTER_API_KEY`) for any model whose native key is absent. `/setup` command opens a dialog with rows for OpenRouter, Anthropic, OpenAI, and Gemini keys — navigate with ↑↓, Enter to edit, Esc to cancel/close. Keys can also be saved non-interactively: `koincode --openrouter-key sk-xxx`, `--anthropic-key`, `--openai-key`, `--gemini-key`.
+- **P2-F03 + P2-F04:** ✅ Done. OpenRouter integration and multi-provider key support implemented together. Keys stored in `~/.koincode/config.json` (`KoincodeGlobalConfig` type in `@koincode/shared`). CLI reads config and passes keys as env vars when spawning the server. Server model resolver checks for a direct provider key first (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) and falls back to OpenRouter (`OPENROUTER_API_KEY`) for any model whose native key is absent. `/setup` command opens a dialog with rows for OpenRouter, Anthropic, OpenAI, and Gemini keys — navigate with ↑↓, Enter to edit, Esc to cancel/close. Keys can also be saved non-interactively: `koincode --openrouter-key sk-xxx`, `--anthropic-key`, `--openai-key`, `--gemini-key`.
 - **P2-F05:** Update server port from 3000 → 37420 across server config, `API_URL` default, and CLAUDE.md.
 - **P2-F06:** ✅ Done. `Memory` model added to Prisma schema (`id`, `content`, `createdAt`, `updatedAt`). Migration `20260529172100_add_memory` created and applied. CRUD routes at `/memory` (GET list, POST create, PATCH `:id`, DELETE `:id`). Chat route fetches all memories on each request and passes concatenated content to `buildSystemPrompt` as `userMemory`. System prompt injects a `# Remembered Context` section when memories exist. Memory tool calls (so the agent can manage memory itself) are deferred — see Deferred section.
+- **Memory tool calls** — Expose the memory CRUD routes as agent tool calls (add, update, delete, list) so the AI can manage user memory directly during a session. Routes and DB table are already implemented; only the tool contracts and CLI-side execution handlers need to be added.
 
 ## Deferred (Future Implementation)
 
 These were scoped out and should be revisited:
 
-- **Memory tool calls** — Expose the memory CRUD routes as agent tool calls (add, update, delete, list) so the AI can manage user memory directly during a session. Routes and DB table are already implemented; only the tool contracts and CLI-side execution handlers need to be added.
 - **Compression prompt** — Implement context window compression. When conversation length approaches the model's limit, summarize completed work into a structured continuation prompt (original goal, completed actions, current state, remaining tasks, next step, key context) and replace the history. Prevents context overflow mid-task.
+- **Hooks tool call extension** — Right now the executeHook method in `packages/shared/src/index.ts` only work with `command` type to execute hooks, we will later extend it to handle other hook types: `http`, `mcpTool`, `prompt`, and `agent`.
 
 ## Open Questions
 
@@ -65,6 +68,8 @@ These were scoped out and should be revisited:
 - Tool calls executed client-side in the CLI; server only orchestrates the AI turn.
 - Provider resolution is model-driven: the model the user selects determines which key is used. Direct provider keys (Anthropic, OpenAI, Gemini) take priority when the model maps to that provider; OpenRouter is the fallback for any model without a matching direct key.
 - Config stored globally at `~/.koincode/config.json` — holds provider keys and user preferences, shared across all projects.
+- Project-specific config stored at `.koincode/config.json` — holds project-level hooks and permissions.
+- Hooks support both global and project scopes: global hooks apply to all projects, project hooks override global hooks for the current project.
 - Message history stored as a JSON blob on the Session row rather than normalized message rows.
 - PLAN mode and BUILD mode share the same session; mode is selected at session creation and controls which tools are exposed to the model.
 

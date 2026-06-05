@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useParams, useLocation, useNavigate } from "react-router";
-import { z } from "zod";
+import { useParams, useNavigate, useLocation } from "react-router";
 import { useKeyboard } from "@opentui/react";
 import type { InferResponseType } from "hono/client";
+import { z } from "zod";
 
-import { type ModeType, type SupportedChatModelId } from "@koincode/shared";
+import { modeSchema, type SupportedChatModelId } from "@koincode/shared";
 import { SessionShell } from "../components/session-shell";
 import {
   UserMessage,
@@ -25,17 +25,10 @@ type SessionData = InferResponseType<
   200
 >;
 
-const sessionLocationSchema = z.object({
-  session: z.custom<SessionData>(
-    (val) => val != null && typeof val === "object" && "id" in val,
-  ),
-  initialPrompt: z
-    .object({
-      message: z.string(),
-      mode: z.custom<ModeType>(),
-      model: z.custom<SupportedChatModelId>(),
-    })
-    .optional(),
+const initialStateSchema = z.object({
+  message: z.string(),
+  mode: modeSchema,
+  model: z.string(),
 });
 
 function ChatMessage({
@@ -72,20 +65,22 @@ function ChatMessage({
 
 function SessionChat({
   session,
-  initialPrompt,
+  initialState,
+  onDeleteLastMessage,
 }: {
   session: SessionData;
-  initialPrompt?: {
-    message: string;
-    mode: ModeType;
-    model: SupportedChatModelId;
-  };
+  initialState: z.infer<typeof initialStateSchema> | null;
+  onDeleteLastMessage?: () => void;
 }) {
   const [initialMessages] = useState(
     () => session.messages as unknown as Message[],
   );
   const { mode, model } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
+  const toast = useToast();
+  const lastEscapePressRef = useRef<number>(0);
+  const hasAutoSubmittedRef = useRef(false);
+
   const {
     messages,
     status,
@@ -103,7 +98,6 @@ function SessionChat({
     interrupt,
     error,
   } = useChat(session.id, initialMessages);
-  const hasSubmittedInitialPromptRef = useRef(false);
 
   // Stop the pending reply when the user leaves this session.
   useEffect(() => {
@@ -112,23 +106,54 @@ function SessionChat({
     };
   }, [abort]);
 
+  // Auto-submit the first message when navigating from NewSession.
+  // initialState is only set on that path; existing sessions have no state.
+  // We check initialMessages.length === 0 to ensure we never double-submit.
+  useEffect(() => {
+    if (hasAutoSubmittedRef.current) return;
+    if (!initialState || initialMessages.length !== 0) return;
+
+    hasAutoSubmittedRef.current = true;
+    submit({
+      userText: initialState.message,
+      mode: initialState.mode,
+      model: initialState.model as SupportedChatModelId,
+    }).catch((err) => {
+      toast.show({
+        variant: "error",
+        message:
+          err instanceof Error ? err.message : "Failed to get agent response",
+      });
+    });
+  }, [initialState, initialMessages, submit, toast]);
+
   // Let the user cancel a reply even before the first streamed chunk arrives.
+  // Double-tap escape to delete last message when not streaming
   useKeyboard((key) => {
-    if (key.name === "escape" && isTopLayer("base") && status === "streaming") {
+    if (key.name === "escape" && isTopLayer("base")) {
       key.preventDefault();
-      interrupt();
+
+      const now = Date.now();
+      const timeSinceLastPress = now - lastEscapePressRef.current;
+
+      if (status === "streaming" || status === "submitted") {
+        // Single press during streaming/submitted: interrupt
+        lastEscapePressRef.current = 0;
+        interrupt();
+      } else if (
+        timeSinceLastPress < 500 &&
+        (status === "ready" || status === "error") &&
+        onDeleteLastMessage
+      ) {
+        // Double-tap when ready: delete last message
+        lastEscapePressRef.current = 0;
+        onDeleteLastMessage();
+      } else {
+        // Single press when ready: just record the time
+        lastEscapePressRef.current = now;
+      }
     }
   });
-
-  useEffect(() => {
-    if (!initialPrompt || hasSubmittedInitialPromptRef.current) return;
-    hasSubmittedInitialPromptRef.current = true;
-    void submit({
-      userText: initialPrompt.message,
-      mode: initialPrompt.mode,
-      model: initialPrompt.model,
-    });
-  }, [initialPrompt, submit]);
 
   // Merge AI messages and system events (e.g. mode switch dividers) into one ordered list.
   //
@@ -215,26 +240,18 @@ function SessionChat({
 
 export function Session() {
   const { id } = useParams();
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
 
-  const prefetched = useMemo(() => {
-    const parsed = sessionLocationSchema.safeParse(location.state);
+  const [session, setSession] = useState<SessionData | null>(null);
+
+  const initialState = useMemo(() => {
+    const parsed = initialStateSchema.safeParse(location.state);
     return parsed.success ? parsed.data : null;
   }, [location.state]);
 
-  const [session, setSession] = useState<SessionData | null>(
-    prefetched?.session ?? null,
-  );
-
   useEffect(() => {
-    // Skip fetch if session was passed via location state
-    if (prefetched?.session) return;
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: resets to loading state synchronously before the async fetch begins
-    setSession(null);
-
     if (!id) return;
 
     let ignore = false;
@@ -262,7 +279,42 @@ export function Session() {
     return () => {
       ignore = true;
     };
-  }, [id, prefetched, toast, navigate]);
+  }, [id, toast, navigate]);
+
+  const handleDeleteLastMessage = async () => {
+    if (!session) return;
+    try {
+      const res = await apiClient.sessions[":id"].messages["last-user"].$delete(
+        {
+          param: { id: session.id },
+        },
+      );
+      if (!res.ok) {
+        const error = await getErrorMessage(res);
+        toast.show({
+          variant: "error",
+          message: error || "Failed to delete message",
+        });
+        return;
+      }
+      // Refetch session to get updated messages
+      const updatedRes = await apiClient.sessions[":id"].$get({
+        param: { id: session.id },
+      });
+      if (updatedRes.ok) {
+        const updatedSession = await updatedRes.json();
+        // Force remount by setting to null then back
+        setSession(null);
+        setTimeout(() => setSession(updatedSession), 0);
+      }
+    } catch (err) {
+      toast.show({
+        variant: "error",
+        message:
+          err instanceof Error ? err.message : "Failed to delete message",
+      });
+    }
+  };
 
   if (!session) {
     return <SessionShell onSubmit={() => {}} inputDisabled loading />;
@@ -272,7 +324,8 @@ export function Session() {
     <SessionChat
       key={session.id}
       session={session}
-      initialPrompt={prefetched?.initialPrompt}
+      initialState={initialState}
+      onDeleteLastMessage={handleDeleteLastMessage}
     />
   );
 }

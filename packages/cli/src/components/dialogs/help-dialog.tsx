@@ -8,6 +8,7 @@ const SHORTCUTS = [
   { key: "ctrl+z",       description: "Undo" },
   { key: "ctrl+c",       description: "Copy selected text" },
   { key: "esc",          description: "Interrupt generation" },
+  { key: "esc esc",      description: "Delete last message" },
   { key: "/",            description: "Open command menu" },
 ];
 

@@ -1,6 +1,11 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
-import { TextAttributes, type InputRenderable, type ScrollBoxRenderable } from "@opentui/core";
+import {
+  TextAttributes,
+  type InputRenderable,
+  type ScrollBoxRenderable,
+} from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
+
 import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { useTheme } from "../providers/theme";
 
@@ -44,9 +49,10 @@ export function DialogSearchList<T>({
       scrollbox.scrollTo(0);
     }
   }, []);
-    
-  const filtered = searchValue 
-    ? items.filter((item) => filterFn(item, searchValue)) : items;
+
+  const filtered = searchValue
+    ? items.filter((item) => filterFn(item, searchValue))
+    : items;
 
   const visibleHeight = Math.min(filtered.length, MAX_VISIBLE_ITEMS);
 
@@ -96,9 +102,7 @@ export function DialogSearchList<T>({
         onContentChange={handleContentChange}
       />
       {filtered.length === 0 ? (
-        <text attributes={TextAttributes.DIM}>
-          {emptyText}
-        </text>
+        <text attributes={TextAttributes.DIM}>{emptyText}</text>
       ) : (
         <scrollbox ref={scrollRef} height={visibleHeight}>
           {filtered.map((item, i) => {
@@ -118,10 +122,10 @@ export function DialogSearchList<T>({
               >
                 {renderItem(item, isSelected)}
               </box>
-            )
+            );
           })}
         </scrollbox>
       )}
     </box>
   );
-};
+}

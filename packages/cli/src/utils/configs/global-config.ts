@@ -1,24 +1,28 @@
 import fs from "fs";
 
-import { CONFIG_DIR, CONFIG_FILE } from "@koincode/shared";
-import type { ApiKeys, KoincodeConfig } from "@koincode/shared";
+import { GLOBAL_CONFIG_DIR, GLOBAL_CONFIG_FILE } from "@koincode/shared";
+import type { ApiKeys, KoincodeGlobalConfig } from "@koincode/shared";
 
-export function readConfig(): KoincodeConfig {
+export function readGlobalConfig(): KoincodeGlobalConfig {
   try {
-    return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")) as KoincodeConfig;
+    return JSON.parse(
+      fs.readFileSync(GLOBAL_CONFIG_FILE, "utf8"),
+    ) as KoincodeGlobalConfig;
   } catch {
     return {};
   }
 }
 
-export function writeConfig(config: KoincodeConfig): void {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+export function writeGlobalConfig(config: KoincodeGlobalConfig): void {
+  fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(GLOBAL_CONFIG_FILE, JSON.stringify(config, null, 2));
 }
 
-export function updateConfig(updates: Partial<KoincodeConfig>): KoincodeConfig {
-  const current = readConfig();
-  const next: KoincodeConfig = { ...current };
+export function updateGlobalConfig(
+  updates: Partial<KoincodeGlobalConfig>,
+): KoincodeGlobalConfig {
+  const current = readGlobalConfig();
+  const next: KoincodeGlobalConfig = { ...current };
 
   if (updates.themeName !== undefined) {
     if (updates.themeName === "") {
@@ -52,6 +56,14 @@ export function updateConfig(updates: Partial<KoincodeConfig>): KoincodeConfig {
     }
   }
 
-  writeConfig(next);
+  if (updates.port !== undefined) {
+    if (updates.port === 0) {
+      delete next.port;
+    } else {
+      next.port = updates.port;
+    }
+  }
+
+  writeGlobalConfig(next);
   return next;
 }

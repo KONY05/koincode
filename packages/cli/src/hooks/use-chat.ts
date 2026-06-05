@@ -23,10 +23,14 @@ import {
   allowForProject,
   isPermittedForProject,
   readProjectConfig,
-} from "../utils/project-config";
+} from "../utils/configs/project-config";
 import { usePromptConfig } from "../providers/prompt-config";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
-import type { PendingModeSwitch, ModeSwitchResponse } from "../components/widget/mode-switch-widget";
+import type {
+  PendingModeSwitch,
+  ModeSwitchResponse,
+} from "../components/widget/mode-switch-widget";
+import { runHooks } from "../utils/hooks";
 
 export type PendingUserQuestion = {
   question: string;
@@ -50,7 +54,8 @@ type ChatTools = {
 export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
 export function useChat(sessionId: string, initialMessages: Message[]) {
-  const { mode, setMode, autoModeSwitch, setAutoModeSwitch } = usePromptConfig();
+  const { mode, setMode, autoModeSwitch, setAutoModeSwitch } =
+    usePromptConfig();
 
   const [wasInterrupted, setWasInterrupted] = useState(false);
   const [pendingApproval, setPendingApproval] =
@@ -215,7 +220,9 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
 
         // switchMode: autonomous mode switching.
         if (toolCall.toolName === "switchMode") {
-          const { target, reason } = toolInputSchemas.switchMode.parse(toolCall.input);
+          const { target, reason } = toolInputSchemas.switchMode.parse(
+            toolCall.input,
+          );
 
           // Same-mode guard — no-op.
           if (currentModeRef.current === target) {
@@ -359,10 +366,33 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
           }
         }
 
+        // Run PreToolUse hooks after permission check
+        const preHookResults = await runHooks(
+          "PreToolUse",
+          toolCall.toolName,
+          toolCall.input,
+        );
+
+        // If any PreToolUse hook exits with non-zero code, deny the tool
+        const failedHook = preHookResults.find((r) => r.exitCode !== 0);
+        if (failedHook) {
+          chat.addToolOutput({
+            tool: toolCall.toolName as keyof ChatTools,
+            toolCallId: toolCall.toolCallId,
+            output: {
+              denied: true,
+              reason: failedHook.stderr || "Tool execution denied by hook",
+            },
+          });
+          return;
+        }
+
+        const toolInput = toolCall.input;
+
         try {
           const output = await executeLocalTool(
             toolCall.toolName,
-            toolCall.input,
+            toolInput,
             currentModeRef.current,
           );
           chat.addToolOutput({

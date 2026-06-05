@@ -109,7 +109,11 @@ export function BotMessage({
         : part.type.slice("tool-".length);
     const hasInput =
       "input" in part && part.input != null && part.state !== "input-streaming";
-    return (hasInput && tn.includes("memory")) || tn === "askUser";
+    return (
+      (hasInput && tn.includes("memory")) ||
+      tn === "askUser" ||
+      tn === "manageHook"
+    );
   };
 
   const groups = groupConsecutiveParts(parts).filter(
@@ -248,7 +252,7 @@ export function BotMessage({
 
       <box paddingX={3} paddingY={1} gap={1} width="100%">
         <box flexDirection="row" gap={2}>
-          {streaming ? (
+          {streaming || isSubagentRunning ? (
             <Spinner activeColor={modeColor} />
           ) : (
             <text fg={modeColor}>◉</text>

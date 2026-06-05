@@ -2,12 +2,16 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { TextAttributes } from "@opentui/core";
 import type { TextareaRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
+
 import { useKeyboardLayer } from "../../providers/keyboard-layer";
 import { useToast } from "../../providers/toast";
 import { useTheme } from "../../providers/theme";
-import { readConfig, updateConfig } from "../../utils/config";
+import {
+  readGlobalConfig,
+  updateGlobalConfig,
+} from "../../utils/configs/global-config";
 import { restartServer } from "../../lib/server-manager";
-import type { ApiKeys, KoincodeConfig } from "@koincode/shared";
+import type { ApiKeys, KoincodeGlobalConfig } from "@koincode/shared";
 import { TEXTAREA_KEY_BINDINGS } from "../input-bar";
 
 type ApiKeyName = keyof ApiKeys;
@@ -86,7 +90,7 @@ function EditKeyView({
 }
 
 type KeyListViewProps = {
-  config: KoincodeConfig;
+  config: KoincodeGlobalConfig;
   selectedIndex: number;
   onSelect: (key: ApiKeyName) => void;
 };
@@ -136,7 +140,9 @@ function KeyListView({ config, selectedIndex, onSelect }: KeyListViewProps) {
 }
 
 export function SetupDialogContent() {
-  const [config, setConfig] = useState<KoincodeConfig>(() => readConfig());
+  const [config, setConfig] = useState<KoincodeGlobalConfig>(() =>
+    readGlobalConfig(),
+  );
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [editingKey, setEditingKey] = useState<ApiKeyName | null>(null);
   const { push, pop, isTopLayer } = useKeyboardLayer();
@@ -155,7 +161,7 @@ export function SetupDialogContent() {
 
   const handleSave = useCallback(
     (key: ApiKeyName, value: string) => {
-      const newConfig = updateConfig({
+      const newConfig = updateGlobalConfig({
         apiKeys: { [key]: value.trim() || undefined },
       });
       setConfig(newConfig);
