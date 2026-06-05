@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 import {
   DEFAULT_CHAT_MODEL_ID,
   findSupportedChatModel,
+  isLocalModelId,
   Mode,
   type ModeType,
-  type SupportedChatModelId,
 } from "@koincode/shared";
 import {
   readGlobalConfig,
@@ -17,8 +17,8 @@ type PromptConfigContextValue = {
   mode: ModeType;
   toggleMode: () => void;
   setMode: (mode: ModeType) => void;
-  model: SupportedChatModelId;
-  setModel: (model: SupportedChatModelId) => void;
+  model: string;
+  setModel: (model: string) => void;
   autoModeSwitch: "confirm" | "auto";
   setAutoModeSwitch: (v: "confirm" | "auto") => void;
 };
@@ -31,17 +31,16 @@ type PromptConfigProviderProps = {
   children: ReactNode;
 };
 
-function resolveInitialModel(): SupportedChatModelId {
+function resolveInitialModel(): string {
   const saved = readGlobalConfig().defaultModel;
-  if (saved && findSupportedChatModel(saved))
-    return saved as SupportedChatModelId;
+  if (saved && (findSupportedChatModel(saved) || isLocalModelId(saved)))
+    return saved;
   return DEFAULT_CHAT_MODEL_ID;
 }
 
 export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   const [mode, setMode] = useState<ModeType>(Mode.BUILD);
-  const [model, setModelState] =
-    useState<SupportedChatModelId>(resolveInitialModel);
+  const [model, setModelState] = useState<string>(resolveInitialModel);
   const [autoModeSwitch, setAutoModeSwitchState] = useState<"confirm" | "auto">(
     () => readGlobalConfig().autoModeSwitch ?? "confirm",
   );
@@ -50,7 +49,7 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     setMode((m) => (m === Mode.BUILD ? Mode.PLAN : Mode.BUILD));
   }, []);
 
-  const setModel = useCallback((m: SupportedChatModelId) => {
+  const setModel = useCallback((m: string) => {
     setModelState(m);
     updateGlobalConfig({ defaultModel: m });
   }, []);

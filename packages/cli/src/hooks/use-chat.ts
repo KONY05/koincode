@@ -11,7 +11,6 @@ import {
   type ChatMessageMetadata,
   Mode,
   type ModeType,
-  type SupportedChatModelId,
   type ToolContracts,
   toolInputSchemas,
 } from "@koincode/shared";
@@ -441,7 +440,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     submit: (params: {
       userText: string;
       mode: ModeType;
-      model: SupportedChatModelId;
+      model: string;
     }) => {
       setWasInterrupted(false);
       return chat.sendMessage({

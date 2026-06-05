@@ -2,10 +2,13 @@ export {
   SUPPORTED_CHAT_MODELS,
   DEFAULT_CHAT_MODEL_ID,
   findSupportedChatModel,
+  isLocalModelId,
   type ModelPricing,
   type SupportedProvider,
   type SupportedChatModel,
   type SupportedChatModelId,
+  type LocalModelEntry,
+  type LocalModelsResponse,
 } from "./models";
 
 export {
@@ -24,6 +27,7 @@ export { type ChatMessageMetadata } from "./chat";
 
 export {
   SERVER_PORT,
+  DEFAULT_OLLAMA_BASE_URL,
   GLOBAL_CONFIG_DIR,
   GLOBAL_CONFIG_FILE,
   PROJECT_CONFIG_DIR,
@@ -35,6 +39,7 @@ export {
 export type {
   KoincodeGlobalConfig,
   ApiKeys,
+  LocalModelConfig,
   HookEventType,
   HookHandlerType,
   CommandHookHandler,

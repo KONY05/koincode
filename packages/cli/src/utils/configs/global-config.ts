@@ -64,6 +64,18 @@ export function updateGlobalConfig(
     }
   }
 
+  if (updates.ollamaBaseURL !== undefined) {
+    if (updates.ollamaBaseURL === "") {
+      delete next.ollamaBaseURL;
+    } else {
+      next.ollamaBaseURL = updates.ollamaBaseURL;
+    }
+  }
+
+  if (updates.localModels !== undefined) {
+    next.localModels = updates.localModels;
+  }
+
   writeGlobalConfig(next);
   return next;
 }

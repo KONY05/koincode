@@ -1,9 +1,11 @@
+import type { LocalModelConfig } from "./config";
+
 export type ModelPricing = {
   inputUsdPerMillionTokens: number;
   outputUsdPerMillionTokens: number;
 };
 
-export type SupportedProvider = "anthropic" | "openai" | "google" | "openrouter";
+export type SupportedProvider = "anthropic" | "openai" | "google" | "openrouter" | "ollama" | "local";
 
 type SupportedChatModelDefinition = {
   id: string;
@@ -99,5 +101,21 @@ export type SupportedChatModelId = SupportedChatModel["id"];
 export function findSupportedChatModel(modelId: string) {
   return SUPPORTED_CHAT_MODELS.find((model) => model.id === modelId);
 }
+
+export function isLocalModelId(modelId: string): boolean {
+  return modelId.startsWith("ollama/") || modelId.startsWith("local/");
+}
+
+export type LocalModelEntry = {
+  id: string;
+  provider: "ollama" | "local";
+  displayName: string;
+  size?: number;
+};
+
+export type LocalModelsResponse = {
+  ollama: Array<{ id: string; name: string; size?: number }> | null;
+  custom: LocalModelConfig[];
+};
 
 export const DEFAULT_CHAT_MODEL_ID: SupportedChatModelId = "claude-sonnet-4-6";

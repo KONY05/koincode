@@ -5,14 +5,10 @@ export type ApiKeys = {
   gemini?: string;
 };
 
-// Global Config file type
-export type KoincodeGlobalConfig = {
-  themeName?: string;
-  defaultModel?: string;
-  apiKeys?: ApiKeys;
-  autoModeSwitch?: "confirm" | "auto";
-  hooks?: HooksConfig;
-  port?: number;
+export type LocalModelConfig = {
+  id: string;
+  baseURL: string;
+  displayName?: string;
 };
 
 // Hook types
@@ -83,4 +79,16 @@ export type HookMatcherGroup = {
 
 export type HooksConfig = {
   [K in HookEventType]?: HookMatcherGroup[];
+};
+
+// Global Config file type
+export type KoincodeGlobalConfig = {
+  themeName?: string;
+  defaultModel?: string;
+  apiKeys?: ApiKeys;
+  autoModeSwitch?: "confirm" | "auto";
+  hooks?: HooksConfig;
+  port?: number;
+  ollamaBaseURL?: string;
+  localModels?: LocalModelConfig[];
 };

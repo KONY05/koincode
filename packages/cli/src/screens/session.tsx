@@ -4,7 +4,7 @@ import { useKeyboard } from "@opentui/react";
 import type { InferResponseType } from "hono/client";
 import { z } from "zod";
 
-import { modeSchema, type SupportedChatModelId } from "@koincode/shared";
+import { modeSchema } from "@koincode/shared";
 import { SessionShell } from "../components/session-shell";
 import {
   UserMessage,
@@ -117,7 +117,7 @@ function SessionChat({
     submit({
       userText: initialState.message,
       mode: initialState.mode,
-      model: initialState.model as SupportedChatModelId,
+      model: initialState.model,
     }).catch((err) => {
       toast.show({
         variant: "error",
