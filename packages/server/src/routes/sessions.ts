@@ -14,7 +14,6 @@ async function generateTitleFromMessage(message: string): Promise<string> {
       return message.slice(0, 50) || "New Conversation";
     }
 
-    // Use OpenRouter free model for title generation
     const result = await generateText({
       model: resolveChatModel("google/gemma-4-31b-it:free").model,
       prompt: `Generate a concise, descriptive title (max 50 characters) for this conversation based on the user's first message:\n\n${message}\n\nReturn only the title, no quotes or extra text.`,
@@ -25,7 +24,6 @@ async function generateTitleFromMessage(message: string): Promise<string> {
     return title || message.slice(0, 50);
   } catch (error) {
     logger.error("Failed to generate title:", error);
-    // Fallback to using the text content as the title
     return message.slice(0, 50) || "New Conversation";
   }
 }
@@ -34,6 +32,12 @@ const createSessionSchema = z.object({
   title: z.string(),
   cwd: z.string().optional(),
   gitBranch: z.string().optional(),
+  initialMessage: z
+    .object({
+      role: z.string(),
+      content: z.string(),
+    })
+    .optional(),
 });
 
 const listSessionsSchema = z.object({
@@ -129,16 +133,66 @@ const app = new Hono()
     //   { message: "Mock error: session loading failed" }
     // )
 
-    const { title, cwd, gitBranch } = c.req.valid("json");
-
-    // Generate title from first message if provided
-    const finalTitle = await generateTitleFromMessage(title);
+    const { title, cwd, gitBranch, initialMessage } = c.req.valid("json");
 
     const session = await db.session.create({
-      data: { title: finalTitle, cwd, gitBranch },
+      data: { title, cwd, gitBranch },
     });
 
+    // If initial message is provided, store it in the Message table
+    if (initialMessage) {
+      await db.message.create({
+        data: {
+          sessionId: session.id,
+          role: initialMessage.role,
+          content: initialMessage.content,
+          order: 0,
+        },
+      });
+    }
+
+    // Generate better title in background without blocking
+    generateTitleFromMessage(title)
+      .then((generatedTitle) => {
+        return db.session.update({
+          where: { id: session.id },
+          data: { title: generatedTitle },
+        });
+      })
+      .catch((err) => {
+        logger.error(`Failed to update title for session ${session.id}:`, err);
+      });
+
     return c.json(session, 201);
+  })
+  .delete("/:id/messages/last-user", async (c) => {
+    const id = c.req.param("id");
+
+    // Find the last user message
+    const lastUserMessage = await db.message.findFirst({
+      where: { sessionId: id, role: "user" },
+      orderBy: { order: "desc" },
+    });
+
+    if (!lastUserMessage) {
+      return c.json({ error: "No user messages found" }, 404);
+    }
+
+    // Delete all messages from the last user message onwards and update session timestamp
+    await db.$transaction([
+      db.message.deleteMany({
+        where: {
+          sessionId: id,
+          order: { gte: lastUserMessage.order },
+        },
+      }),
+      db.session.update({
+        where: { id },
+        data: { updatedAt: new Date() },
+      }),
+    ]);
+
+    return c.json({ success: true });
   });
 
 export default app;

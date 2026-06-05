@@ -66,14 +66,20 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
   });
 }
 
+
 const app = new Hono().post("/", submitValidator, async (c) => {
   const { id, messages, mode, model } = c.req.valid("json");
+
+  logger.info(
+    `Received chat request for session ${id} with ${messages.length} messages`,
+  );
 
   const session = await db.session.findUnique({
     where: { id },
   });
 
   if (!session) {
+    logger.error(`Session ${id} not found`);
     return c.json({ error: "Session not found" }, 404);
   }
 
@@ -128,24 +134,31 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     tools,
   });
 
-  // Persist incoming messages immediately so a concurrent round can't race-overwrite them.
+  // Only persist messages that are genuinely new (not already stored in the DB).
+  // previousMessages are already in the DB — writing them again would create duplicates.
+  const newMessages = nextMessages.slice(previousMessages.length);
+
   try {
-    await db.$transaction([
-      db.message.deleteMany({ where: { sessionId: id } }),
-      db.message.createMany({
-        data: nextMessages.map((msg, index) => ({
+    if (newMessages.length > 0) {
+      await db.message.createMany({
+        data: newMessages.map((msg, index) => ({
           sessionId: id,
           role: msg.role,
           content: JSON.stringify(msg),
-          order: index,
+          order: messageRecords.length + index,
         })),
-      }),
-    ]);
+      });
+    }
+    logger.info(
+      `Persisted ${newMessages.length} new message(s) for session ${id}`,
+    );
   } catch (err) {
     logger.error(`Failed to pre-save messages for session ${id}:`, err);
   }
 
-  const modelMessages = await convertToModelMessages(nextMessages, { tools });
+  const modelMessages = await convertToModelMessages(nextMessages, {
+    tools,
+  });
   let completedUsage: LanguageModelUsage | null = null;
 
   const result = streamText({

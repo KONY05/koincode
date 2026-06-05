@@ -44,6 +44,7 @@ export function NewSession() {
     const createSession = async () => {
       try {
         const gitBranch = getGitBranch();
+
         const res = await apiClient.sessions.$post({
           json: {
             title: state.message.slice(0, 100),
@@ -57,10 +58,7 @@ export function NewSession() {
           throw new Error(await getErrorMessage(res));
         }
         const session = await res.json();
-        navigate(`/sessions/${session.id}`, {
-          replace: true,
-          state: { session, initialPrompt: state },
-        });
+        navigate(`/sessions/${session.id}`, { state, replace: true });
       } catch (error) {
         if (ignore) return;
         toast.show({
