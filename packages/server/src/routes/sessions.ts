@@ -165,6 +165,19 @@ const app = new Hono()
 
     return c.json(session, 201);
   })
+  .delete("/:id", async (c) => {
+    const id = c.req.param("id");
+
+    const session = await db.session.findUnique({ where: { id } });
+    
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    await db.session.delete({ where: { id } });
+
+    return c.json({ success: true });
+  })
   .delete("/:id/messages/last-user", async (c) => {
     const id = c.req.param("id");
 
