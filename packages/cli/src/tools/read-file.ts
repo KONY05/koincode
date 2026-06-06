@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
-import { toolInputSchemas } from "@koincode/shared";
+
 import { MAX_FILE_SIZE, resolveInsideCwd } from "./utils";
+import { toolInputSchemas } from "@koincode/shared";
 
 export async function runReadFile(input: unknown) {
   const { path } = toolInputSchemas.readFile.parse(input);

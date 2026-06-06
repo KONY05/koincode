@@ -10,11 +10,13 @@ export type CommandContext = {
   mode: ModeType;
   setMode: (mode: ModeType) => void;
   setModel: (model: string) => void;
+  invokeSkill: (skillName: string) => Promise<void>;
 };
 
 export type Command = {
   name: string;
   description: string;
   value: string;
+  isSkill?: boolean;
   action?: (ctx: CommandContext) => void | Promise<void>;
 };

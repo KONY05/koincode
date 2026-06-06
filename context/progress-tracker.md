@@ -31,6 +31,10 @@ Update this file whenever the current phase, active feature, or implementation s
 
 - None.
 
+## Recently Completed (Phase 2 — continued)
+
+- **Skills system** — Command menu extended with skills: reusable task instructions the agent reads and executes. Each skill is a directory (`SKILL.md` + optional `scripts/`, `references/`, `assets/`) stored at `.koincode/skills/` (project-local) or `~/.koincode/skills/` (global). Two built-in skills shipped: `code-review` and `git-commit`. The skills manifest is injected into the system prompt on every request so the agent knows what's available. Two new tools: `readSkill` (PLAN+BUILD — reads SKILL.md and directory listing, or a specific sub-file with path-traversal guard) and `writeSkill` (BUILD-only — creates or updates SKILL.md, detects create vs. update, preserves existing sub-directories). Skills appear in the command menu alongside built-in commands; selecting one triggers an immediate agent turn. Works from both the home screen (creates a new session) and inside an existing session. Agent can also create/update skills on request via `writeSkill`. Files: `packages/cli/src/lib/skills.ts`, `packages/cli/src/skills/builtins.ts`, `packages/cli/src/tools/read-skill.ts`, `packages/cli/src/tools/write-skill.ts`.
+
 ## Recently Completed
 
 - **Local model support** — Users can now chat with locally-running models (Ollama, LM Studio, vllm, or any OpenAI-compatible endpoint). `GET /local-models` on the server auto-detects Ollama at `localhost:11434` and returns pulled models alongside user-configured custom endpoints. The model picker gains a third "Local" tab (Tab to cycle) that fetches and lists discovered models with file size hints. Model IDs use an `ollama/<name>` or `local/<name>` prefix convention. `resolveChatModel` in the server handles both by wiring `createOpenAI` with the appropriate `baseURL`. `ollamaBaseURL` (and `localModels`) added to `KoincodeGlobalConfig` for users with non-default Ollama URLs. The model type throughout the CLI was broadened from `SupportedChatModelId` to `string` to accommodate arbitrary local model IDs.
@@ -55,6 +59,8 @@ Update this file whenever the current phase, active feature, or implementation s
 ## Deferred (Future Implementation)
 
 These were scoped out and should be revisited:
+
+- **`koincode install <skill>`** — Wrap npm install to pull skills published as npm packages (naming convention: `@koincode-skills/<name>`). The install command would fetch the package and extract its files into `~/.koincode/skills/<name>/`. Also consider a GitHub shorthand (`koincode install github:user/my-skill`). No custom registry needed — npm is the registry. Requires `koincode install` CLI subcommand.
 
 - **Compression prompt** — Implement context window compression. When conversation length approaches the model's limit, summarize completed work into a structured continuation prompt (original goal, completed actions, current state, remaining tasks, next step, key context) and replace the history. Prevents context overflow mid-task.
 - **Hooks tool call extension** — Right now the executeHook method in `packages/shared/src/index.ts` only work with `command` type to execute hooks, we will later extend it to handle other hook types: `http`, `mcpTool`, `prompt`, and `agent`.

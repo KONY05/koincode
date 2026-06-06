@@ -198,9 +198,14 @@ function SessionChat({
     return items;
   }, [messages, systemEvents]);
 
+  const handleInvokeSkill = async (skillName: string) => {
+    await submit({ userText: `Execute skill: ${skillName}`, mode, model });
+  };
+
   return (
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
+      onInvokeSkill={handleInvokeSkill}
       loading={
         status === "submitted" || status === "streaming" || isSubagentRunning
       }

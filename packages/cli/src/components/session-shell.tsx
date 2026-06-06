@@ -20,6 +20,7 @@ import type { PendingUserQuestion } from "../hooks/use-chat";
 type Props = {
   children?: ReactNode;
   onSubmit: (text: string) => void;
+  onInvokeSkill?: (skillName: string) => Promise<void>;
   inputDisabled?: boolean;
   loading?: boolean;
   interruptible?: boolean;
@@ -34,6 +35,7 @@ type Props = {
 export function SessionShell({
   children,
   onSubmit,
+  onInvokeSkill,
   inputDisabled = false,
   loading = false,
   interruptible = false,
@@ -101,7 +103,11 @@ export function SessionShell({
             onResponse={onUserQuestionResponse}
           />
         ) : (
-          <InputBar onSubmit={onSubmit} disabled={inputDisabled || loading} />
+          <InputBar
+            onSubmit={onSubmit}
+            onInvokeSkill={onInvokeSkill}
+            disabled={inputDisabled || loading}
+          />
         )}
       </box>
       <box

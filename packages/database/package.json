@@ -12,10 +12,10 @@
     "db:studio": "bunx prisma studio"
   },
   "devDependencies": {
-    "@types/node": "^25.5.2",
-    "prisma": "^7.7.0"
+    "@types/node": "^25.5.2"
   },
   "dependencies": {
+    "prisma": "^7.7.0",
     "@libsql/client": "^0.14.0",
     "@prisma/adapter-libsql": "^7.7.0",
     "@prisma/client": "^7.7.0",

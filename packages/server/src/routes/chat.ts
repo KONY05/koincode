@@ -31,6 +31,12 @@ type KoincodeUIMessage = UIMessage<
   InferUITools<ToolContracts>
 >;
 
+const skillManifestEntrySchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  scope: z.enum(["global", "project", "builtin"]),
+});
+
 const submitSchema = z.object({
   id: z.string(),
   messages: z
@@ -47,6 +53,7 @@ const submitSchema = z.object({
     .min(1),
   mode: modeSchema,
   model: z.string().refine(isSupportedChatModel, "Unsupported model"),
+  skillsManifest: z.array(skillManifestEntrySchema).optional().default([]),
 });
 
 const submitValidator = zValidator("json", submitSchema, (result, c) => {
@@ -68,7 +75,7 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 
 
 const app = new Hono().post("/", submitValidator, async (c) => {
-  const { id, messages, mode, model } = c.req.valid("json");
+  const { id, messages, mode, model, skillsManifest } = c.req.valid("json");
 
   logger.info(
     `Received chat request for session ${id} with ${messages.length} messages`,
@@ -163,7 +170,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
 
   const result = streamText({
     model: resolvedModel.model,
-    system: buildSystemPrompt({ mode, userMemory }),
+    system: buildSystemPrompt({ mode, userMemory, skillsManifest }),
     messages: modelMessages,
     tools,
     abortSignal: c.req.raw.signal,

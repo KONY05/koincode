@@ -16,6 +16,7 @@ import {
 } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
 import { executeLocalTool } from "../tools";
+import { loadSkillsManifest } from "../lib/skills";
 import { runSpawnAgent } from "../tools/spawn-agent";
 import { getPermissionInfo } from "../utils/permissions";
 import {
@@ -130,6 +131,11 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
             messages: requestMessages,
             mode: message.metadata?.mode ?? metadata?.mode,
             model: message.metadata?.model ?? metadata?.model,
+            skillsManifest: loadSkillsManifest().map((s) => ({
+              name: s.name,
+              description: s.description,
+              scope: s.scope,
+            })),
           },
         };
       },

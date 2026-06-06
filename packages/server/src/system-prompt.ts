@@ -8,12 +8,19 @@ import {
   readOnlyToolContracts,
 } from "@koincode/shared";
 
-type SystemPromptParams = {
-  mode: ModeType;
-  userMemory?: string; // TODO: fetch from memory table when implemented (see progress-tracker.md)
+type SkillManifestEntry = {
+  name: string;
+  description: string;
+  scope: "global" | "project" | "builtin";
 };
 
-export function buildSystemPrompt({ mode, userMemory }: SystemPromptParams): string {
+type SystemPromptParams = {
+  mode: ModeType;
+  userMemory?: string;
+  skillsManifest?: SkillManifestEntry[];
+};
+
+export function buildSystemPrompt({ mode, userMemory, skillsManifest }: SystemPromptParams): string {
   const parts: string[] = [];
 
   parts.push(getIdentitySection());
@@ -24,6 +31,10 @@ export function buildSystemPrompt({ mode, userMemory }: SystemPromptParams): str
   parts.push(getSecuritySection());
   parts.push(getCodingGuidelinesSection());
   parts.push(getOperationalSection());
+
+  if (skillsManifest && skillsManifest.length > 0) {
+    parts.push(getSkillsSection(skillsManifest));
+  }
 
   if (userMemory) {
     parts.push(getMemorySection(userMemory));
@@ -193,6 +204,48 @@ Keep going until the query is completely resolved before yielding back to the us
 ## Professional Objectivity
 
 Prioritize technical accuracy over validating the user's beliefs. Provide direct, objective guidance. Disagree respectfully when necessary — honest correction is more valuable than false agreement.`;
+}
+
+function getSkillsSection(manifest: SkillManifestEntry[]): string {
+  const list = manifest
+    .map((s) => `- **${s.name}** [${s.scope}] — ${s.description}`)
+    .join("\n");
+
+  return `# Skills
+
+You have access to the following skills. Call \`readSkill\` with the skill name to load its full instructions before executing it. You may also proactively use a skill when it matches the user's request.
+
+${list}
+
+## Creating or Updating a Skill
+
+When asked to create or save a skill, call \`writeSkill\` with the following SKILL.md structure:
+
+\`\`\`
+---
+name: kebab-case-name
+description: One sentence — what this skill does
+tools: [list, of, tools, needed]
+scope: global | project
+---
+
+# Instructions
+Directive prose written to the agent. Tell it what to do step by step.
+
+## Steps (optional)
+Numbered breakdown for multi-stage tasks.
+
+## Notes (optional)
+Edge cases, warnings, or caveats.
+\`\`\`
+
+**Rules for skill scripts** (files in \`scripts/\`):
+- Never use interactive prompts — agents run in non-interactive shells
+- Accept all input via flags or environment variables
+- Use \`$SKILL_DIR\` to reference sibling files within the skill directory
+- Prefer \`bunx\` for JS/TS one-off commands
+- Write structured output (JSON) to stdout; diagnostics to stderr
+- Skills are plain markdown files and can also be edited directly in any text editor`;
 }
 
 function getMemorySection(memory: string): string {

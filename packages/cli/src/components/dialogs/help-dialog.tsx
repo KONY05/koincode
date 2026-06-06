@@ -10,6 +10,8 @@ const SHORTCUTS = [
   { key: "esc",          description: "Interrupt generation" },
   { key: "esc esc",      description: "Delete last message" },
   { key: "/",            description: "Open command menu" },
+  { key: "ctrl+d",       description: "Delete a highlighted session" },
+  { key: "ctrl+u",       description: "Undo session delete" },
 ];
 
 const KEY_COL_WIDTH = Math.max(...SHORTCUTS.map((s) => s.key.length)) + 4;

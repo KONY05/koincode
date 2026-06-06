@@ -131,6 +131,28 @@ export const toolInputSchemas = {
       .default("PLAN")
       .describe("Starting mode for the sub-agent"),
   }),
+  readSkill: z.object({
+    name: z.string().describe("Skill name to read"),
+    file: z
+      .string()
+      .optional()
+      .describe(
+        "Relative path within the skill directory (e.g. 'references/guide.md'). Omit to read SKILL.md and get a directory listing.",
+      ),
+  }),
+  writeSkill: z.object({
+    name: z
+      .string()
+      .describe("Kebab-case skill name (e.g. 'my-skill')"),
+    content: z
+      .string()
+      .describe("Full SKILL.md content including frontmatter"),
+    scope: z
+      .enum(["global", "project"])
+      .describe(
+        "Where to save: 'project' for .koincode/skills/, 'global' for ~/.koincode/skills/",
+      ),
+  }),
   manageHook: z.object({
     action: z
       .enum(["add", "update", "remove", "list"])
@@ -288,6 +310,11 @@ export const readOnlyToolContracts = {
       "Manage project hooks in .koincode/config.json. Only modifies the hooks object, leaving permissions and other config untouched. Actions: add (add a hook), update (replace existing hook), remove (delete hook), list (show current hooks).",
     inputSchema: toolInputSchemas.manageHook,
   }),
+  readSkill: tool({
+    description:
+      "Read a skill's instructions and file listing. Omit 'file' to read SKILL.md and see all available files in the skill directory. Pass a relative 'file' path (e.g. 'scripts/run.sh') to read a specific file within the skill. The returned skillDir is the absolute path — use it when constructing shell commands to run skill scripts.",
+    inputSchema: toolInputSchemas.readSkill,
+  }),
 } as const;
 
 export const buildToolContracts = {
@@ -305,6 +332,11 @@ export const buildToolContracts = {
   shell: tool({
     description: "Run a shell command in the current project directory.",
     inputSchema: toolInputSchemas.shell,
+  }),
+  writeSkill: tool({
+    description:
+      "Create or update a skill. Writes SKILL.md to the correct scope directory (.koincode/skills/ for project, ~/.koincode/skills/ for global). Only touches SKILL.md — never overwrites scripts/, references/, or assets/. Returns whether the skill was created or updated.",
+    inputSchema: toolInputSchemas.writeSkill,
   }),
 } as const;
 

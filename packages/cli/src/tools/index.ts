@@ -15,6 +15,8 @@ import {
   runMemoryList,
 } from "./memory";
 import { runManageHook } from "./manage-hook";
+import { runReadSkill } from "./read-skill";
+import { runWriteSkill } from "./write-skill";
 import { runHooks } from "../utils/hooks";
 
 const PLAN_TOOLS = [
@@ -33,6 +35,7 @@ const PLAN_TOOLS = [
   "memoryList",
   "spawnAgent",
   "manageHook",
+  "readSkill",
 ];
 
 export async function executeLocalTool(
@@ -92,6 +95,12 @@ export async function executeLocalTool(
         break;
       case "manageHook":
         toolOutput = await runManageHook(input);
+        break;
+      case "readSkill":
+        toolOutput = runReadSkill(input);
+        break;
+      case "writeSkill":
+        toolOutput = runWriteSkill(input);
         break;
       // These are fully handled in use-chat.ts before reaching here; these paths should never run.
       // case "askUser":

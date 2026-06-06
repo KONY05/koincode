@@ -8,6 +8,7 @@ import {
   ThemeDialogContent,
 } from "../dialogs";
 import type { Command } from "./types";
+import { loadSkillsManifest } from "../../lib/skills";
 
 export const COMMANDS: Command[] = [
   {
@@ -103,3 +104,19 @@ export const COMMANDS: Command[] = [
     },
   },
 ];
+
+export function loadSkillCommands(): Command[] {
+  return loadSkillsManifest().map((skill) => ({
+    name: skill.name,
+    description: `[${skill.scope}] ${skill.description}`,
+    value: `/${skill.name}`,
+    isSkill: true,
+    action: async (ctx) => {
+      await ctx.invokeSkill(skill.name);
+    },
+  }));
+}
+
+export function getAllCommands(): Command[] {
+  return [...COMMANDS, ...loadSkillCommands()];
+}
