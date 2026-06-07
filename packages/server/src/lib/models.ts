@@ -1,6 +1,6 @@
 import fs from "fs";
 import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
+import { openai, createOpenAI } from "@ai-sdk/openai";
 import { google } from "@ai-sdk/google";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
@@ -8,12 +8,15 @@ import type { LanguageModel } from "ai";
 
 import {
   findSupportedChatModel,
+  isLocalModelId,
   GLOBAL_CONFIG_FILE,
   type KoincodeGlobalConfig,
+  type LocalModelConfig,
   type SupportedChatModel,
   type SupportedChatModelId,
   type SupportedProvider,
 } from "@koincode/shared";
+import { resolveOllamaBaseURL } from "./ollama";
 
 type AnthropicModelId = Extract<SupportedChatModel, { provider: "anthropic" }>["id"];
 type OpenAIModelId = Extract<SupportedChatModel, { provider: "openai"    }>["id"];
@@ -22,7 +25,7 @@ type GoogleModelId = Extract<SupportedChatModel, { provider: "google"    }>["id"
 export type ResolvedModel = {
   model: LanguageModel;
   provider: SupportedProvider;
-  modelId: SupportedChatModelId;
+  modelId: string;
   providerOptions?: ProviderOptions;
 };
 
@@ -138,13 +141,42 @@ function resolveSupportedChatModel(model: SupportedChatModel): ResolvedModel {
   }
 }
 
-export function isSupportedChatModel(
-  modelId: string,
-): modelId is SupportedChatModelId {
-  return findSupportedChatModel(modelId) != null;
+export function isSupportedChatModel(modelId: string): boolean {
+  return findSupportedChatModel(modelId) != null || isLocalModelId(modelId);
+}
+
+function readLocalModels(): LocalModelConfig[] {
+  try {
+    const config = JSON.parse(
+      fs.readFileSync(GLOBAL_CONFIG_FILE, "utf8"),
+    ) as KoincodeGlobalConfig;
+    return config.localModels ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function resolveLocalModel(modelId: string): ResolvedModel {
+  if (modelId.startsWith("ollama/")) {
+    const ollamaModelName = modelId.slice("ollama/".length);
+    const baseURL = `${resolveOllamaBaseURL()}/v1`;
+    const provider = createOpenAI({ baseURL, apiKey: "ollama" });
+    return { model: provider(ollamaModelName), provider: "ollama", modelId };
+  }
+
+  if (modelId.startsWith("local/")) {
+    const localModelName = modelId.slice("local/".length);
+    const entry = readLocalModels().find((m) => m.id === modelId);
+    if (!entry) throw new Error(`Local model not configured: ${modelId}`);
+    const provider = createOpenAI({ baseURL: entry.baseURL, apiKey: "local" });
+    return { model: provider(localModelName), provider: "local", modelId };
+  }
+
+  throw new Error(`Unknown local model format: ${modelId}`);
 }
 
 export function resolveChatModel(modelId: string): ResolvedModel {
+  if (isLocalModelId(modelId)) return resolveLocalModel(modelId);
   const model = findSupportedChatModel(modelId);
   if (!model) throw new Error(`Unsupported model: ${modelId}`);
   return resolveSupportedChatModel(model);

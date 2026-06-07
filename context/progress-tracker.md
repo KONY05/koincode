@@ -31,7 +31,17 @@ Update this file whenever the current phase, active feature, or implementation s
 
 - None.
 
+## Recently Completed (Phase 2 — continued)
+
+- **Context management** — `/context` command opens a modal showing tokens used vs. model context window (single bar, exact from API usage data). `/compact` command summarizes the conversation via the AI, stores a `compact_boundary` marker server-side, and resets the LLM context to just the summary + new messages — old messages remain visible in the transcript with a "Context compacted" divider. Status bar shows a 10-segment dot ring (`●●●●●●●●○○`) when usage ≥ 80%, turning red at 95%. Auto-compaction triggers automatically at 90% between responses. `getContextWindow(modelId)` added to `@koincode/shared` with per-model sizes for all supported models. `contextUsage` (tokensUsed, contextWindow, percent) exposed from `useChat` and threaded through SessionShell → InputBar → StatusBar. New server route `POST /sessions/:id/compact`; chat boundary scan now recognizes both `clear_boundary` and `compact_boundary`. Feature spec: `context/feature-specs/21-context-management.md`.
+
+- **Voice input** — `/voice` command toggles voice input mode on/off (persisted to `~/.koincode/config.json`). When enabled, holding Space starts recording and releasing stops it; the transcript is appended at the cursor. A short Space press still inserts a normal space. Transcription backend auto-selects: OpenAI Whisper API when an `openai` key is present, otherwise `@xenova/transformers` (local WASM, zero system deps, one-time model download to `~/.koincode/whisper/`). Audio recording uses platform-native tools: `sox` on macOS, `arecord` on Linux, PowerShell MCI on Windows. Status bar shows a `voice` indicator while active. Config fields added: `voiceInput`, `whisperModel` (`tiny`/`base`/`small`), `whisperBackend` (`auto`/`openai`/`local`). New files: `packages/cli/src/lib/whisper.ts`, `packages/cli/src/lib/voice-recorder.ts`.
+
+- **Skills system** — Command menu extended with skills: reusable task instructions the agent reads and executes. Each skill is a directory (`SKILL.md` + optional `scripts/`, `references/`, `assets/`) stored at `.koincode/skills/` (project-local) or `~/.koincode/skills/` (global). Two built-in skills shipped: `code-review` and `git-commit`. The skills manifest is injected into the system prompt on every request so the agent knows what's available. Two new tools: `readSkill` (PLAN+BUILD — reads SKILL.md and directory listing, or a specific sub-file with path-traversal guard) and `writeSkill` (BUILD-only — creates or updates SKILL.md, detects create vs. update, preserves existing sub-directories). Skills appear in the command menu alongside built-in commands; selecting one triggers an immediate agent turn. Works from both the home screen (creates a new session) and inside an existing session. Agent can also create/update skills on request via `writeSkill`. Files: `packages/cli/src/lib/skills.ts`, `packages/cli/src/skills/builtins.ts`, `packages/cli/src/tools/read-skill.ts`, `packages/cli/src/tools/write-skill.ts`.
+
 ## Recently Completed
+
+- **Local model support** — Users can now chat with locally-running models (Ollama, LM Studio, vllm, or any OpenAI-compatible endpoint). `GET /local-models` on the server auto-detects Ollama at `localhost:11434` and returns pulled models alongside user-configured custom endpoints. The model picker gains a third "Local" tab (Tab to cycle) that fetches and lists discovered models with file size hints. Model IDs use an `ollama/<name>` or `local/<name>` prefix convention. `resolveChatModel` in the server handles both by wiring `createOpenAI` with the appropriate `baseURL`. `ollamaBaseURL` (and `localModels`) added to `KoincodeGlobalConfig` for users with non-default Ollama URLs. The model type throughout the CLI was broadened from `SupportedChatModelId` to `string` to accommodate arbitrary local model IDs.
 
 - **Tool refactor** — `packages/cli/src/lib/local-tools.ts` split into `packages/cli/src/tools/` with one file per tool (`read-file.ts`, `list-directory.ts`, `glob.ts`, `grep.ts`, `write-file.ts`, `edit-file.ts`, `bash.ts`). Shared helpers/constants live in `tools/utils.ts`. `tools/index.ts` exports `executeLocalTool` with the same switch-based dispatch. Import in `hooks/use-chat.ts` updated; old `lib/local-tools.ts` deleted.
 - **Tool call styling** — `editFile` now renders a diff view: removed lines in red with `- ` prefix, added lines in green with `+` prefix, capped at 8 lines per side with truncation notices. `writeFile` shows a file creation preview: header with path + first 3 lines of content (dimmed), with `…` if the file has more. Both components show a ` …` spinner while the tool is pending and surface error text if the call fails. All other tools retain the existing plain-text display. Change is in `packages/cli/src/components/messages/bot-message.tsx`.
@@ -54,6 +64,8 @@ Update this file whenever the current phase, active feature, or implementation s
 
 These were scoped out and should be revisited:
 
+- **`koincode install <skill>`** — Wrap npm install to pull skills published as npm packages (naming convention: `@koincode-skills/<name>`). The install command would fetch the package and extract its files into `~/.koincode/skills/<name>/`. Also consider a GitHub shorthand (`koincode install github:user/my-skill`). No custom registry needed — npm is the registry. Requires `koincode install` CLI subcommand.
+
 - **Compression prompt** — Implement context window compression. When conversation length approaches the model's limit, summarize completed work into a structured continuation prompt (original goal, completed actions, current state, remaining tasks, next step, key context) and replace the history. Prevents context overflow mid-task.
 - **Hooks tool call extension** — Right now the executeHook method in `packages/shared/src/index.ts` only work with `command` type to execute hooks, we will later extend it to handle other hook types: `http`, `mcpTool`, `prompt`, and `agent`.
 
@@ -62,6 +74,8 @@ These were scoped out and should be revisited:
 - None.
 
 ## Architecture Decisions
+
+- **Always slice before sending to the model** — Any server route that sends message history to an LLM must first call `getLastBoundaryIndex(messageRecords)` and slice from that index + 1. This ensures the model only sees the current context window (post-clear or post-compact). Applied consistently in `chat.ts` (live stream), `sessions.ts` compact, and `sessions.ts` handoff. `getLastBoundaryIndex` lives in `lib/helpers.ts`.
 
 - Bun workspaces monorepo — four packages: cli, server, database, shared.
 - OpenTUI + React 19 for terminal rendering (not Ink).

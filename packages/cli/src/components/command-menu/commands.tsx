@@ -1,6 +1,7 @@
 import { SUPPORTED_CHAT_MODELS } from "@koincode/shared";
 import {
   AgentsDialogContent,
+  ContextDialogContent,
   HelpDialogContent,
   ModelsDialogContent,
   SessionsDialogContent,
@@ -8,6 +9,8 @@ import {
   ThemeDialogContent,
 } from "../dialogs";
 import type { Command } from "./types";
+import { loadSkillsManifest } from "../../lib/skills";
+import { readGlobalConfig } from "../../utils/configs/global-config";
 
 export const COMMANDS: Command[] = [
   {
@@ -16,6 +19,14 @@ export const COMMANDS: Command[] = [
     value: "/new",
     action: (ctx) => {
       ctx.navigate("/");
+    },
+  },
+  {
+    name: "handoff",
+    description: "Summarize this session and continue in a new one",
+    value: "/handoff",
+    action: async (ctx) => {
+      await ctx.handoff();
     },
   },
   {
@@ -95,6 +106,51 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: "context",
+    description: "View context window usage",
+    value: "/context",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "Context Usage",
+        children: (
+          <ContextDialogContent
+            contextUsage={ctx.contextUsage}
+            model={ctx.model}
+          />
+        ),
+      });
+    },
+  },
+  {
+    name: "compact",
+    description: "Summarize conversation and reset the context window",
+    value: "/compact",
+    action: async (ctx) => {
+      await ctx.compact();
+    },
+  },
+  {
+    name: "clear",
+    description: "Reset AI context — start fresh without losing history",
+    value: "/clear",
+    action: async (ctx) => {
+      await ctx.clearSession();
+    },
+  },
+  {
+    name: "voice",
+    description: "Toggle voice input (hold space to speak)",
+    value: "/voice",
+    action: (ctx) => {
+      ctx.toggleVoice();
+      const newState = readGlobalConfig().voiceInput ?? false;
+      ctx.toast.show({
+        variant: "success",
+        message: newState ? "Voice input enabled — hold space to speak" : "Voice input disabled",
+      });
+    },
+  },
+  {
     name: "exit",
     description: "Quit the application",
     value: "/exit",
@@ -103,3 +159,19 @@ export const COMMANDS: Command[] = [
     },
   },
 ];
+
+export function loadSkillCommands(): Command[] {
+  return loadSkillsManifest().map((skill) => ({
+    name: skill.name,
+    description: `[${skill.scope}] ${skill.description}`,
+    value: `/${skill.name}`,
+    isSkill: true,
+    action: async (ctx) => {
+      await ctx.invokeSkill(skill.name);
+    },
+  }));
+}
+
+export function getAllCommands(): Command[] {
+  return [...COMMANDS, ...loadSkillCommands()];
+}

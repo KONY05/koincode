@@ -9,14 +9,15 @@ import {
 
 import {
   type ChatMessageMetadata,
+  getContextWindow,
   Mode,
   type ModeType,
-  type SupportedChatModelId,
   type ToolContracts,
   toolInputSchemas,
 } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
 import { executeLocalTool } from "../tools";
+import { loadSkillsManifest } from "../lib/skills";
 import { runSpawnAgent } from "../tools/spawn-agent";
 import { getPermissionInfo } from "../utils/permissions";
 import {
@@ -44,6 +45,12 @@ export type SystemEvent = {
   afterMessageCount: number;
 };
 
+export type ContextUsage = {
+  tokensUsed: number;
+  contextWindow: number;
+  percent: number;
+};
+
 type ChatTools = {
   [Name in keyof InferUITools<ToolContracts>]: {
     input: InferUITools<ToolContracts>[Name]["input"];
@@ -53,7 +60,7 @@ type ChatTools = {
 
 export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
-export function useChat(sessionId: string, initialMessages: Message[]) {
+export function useChat(sessionId: string, initialMessages: Message[], initialSystemEvents: SystemEvent[] = []) {
   const { mode, setMode, autoModeSwitch, setAutoModeSwitch } =
     usePromptConfig();
 
@@ -64,7 +71,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     useState<PendingUserQuestion | null>(null);
   const [pendingModeSwitch, setPendingModeSwitch] =
     useState<PendingModeSwitch | null>(null);
-  const [systemEvents, setSystemEvents] = useState<SystemEvent[]>([]);
+  const [systemEvents, setSystemEvents] = useState<SystemEvent[]>(initialSystemEvents);
   const [isSubagentRunning, setIsSubagentRunning] = useState(false);
 
   const resolveApprovalRef = useRef<((r: ApprovalResponse) => void) | null>(
@@ -131,6 +138,11 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
             messages: requestMessages,
             mode: message.metadata?.mode ?? metadata?.mode,
             model: message.metadata?.model ?? metadata?.model,
+            skillsManifest: loadSkillsManifest().map((s) => ({
+              name: s.name,
+              description: s.description,
+              scope: s.scope,
+            })),
           },
         };
       },
@@ -413,6 +425,22 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
   });
 
+  const contextUsage = useMemo((): ContextUsage | null => {
+    const lastWithUsage = [...chat.messages].reverse().find(
+      (m) => m.role === "assistant" && m.metadata?.usage,
+    );
+    if (!lastWithUsage?.metadata?.usage) return null;
+
+    const modelId = lastWithUsage.metadata.model ?? "";
+    const contextWindow = getContextWindow(String(modelId));
+    const tokensUsed = lastWithUsage.metadata.usage.inputTokens ?? 0;
+    return {
+      tokensUsed,
+      contextWindow,
+      percent: Math.min(100, Math.round((tokensUsed / contextWindow) * 100)),
+    };
+  }, [chat.messages]);
+
   const resolveApproval = useCallback((response: ApprovalResponse) => {
     resolveApprovalRef.current?.(response);
   }, []);
@@ -438,10 +466,17 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     resolveModeSwitch,
     systemEvents,
     isSubagentRunning,
+    contextUsage,
+    addSystemEvent: (text: string) => {
+      setSystemEvents((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), text, afterMessageCount: chat.messages.length },
+      ]);
+    },
     submit: (params: {
       userText: string;
       mode: ModeType;
-      model: SupportedChatModelId;
+      model: string;
     }) => {
       setWasInterrupted(false);
       return chat.sendMessage({

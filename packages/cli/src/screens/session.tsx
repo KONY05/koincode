@@ -4,7 +4,7 @@ import { useKeyboard } from "@opentui/react";
 import type { InferResponseType } from "hono/client";
 import { z } from "zod";
 
-import { modeSchema, type SupportedChatModelId } from "@koincode/shared";
+import { modeSchema, BOUNDARY_ROLES } from "@koincode/shared";
 import { SessionShell } from "../components/session-shell";
 import {
   UserMessage,
@@ -15,6 +15,7 @@ import {
 import { useToast } from "../providers/toast";
 import { useChat } from "../hooks/use-chat";
 import { usePromptConfig } from "../providers/prompt-config";
+import { SessionActionsProvider } from "../providers/session-actions";
 import type { Message } from "../hooks/use-chat";
 import { apiClient } from "../lib/api-client";
 import { getErrorMessage } from "../lib/http-errors";
@@ -63,17 +64,54 @@ function ChatMessage({
   );
 }
 
+/**
+ * Returns how many valid AI messages appear before the last boundary marker
+ * (clear_boundary or compact_boundary) in the raw session messages array.
+ * Used as the slice offset so the transcript only renders post-boundary messages.
+ *
+ * Returns 0 if no boundary exists.
+ */
+function countMessagesBeforeLastBoundary(rawMessages: unknown[]): number {
+  let lastBoundaryIdx = -1;
+  for (let i = rawMessages.length - 1; i >= 0; i--) {
+    const type = (rawMessages[i] as { type?: string } | null)?.type;
+    if (type && BOUNDARY_ROLES.has(type)) {
+      lastBoundaryIdx = i;
+      break;
+    }
+  }
+  if (lastBoundaryIdx === -1) return 0;
+  return rawMessages
+    .slice(0, lastBoundaryIdx)
+    .filter((m) => !BOUNDARY_ROLES.has((m as { type?: string } | null)?.type ?? ""))
+    .length;
+}
+
 function SessionChat({
   session,
   initialState,
   onDeleteLastMessage,
+  onHandoff,
 }: {
   session: SessionData;
   initialState: z.infer<typeof initialStateSchema> | null;
   onDeleteLastMessage?: () => void;
+  onHandoff: () => Promise<void>;
 }) {
-  const [initialMessages] = useState(
-    () => session.messages as unknown as Message[],
+  const rawSessionMessages = session.messages as unknown[];
+
+  const [initialMessages] = useState<Message[]>(() =>
+    rawSessionMessages.filter(
+      (m): m is Message =>
+        m !== null &&
+        typeof m === "object" &&
+        (m as { type?: string }).type !== "clear_boundary" &&
+        (m as { type?: string }).type !== "compact_boundary",
+    ),
+  );
+
+  const [localClearMsgCount, setLocalClearMsgCount] = useState(() =>
+    countMessagesBeforeLastBoundary(rawSessionMessages),
   );
   const { mode, model } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
@@ -93,6 +131,8 @@ function SessionChat({
     resolveModeSwitch,
     systemEvents,
     isSubagentRunning,
+    contextUsage,
+    addSystemEvent,
     submit,
     abort,
     interrupt,
@@ -114,17 +154,22 @@ function SessionChat({
     if (!initialState || initialMessages.length !== 0) return;
 
     hasAutoSubmittedRef.current = true;
-    submit({
-      userText: initialState.message,
-      mode: initialState.mode,
-      model: initialState.model as SupportedChatModelId,
-    }).catch((err) => {
-      toast.show({
-        variant: "error",
-        message:
-          err instanceof Error ? err.message : "Failed to get agent response",
-      });
-    });
+    const autoSubmit = async () => {
+      try {
+        await submit({
+          userText: initialState.message,
+          mode: initialState.mode,
+          model: initialState.model,
+        });
+      } catch (err) {
+        toast.show({
+          variant: "error",
+          message:
+            err instanceof Error ? err.message : "Failed to get agent response",
+        });
+      }
+    };
+    void autoSubmit();
   }, [initialState, initialMessages, submit, toast]);
 
   // Let the user cancel a reply even before the first streamed chunk arrives.
@@ -155,15 +200,13 @@ function SessionChat({
     }
   });
 
-  // Merge AI messages and system events (e.g. mode switch dividers) into one ordered list.
+  // Build the visible transcript by interleaving AI messages with system events (e.g. mode
+  // switch dividers). Messages and events at or before localClearMsgCount are skipped — they
+  // predate the last /clear and should not be shown.
   //
-  // systemEvents are tagged with `afterMessageCount` — how many messages existed when the
-  // event fired. eventIdx is a forward-only cursor so each event is placed exactly once.
-  //
-  // For each message at index i, we insert any events whose afterMessageCount <= i+1,
-  // meaning they fired while there were at most i+1 messages, so they belong right after
-  // message i. The trailing while handles events that outlast all current messages (fired
-  // while the last message was still streaming).
+  // System events carry an `afterMessageCount` that records how many messages existed when
+  // the event fired, which lets us place each divider directly after the message it followed.
+  // eventIdx is a forward-only cursor so every event is visited exactly once.
   const transcript = useMemo(() => {
     type Item =
       | { type: "message"; msg: Message; index: number }
@@ -173,36 +216,103 @@ function SessionChat({
     let eventIdx = 0;
 
     for (let i = 0; i < messages.length; i++) {
-      items.push({ type: "message", msg: messages[i]!, index: i });
+      if (i >= localClearMsgCount) {
+        items.push({ type: "message", msg: messages[i]!, index: i });
+      }
       while (
         eventIdx < systemEvents.length &&
         systemEvents[eventIdx]!.afterMessageCount <= i + 1
       ) {
+        if (systemEvents[eventIdx]!.afterMessageCount > localClearMsgCount) {
+          items.push({
+            type: "system",
+            id: systemEvents[eventIdx]!.id,
+            text: systemEvents[eventIdx]!.text,
+          });
+        }
+        eventIdx++;
+      }
+    }
+    while (eventIdx < systemEvents.length) {
+      if (systemEvents[eventIdx]!.afterMessageCount > localClearMsgCount) {
         items.push({
           type: "system",
           id: systemEvents[eventIdx]!.id,
           text: systemEvents[eventIdx]!.text,
         });
-        eventIdx++;
       }
-    }
-    while (eventIdx < systemEvents.length) {
-      items.push({
-        type: "system",
-        id: systemEvents[eventIdx]!.id,
-        text: systemEvents[eventIdx]!.text,
-      });
       eventIdx++;
     }
 
     return items;
-  }, [messages, systemEvents]);
+  }, [messages, systemEvents, localClearMsgCount]);
+
+  const [isCompacting, setIsCompacting] = useState(false);
+  const hasAutoCompactedRef = useRef(false);
+
+  const runCompact = async (source: "manual" | "auto") => {
+    setIsCompacting(true);
+    const label = source === "auto" ? "Context full — auto-compacting…" : "Compacting context…";
+    toast.show({ variant: "info", message: label });
+    try {
+      const res = await apiClient.sessions[":id"].compact.$post({ param: { id: session.id } });
+      if (!res.ok) throw new Error("Compact failed");
+      const eventText = source === "auto"
+        ? "Context auto-compacted — history summarized, context window reset"
+        : "Context compacted — history summarized, context window reset";
+      addSystemEvent(eventText);
+      toast.show({ variant: "success", message: source === "auto" ? "Context auto-compacted" : "Context compacted" });
+    } catch (err) {
+      toast.show({
+        variant: "error",
+        message: err instanceof Error ? err.message : "Compact failed",
+      });
+      if (source === "auto") hasAutoCompactedRef.current = false;
+    } finally {
+      setIsCompacting(false);
+    }
+  };
+
+  // Auto-compact when context is full (≥ 95% — leaves room for the model's final response)
+  useEffect(() => {
+    if (!contextUsage || contextUsage.percent < 95) {
+      hasAutoCompactedRef.current = false;
+      return;
+    }
+    if (hasAutoCompactedRef.current) return;
+    if (status === "streaming" || status === "submitted") return;
+
+    hasAutoCompactedRef.current = true;
+    // Defer to next tick so setState inside runCompact doesn't fire synchronously within the effect.
+    const t = setTimeout(() => void runCompact("auto"), 0);
+    return () => clearTimeout(t);
+  // runCompact is stable enough not to be listed — adding it would re-trigger on every render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextUsage, status]);
+
+  const handleInvokeSkill = async (skillName: string) => {
+    await submit({ userText: `Execute skill: ${skillName}`, mode, model });
+  };
+
+  const handleClearSession = async () => {
+    await apiClient.sessions[":id"].clear.$post({ param: { id: session.id } });
+    setLocalClearMsgCount(messages.length);
+  };
+
+  const handleCompact = () => runCompact("manual");
 
   return (
+    <SessionActionsProvider
+      invokeSkill={handleInvokeSkill}
+      clearSession={handleClearSession}
+      handoff={onHandoff}
+      compact={handleCompact}
+    >
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
+      contextUsage={contextUsage}
       loading={
-        status === "submitted" || status === "streaming" || isSubagentRunning
+        status === "submitted" || status === "streaming" || isSubagentRunning || isCompacting
       }
       interruptible={
         status === "submitted" || status === "streaming" || isSubagentRunning
@@ -235,6 +345,7 @@ function SessionChat({
       })}
       {error && <ErrorMessage message={error.message} />}
     </SessionShell>
+    </SessionActionsProvider>
   );
 }
 
@@ -281,6 +392,24 @@ export function Session() {
     };
   }, [id, toast, navigate]);
 
+  const handleHandoff = async () => {
+    if (!session) return;
+    toast.show({ variant: "info", message: "Summarizing session…" });
+    try {
+      const res = await apiClient.sessions[":id"].handoff.$post({
+        param: { id: session.id },
+      });
+      if (!res.ok) throw new Error(await getErrorMessage(res));
+      const { sessionId } = await res.json();
+      navigate(`/session/${sessionId}`);
+    } catch (err) {
+      toast.show({
+        variant: "error",
+        message: err instanceof Error ? err.message : "Handoff failed",
+      });
+    }
+  };
+
   const handleDeleteLastMessage = async () => {
     if (!session) return;
     try {
@@ -326,6 +455,7 @@ export function Session() {
       session={session}
       initialState={initialState}
       onDeleteLastMessage={handleDeleteLastMessage}
+      onHandoff={handleHandoff}
     />
   );
 }

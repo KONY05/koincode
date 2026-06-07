@@ -11,6 +11,7 @@ import { createMarkdownSyntaxStyle } from "../../utils/syntax-style";
 import EditFileDiff from "../tool-view/edit-file";
 import WriteFilePreview from "../tool-view/write-file";
 import TodoList from "../tool-view/todo-list";
+import ShellView from "../tool-view/shell";
 import { Spinner } from "../spinner";
 
 const treeSitterClient = getTreeSitterClient();
@@ -40,10 +41,103 @@ function isToolPart(part: ClientMessagePart): part is ToolPart {
   return part.type === "dynamic-tool" || part.type.startsWith("tool-");
 }
 
-function formatToolArgs(tc: ToolPart): string {
-  if (!("input" in tc) || tc.input == null) return "";
-  if (typeof tc.input !== "object") return String(tc.input);
-  return Object.values(tc.input).map(String).join(" ");
+function formatToolArgs(input: unknown): string {
+  if (input == null) return "";
+  if (typeof input !== "object") return String(input);
+  return Object.values(input).map(String).join(" ");
+}
+
+type RenderToolContentProps = {
+  toolName: string;
+  input: unknown;
+  output: unknown;
+  pending: boolean;
+  errorText: string | undefined;
+  colors: ReturnType<typeof useTheme>["colors"];
+  syntaxStyle: ReturnType<typeof createMarkdownSyntaxStyle>;
+  treeSitterClient: ReturnType<typeof getTreeSitterClient>;
+};
+
+function renderToolContent({
+  toolName,
+  input,
+  output,
+  pending,
+  errorText,
+  colors,
+  syntaxStyle,
+  treeSitterClient,
+}: RenderToolContentProps) {
+  if (!input) {
+    return null;
+  }
+
+  if (toolName === "shell") {
+    return (
+      <ShellView
+        input={input}
+        output={output}
+        pending={pending}
+        error={errorText}
+        colors={colors}
+      />
+    );
+  }
+
+  if (toolName === "editFile") {
+    return (
+      <EditFileDiff
+        input={input}
+        pending={pending}
+        error={errorText}
+        colors={colors}
+        syntaxStyle={syntaxStyle}
+        treeSitterClient={treeSitterClient}
+      />
+    );
+  }
+
+  if (toolName === "writeFile") {
+    return (
+      <WriteFilePreview
+        input={input}
+        pending={pending}
+        error={errorText}
+        colors={colors}
+      />
+    );
+  }
+
+  if (toolName === "createTodos" || toolName === "updateTodos") {
+    return (
+      <TodoList
+        input={input}
+        toolName={toolName}
+        pending={pending}
+        colors={colors}
+      />
+    );
+  }
+
+  if (toolName === "spawnAgent") {
+    const { name, description } = input as { name?: string; description?: string };
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>Subagent:</em> {name ?? ""} — {description ?? ""}
+        {pending ? " …" : ""}
+        {errorText ? ` ${errorText}` : ""}
+      </text>
+    );
+  }
+
+  return (
+    <text attributes={TextAttributes.DIM}>
+      <em fg={colors.info}>{formatToolName(toolName)}:</em>{" "}
+      {formatToolArgs(input)}
+      {pending ? " …" : ""}
+      {errorText ? ` ${errorText}` : ""}
+    </text>
+  );
 }
 
 type PartGroup = {
@@ -165,66 +259,32 @@ export function BotMessage({
                 "input" in part &&
                 part.input != null &&
                 part.state !== "input-streaming";
-
               const errorText =
                 part.state === "output-error" ? part.errorText : undefined;
+              const output =
+                part.state === "output-available"
+                  ? (part as unknown as { output: unknown }).output
+                  : undefined;
 
               return (
                 <box
                   key={part.toolCallId}
                   border={["left"]}
                   borderColor={colors.thinkingBorder}
-                  customBorderChars={{
-                    ...EmptyBorder,
-                    vertical: "│",
-                  }}
+                  customBorderChars={{ ...EmptyBorder, vertical: "│" }}
                   width="100%"
                   paddingX={2}
                 >
-                  {hasInput && toolName === "editFile" ? (
-                    <EditFileDiff
-                      input={part.input}
-                      pending={pending}
-                      error={errorText}
-                      colors={colors}
-                      syntaxStyle={syntaxStyle}
-                      treeSitterClient={treeSitterClient}
-                    />
-                  ) : hasInput && toolName === "writeFile" ? (
-                    <WriteFilePreview
-                      input={part.input}
-                      pending={pending}
-                      error={errorText}
-                      colors={colors}
-                    />
-                  ) : hasInput &&
-                    (toolName === "createTodos" ||
-                      toolName === "updateTodos") ? (
-                    <TodoList
-                      input={part.input}
-                      toolName={toolName}
-                      pending={pending}
-                      colors={colors}
-                    />
-                  ) : hasInput && toolName === "spawnAgent" ? (
-                    <text attributes={TextAttributes.DIM}>
-                      <em fg={colors.info}>Subagent:</em>{" "}
-                      {(part.input as { name?: string; description?: string })
-                        .name ?? ""}{" "}
-                      —{" "}
-                      {(part.input as { name?: string; description?: string })
-                        .description ?? ""}
-                      {pending ? " …" : ""}
-                      {errorText ? ` ${errorText}` : ""}
-                    </text>
-                  ) : (
-                    <text attributes={TextAttributes.DIM}>
-                      <em fg={colors.info}>{formatToolName(toolName)}:</em>{" "}
-                      {formatToolArgs(part)}
-                      {pending ? " …" : ""}
-                      {errorText ? ` ${errorText}` : ""}
-                    </text>
-                  )}
+                  {renderToolContent({
+                    toolName,
+                    input: hasInput ? part.input : undefined,
+                    output,
+                    pending,
+                    errorText,
+                    colors,
+                    syntaxStyle,
+                    treeSitterClient,
+                  })}
                 </box>
               );
             }

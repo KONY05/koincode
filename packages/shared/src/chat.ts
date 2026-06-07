@@ -1,4 +1,5 @@
 import { type LanguageModelUsage } from "ai";
+
 import type { SupportedChatModelId } from "./models";
 import type { ModeType } from "./schemas";
 
@@ -9,3 +10,5 @@ export type ChatMessageMetadata = {
   usage?: LanguageModelUsage;
   interrupted?: boolean;
 };
+
+export const BOUNDARY_ROLES = new Set(["clear_boundary", "compact_boundary"]);

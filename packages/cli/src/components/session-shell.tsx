@@ -15,11 +15,12 @@ import type {
   ModeSwitchResponse,
 } from "./widget/mode-switch-widget";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
-import type { PendingUserQuestion } from "../hooks/use-chat";
+import type { PendingUserQuestion, ContextUsage } from "../hooks/use-chat";
 
 type Props = {
   children?: ReactNode;
   onSubmit: (text: string) => void;
+  contextUsage?: ContextUsage | null;
   inputDisabled?: boolean;
   loading?: boolean;
   interruptible?: boolean;
@@ -34,6 +35,7 @@ type Props = {
 export function SessionShell({
   children,
   onSubmit,
+  contextUsage,
   inputDisabled = false,
   loading = false,
   interruptible = false,
@@ -101,7 +103,11 @@ export function SessionShell({
             onResponse={onUserQuestionResponse}
           />
         ) : (
-          <InputBar onSubmit={onSubmit} disabled={inputDisabled || loading} />
+          <InputBar
+            onSubmit={onSubmit}
+            contextUsage={contextUsage}
+            disabled={inputDisabled || loading}
+          />
         )}
       </box>
       <box

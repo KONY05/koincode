@@ -64,6 +64,38 @@ export function updateGlobalConfig(
     }
   }
 
+  if (updates.ollamaBaseURL !== undefined) {
+    if (updates.ollamaBaseURL === "") {
+      delete next.ollamaBaseURL;
+    } else {
+      next.ollamaBaseURL = updates.ollamaBaseURL;
+    }
+  }
+
+  if (updates.localModels !== undefined) {
+    next.localModels = updates.localModels;
+  }
+
+  if (updates.voiceInput !== undefined) {
+    next.voiceInput = updates.voiceInput;
+  }
+
+  if (updates.whisperModel !== undefined) {
+    if (!updates.whisperModel) {
+      delete next.whisperModel;
+    } else {
+      next.whisperModel = updates.whisperModel;
+    }
+  }
+
+  if (updates.whisperBackend !== undefined) {
+    if (!updates.whisperBackend) {
+      delete next.whisperBackend;
+    } else {
+      next.whisperBackend = updates.whisperBackend;
+    }
+  }
+
   writeGlobalConfig(next);
   return next;
 }

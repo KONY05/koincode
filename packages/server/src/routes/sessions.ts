@@ -2,20 +2,20 @@ import { Hono } from "hono";
 // import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { generateText } from "ai";
+import { generateId } from "ai";
 
 import { db } from "@koincode/database/client";
-import { resolveChatModel } from "../lib/models";
-import { logger } from "../lib/helpers";
+import { logger, getLastBoundaryIndex, generateTextWithFallback } from "../lib/helpers";
+import { buildCompactionPrompt } from "../prompts/compaction-prompt";
 
-async function generateTitleFromMessage(message: string): Promise<string> {
+/** One-shot title generation using the model user is currently using **/
+async function generateTitleFromMessage(message: string, model:string): Promise<string> {
   try {
     if (!message || message.length < 10) {
       return message.slice(0, 50) || "New Conversation";
     }
 
-    const result = await generateText({
-      model: resolveChatModel("google/gemma-4-31b-it:free").model,
+    const result = await generateTextWithFallback(model, {
       prompt: `Generate a concise, descriptive title (max 50 characters) for this conversation based on the user's first message:\n\n${message}\n\nReturn only the title, no quotes or extra text.`,
       maxOutputTokens: 50,
     });
@@ -30,14 +30,9 @@ async function generateTitleFromMessage(message: string): Promise<string> {
 
 const createSessionSchema = z.object({
   title: z.string(),
+  model: z.string(),
   cwd: z.string().optional(),
   gitBranch: z.string().optional(),
-  initialMessage: z
-    .object({
-      role: z.string(),
-      content: z.string(),
-    })
-    .optional(),
 });
 
 const listSessionsSchema = z.object({
@@ -133,26 +128,14 @@ const app = new Hono()
     //   { message: "Mock error: session loading failed" }
     // )
 
-    const { title, cwd, gitBranch, initialMessage } = c.req.valid("json");
+    const { title, cwd, model, gitBranch } = c.req.valid("json");
 
     const session = await db.session.create({
       data: { title, cwd, gitBranch },
     });
 
-    // If initial message is provided, store it in the Message table
-    if (initialMessage) {
-      await db.message.create({
-        data: {
-          sessionId: session.id,
-          role: initialMessage.role,
-          content: initialMessage.content,
-          order: 0,
-        },
-      });
-    }
-
     // Generate better title in background without blocking
-    generateTitleFromMessage(title)
+    generateTitleFromMessage(title, model)
       .then((generatedTitle) => {
         return db.session.update({
           where: { id: session.id },
@@ -177,6 +160,34 @@ const app = new Hono()
     await db.session.delete({ where: { id } });
 
     return c.json({ success: true });
+  })
+  .post("/:id/clear", async (c) => {
+    const id = c.req.param("id");
+
+    const session = await db.session.findUnique({ where: { id } });
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    const clearedAt = new Date().toISOString();
+
+    await db.$transaction(async (tx) => {
+      const { _max } = await tx.message.aggregate({
+        where: { sessionId: id },
+        _max: { order: true },
+      });
+      const nextOrder = (_max.order ?? -1) + 1;
+      await tx.message.create({
+        data: {
+          sessionId: id,
+          role: "clear_boundary",
+          content: JSON.stringify({ type: "clear_boundary", clearedAt }),
+          order: nextOrder,
+        },
+      });
+    });
+
+    return c.json({ clearedAt });
   })
   .delete("/:id/messages/last-user", async (c) => {
     const id = c.req.param("id");
@@ -206,6 +217,236 @@ const app = new Hono()
     ]);
 
     return c.json({ success: true });
+  })
+  .post("/:id/compact", async (c) => {
+    const id = c.req.param("id");
+
+    const session = await db.session.findUnique({ where: { id } });
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    const messageRecords = await db.message.findMany({
+      where: { sessionId: id },
+      orderBy: { order: "asc" },
+    });
+
+    // Slice from the last boundary (clear or compact) so we only summarize the current window.
+    const windowRecords = messageRecords.slice(getLastBoundaryIndex(messageRecords) + 1);
+
+    const assistantMessages = windowRecords.filter((m) => m.role === "assistant");
+
+    // Extract model from the last assistant message metadata.
+    let model = "claude-sonnet-4-6";
+    const lastAssistant = assistantMessages[assistantMessages.length - 1];
+    if (lastAssistant) {
+      try {
+        const parsed = JSON.parse(lastAssistant.content);
+        if (parsed?.metadata?.model) model = parsed.metadata.model;
+      } catch { /* ignore */ }
+    }
+
+    // Build plain-text transcript for the summary prompt.
+    const conversationText = windowRecords
+      .map((m) => {
+        try {
+          const parsed = JSON.parse(m.content);
+          const text = (parsed.parts ?? [])
+            .filter((p: { type: string }) => p.type === "text")
+            .map((p: { text: string }) => p.text)
+            .join("");
+          return text ? `${m.role.toUpperCase()}: ${text}` : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .join("\n\n");
+
+    const summary = await (async () => {
+      if (assistantMessages.length < 2 || !conversationText.trim()) {
+        return "No significant conversation to summarize yet.";
+      }
+      try {
+        const result = await generateTextWithFallback(model, {
+          messages: [
+            {
+              role: "user",
+              content: buildCompactionPrompt(conversationText),
+            },
+          ],
+          maxOutputTokens: 1200,
+        });
+        return result.text.trim();
+      } catch (err) {
+        logger.error("Failed to generate compact summary:", err);
+        return "Context compaction summary could not be generated.";
+      }
+    })();
+
+    const compactedAt = new Date().toISOString();
+    const userMsgId = generateId();
+    const assistantMsgId = generateId();
+
+    await db.$transaction(async (tx) => {
+      const { _max } = await tx.message.aggregate({
+        where: { sessionId: id },
+        _max: { order: true },
+      });
+      const nextOrder = (_max.order ?? -1) + 1;
+      return tx.message.createMany({
+        data: [
+          {
+            id: generateId(),
+            sessionId: id,
+            role: "compact_boundary",
+            content: JSON.stringify({ type: "compact_boundary", compactedAt }),
+            order: nextOrder,
+          },
+          {
+            id: generateId(),
+            sessionId: id,
+            role: "user",
+            content: JSON.stringify({
+              id: userMsgId,
+              role: "user",
+              parts: [{ type: "text", text: "Here is a summary of the work completed so far in this session. Use this as your full context — the prior conversation has been compacted." }],
+              metadata: {},
+            }),
+            order: nextOrder + 1,
+          },
+          {
+            id: generateId(),
+            sessionId: id,
+            role: "assistant",
+            content: JSON.stringify({
+              id: assistantMsgId,
+              role: "assistant",
+              parts: [{ type: "text", text: summary }],
+              metadata: {},
+            }),
+            order: nextOrder + 2,
+          },
+        ],
+      });
+    });
+
+    return c.json({ summary, compactedAt });
+  })
+  .post("/:id/handoff", async (c) => {
+    const id = c.req.param("id");
+
+    const session = await db.session.findUnique({ where: { id } });
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    const messageRecords = await db.message.findMany({
+      where: { sessionId: id },
+      orderBy: { order: "asc" },
+    });
+
+    // Slice from the last boundary so we only summarize the current window.
+    const windowRecords = messageRecords.slice(getLastBoundaryIndex(messageRecords) + 1);
+
+    const assistantMessages = windowRecords.filter((m) => m.role === "assistant");
+
+    // Near-empty session: skip summarization, create a plain new session
+    if (assistantMessages.length < 2) {
+      const newSession = await db.session.create({
+        data: {
+          title: `Continued: ${session.title}`,
+          cwd: session.cwd ?? undefined,
+          gitBranch: session.gitBranch ?? undefined,
+        },
+      });
+      return c.json({ sessionId: newSession.id });
+    }
+
+    // Extract model from last assistant message metadata
+    let model = "claude-sonnet-4-6";
+    const lastAssistant = assistantMessages[assistantMessages.length - 1]!;
+    try {
+      const parsed = JSON.parse(lastAssistant.content);
+      if (parsed?.metadata?.model) model = parsed.metadata.model;
+    } catch { /* ignore */ }
+
+    // Build plain-text transcript for the summary prompt
+    const conversationText = windowRecords
+      .map((m) => {
+        try {
+          const parsed = JSON.parse(m.content);
+          const text = (parsed.parts ?? [])
+            .filter((p: { type: string }) => p.type === "text")
+            .map((p: { text: string }) => p.text)
+            .join("");
+          return text ? `${m.role.toUpperCase()}: ${text}` : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .join("\n\n");
+
+    const summaryText = await (async () => {
+      try {
+        const result = await generateTextWithFallback(model, {
+          messages: [
+            {
+              role: "user",
+              content: `Here is a conversation transcript:\n\n${conversationText}\n\nSummarize the work done in this conversation concisely. Focus on:\n- What was built or changed\n- Decisions made and why\n- Any open questions or next steps\nKeep it under 300 words. Write in second person ("You were working on…").`,
+            },
+          ],
+          maxOutputTokens: 500,
+        });
+        return result.text.trim();
+      } catch (err) {
+        logger.error("Failed to generate handoff summary:", err);
+        return "Session context could not be summarized.";
+      }
+    })();
+
+    const newSession = await db.session.create({
+      data: {
+        title: `Continued: ${session.title}`,
+        cwd: session.cwd ?? undefined,
+        gitBranch: session.gitBranch ?? undefined,
+      },
+    });
+
+    // Seed the new session with a synthetic context exchange
+    const userMsgId = generateId();
+    const assistantMsgId = generateId();
+    await db.message.createMany({
+      data: [
+        {
+          id: generateId(),
+          sessionId: newSession.id,
+          role: "user",
+          content: JSON.stringify({
+            id: userMsgId,
+            role: "user",
+            parts: [{ type: "text", text: "Here is a summary of work completed in a previous session. Use this as your starting context." }],
+            metadata: {},
+          }),
+          order: 0,
+        },
+        {
+          id: generateId(),
+          sessionId: newSession.id,
+          role: "assistant",
+          content: JSON.stringify({
+            id: assistantMsgId,
+            role: "assistant",
+            parts: [{ type: "text", text: summaryText }],
+            metadata: {},
+          }),
+          order: 1,
+        },
+      ],
+    });
+
+    return c.json({ sessionId: newSession.id });
   });
 
 export default app;

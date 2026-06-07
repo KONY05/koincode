@@ -21,8 +21,8 @@ import {
   type ChatMessageMetadata,
   type ToolContracts,
 } from "@koincode/shared";
-import { logger } from "../lib/helpers";
-import { buildSystemPrompt } from "../system-prompt";
+import { logger, getLastBoundaryIndex } from "../lib/helpers";
+import { buildSystemPrompt } from "../prompts/system-prompt";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
 
 type KoincodeUIMessage = UIMessage<
@@ -30,6 +30,12 @@ type KoincodeUIMessage = UIMessage<
   never,
   InferUITools<ToolContracts>
 >;
+
+const skillManifestEntrySchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  scope: z.enum(["global", "project", "builtin"]),
+});
 
 const submitSchema = z.object({
   id: z.string(),
@@ -47,6 +53,7 @@ const submitSchema = z.object({
     .min(1),
   mode: modeSchema,
   model: z.string().refine(isSupportedChatModel, "Unsupported model"),
+  skillsManifest: z.array(skillManifestEntrySchema).optional().default([]),
 });
 
 const submitValidator = zValidator("json", submitSchema, (result, c) => {
@@ -68,7 +75,7 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 
 
 const app = new Hono().post("/", submitValidator, async (c) => {
-  const { id, messages, mode, model } = c.req.valid("json");
+  const { id, messages, mode, model, skillsManifest } = c.req.valid("json");
 
   logger.info(
     `Received chat request for session ${id} with ${messages.length} messages`,
@@ -98,14 +105,18 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     orderBy: { order: "asc" },
   });
 
-  const previousMessages = messageRecords
-    .map((m) => {
-      try {
-        return JSON.parse(m.content) as KoincodeUIMessage;
-      } catch {
-        return null;
-      }
-    })
+  const parsedRecords = messageRecords.map((m) => {
+    try {
+      return JSON.parse(m.content);
+    } catch {
+      return null;
+    }
+  });
+
+  const lastClearIdx = getLastBoundaryIndex(messageRecords);
+
+  const previousMessages = parsedRecords
+    .slice(lastClearIdx + 1)
     .filter(
       (m): m is KoincodeUIMessage => m !== null && !!m.id && m.parts.length > 0,
     );
@@ -140,13 +151,20 @@ const app = new Hono().post("/", submitValidator, async (c) => {
 
   try {
     if (newMessages.length > 0) {
-      await db.message.createMany({
-        data: newMessages.map((msg, index) => ({
-          sessionId: id,
-          role: msg.role,
-          content: JSON.stringify(msg),
-          order: messageRecords.length + index,
-        })),
+      await db.$transaction(async (tx) => {
+        const { _max } = await tx.message.aggregate({
+          where: { sessionId: id },
+          _max: { order: true },
+        });
+        const nextOrder = (_max.order ?? -1) + 1;
+        await tx.message.createMany({
+          data: newMessages.map((msg, index) => ({
+            sessionId: id,
+            role: msg.role,
+            content: JSON.stringify(msg),
+            order: nextOrder + index,
+          })),
+        });
       });
     }
     logger.info(
@@ -163,7 +181,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
 
   const result = streamText({
     model: resolvedModel.model,
-    system: buildSystemPrompt({ mode, userMemory }),
+    system: buildSystemPrompt({ mode, userMemory, skillsManifest }),
     messages: modelMessages,
     tools,
     abortSignal: c.req.raw.signal,
@@ -223,26 +241,25 @@ const app = new Hono().post("/", submitValidator, async (c) => {
               }
             : event.responseMessage;
 
-          const allMessages = event.isContinuation
-            ? [...nextMessages.slice(0, -1), responseMessage]
-            : [...nextMessages, responseMessage];
-
-          // Only insert the new response message, not delete and re-insert everything
-          // Also update session updatedAt timestamp
-          await db.$transaction([
-            db.message.create({
+          await db.$transaction(async (tx) => {
+            const { _max } = await tx.message.aggregate({
+              where: { sessionId: id },
+              _max: { order: true },
+            });
+            const nextOrder = (_max.order ?? -1) + 1;
+            await tx.message.create({
               data: {
                 sessionId: id,
                 role: responseMessage.role,
                 content: JSON.stringify(responseMessage),
-                order: allMessages.length - 1,
+                order: nextOrder,
               },
-            }),
-            db.session.update({
+            });
+            await tx.session.update({
               where: { id },
               data: { updatedAt: new Date() },
-            }),
-          ]);
+            });
+          });
         } catch (err) {
           logger.error(`Failed to save messages for session ${id}:`, err);
         }

@@ -23,6 +23,15 @@ export function Home() {
     [navigate, mode, model],
   );
 
+  const handleInvokeSkill = useCallback(
+    async (skillName: string) => {
+      navigate("/sessions/new", {
+        state: { message: `Execute skill: ${skillName}`, mode, model },
+      });
+    },
+    [navigate, mode, model],
+  );
+
   return (
     <box
       alignItems="center"
@@ -35,7 +44,7 @@ export function Home() {
     >
       <Header />
       <box width="100%" maxWidth={78} paddingX={2} flexDirection="column" gap={1}>
-        <InputBar onSubmit={handleSubmit} />
+        <InputBar onSubmit={handleSubmit} onInvokeSkill={handleInvokeSkill} />
         <box flexDirection="row" gap={1} flexShrink={0} marginLeft="auto">
           <text>tab</text>
           <text attributes={TextAttributes.DIM}>agents</text>

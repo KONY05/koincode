@@ -3,6 +3,8 @@ import os from "os";
 
 export const SERVER_PORT = 37420;
 
+export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
+
 export const GLOBAL_CONFIG_DIR = path.join(os.homedir(), ".koincode");
 export const PROJECT_CONFIG_DIR = path.join(process.cwd(), ".koincode");
 export const PROJECT_CONFIG_FILE = path.join(PROJECT_CONFIG_DIR, "config.json");

@@ -49,6 +49,7 @@ export function NewSession() {
           json: {
             title: state.message.slice(0, 100),
             cwd: process.cwd(),
+            model: state.model,
             ...(gitBranch ? { gitBranch } : {}),
           },
         });

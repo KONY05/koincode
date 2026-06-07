@@ -11,6 +11,7 @@ import { GLOBAL_CONFIG_DIR, DB_PATH, SERVER_PORT } from "@koincode/shared";
 import sessions from "./routes/sessions";
 import chat from "./routes/chat";
 import memory from "./routes/memory";
+import localModels from "./routes/local-models";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -50,7 +51,8 @@ const routes = app
   .get("/health", (c) => c.json({ ok: true }))
   .route("/sessions", sessions)
   .route("/chat", chat)
-  .route("/memory", memory);
+  .route("/memory", memory)
+  .route("/local-models", localModels);
 
 export type AppType = typeof routes;
 
