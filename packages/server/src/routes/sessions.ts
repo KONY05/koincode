@@ -243,23 +243,24 @@ const app = new Hono()
       .filter(Boolean)
       .join("\n\n");
 
-    let summaryText = "";
-    try {
-      const result = await generateText({
-        model: resolveChatModel(model).model,
-        messages: [
-          {
-            role: "user",
-            content: `Here is a conversation transcript:\n\n${conversationText}\n\nSummarize the work done in this conversation concisely. Focus on:\n- What was built or changed\n- Decisions made and why\n- Any open questions or next steps\nKeep it under 300 words. Write in second person ("You were working on…").`,
-          },
-        ],
-        maxOutputTokens: 500,
-      });
-      summaryText = result.text.trim();
-    } catch (err) {
-      logger.error("Failed to generate handoff summary:", err);
-      summaryText = "Session context could not be summarized.";
-    }
+    const summaryText = await (async () => {
+      try {
+        const result = await generateText({
+          model: resolveChatModel(model).model,
+          messages: [
+            {
+              role: "user",
+              content: `Here is a conversation transcript:\n\n${conversationText}\n\nSummarize the work done in this conversation concisely. Focus on:\n- What was built or changed\n- Decisions made and why\n- Any open questions or next steps\nKeep it under 300 words. Write in second person ("You were working on…").`,
+            },
+          ],
+          maxOutputTokens: 500,
+        });
+        return result.text.trim();
+      } catch (err) {
+        logger.error("Failed to generate handoff summary:", err);
+        return "Session context could not be summarized.";
+      }
+    })();
 
     const newSession = await db.session.create({
       data: {
