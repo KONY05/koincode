@@ -20,10 +20,6 @@ import type { PendingUserQuestion, ContextUsage } from "../hooks/use-chat";
 type Props = {
   children?: ReactNode;
   onSubmit: (text: string) => void;
-  onInvokeSkill?: (skillName: string) => Promise<void>;
-  onClearSession?: () => Promise<void>;
-  onHandoff?: () => Promise<void>;
-  onCompact?: () => Promise<void>;
   contextUsage?: ContextUsage | null;
   inputDisabled?: boolean;
   loading?: boolean;
@@ -39,10 +35,6 @@ type Props = {
 export function SessionShell({
   children,
   onSubmit,
-  onInvokeSkill,
-  onClearSession,
-  onHandoff,
-  onCompact,
   contextUsage,
   inputDisabled = false,
   loading = false,
@@ -113,10 +105,6 @@ export function SessionShell({
         ) : (
           <InputBar
             onSubmit={onSubmit}
-            onInvokeSkill={onInvokeSkill}
-            onClearSession={onClearSession}
-            onHandoff={onHandoff}
-            onCompact={onCompact}
             contextUsage={contextUsage}
             disabled={inputDisabled || loading}
           />

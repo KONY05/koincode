@@ -15,6 +15,7 @@ import {
 import { useToast } from "../providers/toast";
 import { useChat } from "../hooks/use-chat";
 import { usePromptConfig } from "../providers/prompt-config";
+import { SessionActionsProvider } from "../providers/session-actions";
 import type { Message } from "../hooks/use-chat";
 import { apiClient } from "../lib/api-client";
 import { getErrorMessage } from "../lib/http-errors";
@@ -95,7 +96,7 @@ function SessionChat({
   session: SessionData;
   initialState: z.infer<typeof initialStateSchema> | null;
   onDeleteLastMessage?: () => void;
-  onHandoff?: () => Promise<void>;
+  onHandoff: () => Promise<void>;
 }) {
   const rawSessionMessages = session.messages as unknown[];
 
@@ -301,12 +302,14 @@ function SessionChat({
   const handleCompact = () => runCompact("manual");
 
   return (
+    <SessionActionsProvider
+      invokeSkill={handleInvokeSkill}
+      clearSession={handleClearSession}
+      handoff={onHandoff}
+      compact={handleCompact}
+    >
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
-      onInvokeSkill={handleInvokeSkill}
-      onClearSession={handleClearSession}
-      onHandoff={onHandoff}
-      onCompact={handleCompact}
       contextUsage={contextUsage}
       loading={
         status === "submitted" || status === "streaming" || isSubagentRunning || isCompacting
@@ -342,6 +345,7 @@ function SessionChat({
       })}
       {error && <ErrorMessage message={error.message} />}
     </SessionShell>
+    </SessionActionsProvider>
   );
 }
 

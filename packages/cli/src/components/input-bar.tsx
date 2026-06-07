@@ -32,6 +32,7 @@ import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { useDialog } from "../providers/dialog";
 import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
+import { useSessionActions } from "../providers/session-actions";
 import { Mode } from "@koincode/shared";
 
 const MAX_VISIBLE_MENTIONS = 8;
@@ -335,16 +336,13 @@ export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
 ];
 type Props = {
   onSubmit: (text: string) => void;
-  onInvokeSkill?: (skillName: string) => Promise<void>;
-  onClearSession?: () => Promise<void>;
-  onHandoff?: () => Promise<void>;
-  onCompact?: () => Promise<void>;
   contextUsage?: ContextUsage | null;
   disabled?: boolean;
 };
 
-export function InputBar({ onSubmit, onInvokeSkill, onClearSession, onHandoff, onCompact, contextUsage, disabled = false }: Props) {
+export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
   const { mode, model, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
+  const { invokeSkill, clearSession, handoff, compact } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => {});
   const activeMentionRef = useRef<MentionMatch | null>(null);
@@ -516,10 +514,10 @@ export function InputBar({ onSubmit, onInvokeSkill, onClearSession, onHandoff, o
           model,
           setMode,
           setModel,
-          invokeSkill: onInvokeSkill ?? (() => Promise.resolve()),
-          clearSession: onClearSession ?? (() => Promise.resolve()),
-          handoff: onHandoff ?? (() => Promise.resolve()),
-          compact: onCompact ?? (() => Promise.resolve()),
+          invokeSkill,
+          clearSession,
+          handoff,
+          compact,
           toggleVoice,
           contextUsage: contextUsage ?? null,
         });
@@ -529,7 +527,7 @@ export function InputBar({ onSubmit, onInvokeSkill, onClearSession, onHandoff, o
         skipUndoRef.current = false;
       }
     },
-    [renderer, toast, dialog, navigate, mode, model, setMode, setModel, onInvokeSkill, onClearSession, onHandoff, onCompact, contextUsage, toggleVoice],
+    [renderer, toast, dialog, navigate, mode, model, setMode, setModel, invokeSkill, clearSession, handoff, compact, contextUsage, toggleVoice],
   );
 
   const handleCommandExecute = useCallback(
