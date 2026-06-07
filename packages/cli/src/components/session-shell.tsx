@@ -3,10 +3,11 @@ import {
   TextAttributes,
   type ScrollBoxRenderable,
 } from "@opentui/core";
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import React from "react";
 
 import { InputBar } from "./input-bar";
+import { QueuePanel } from "./queue-panel";
 import { ApprovalWidget } from "./widget/approval-widget";
 import { AskUserWidget } from "./widget/ask-user-widget";
 import { ModeSwitchWidget } from "./widget/mode-switch-widget";
@@ -15,15 +16,19 @@ import type {
   ModeSwitchResponse,
 } from "./widget/mode-switch-widget";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
-import type { PendingUserQuestion, ContextUsage } from "../hooks/use-chat";
+import type { PendingUserQuestion, ContextUsage, QueuedMessage } from "../hooks/use-chat";
+import { useKeyboardLayer } from "../providers/keyboard-layer";
 
 type Props = {
   children?: ReactNode;
   onSubmit: (text: string) => void;
+  onForceNext?: () => void;
   contextUsage?: ContextUsage | null;
   inputDisabled?: boolean;
-  loading?: boolean;
+  streaming?: boolean;
   interruptible?: boolean;
+  queue?: QueuedMessage[];
+  onRemoveFromQueue?: (index: number) => void;
   pendingApproval?: PendingApproval | null;
   onApprovalResponse?: (response: ApprovalResponse) => void;
   pendingUserQuestion?: PendingUserQuestion | null;
@@ -35,10 +40,13 @@ type Props = {
 export function SessionShell({
   children,
   onSubmit,
+  onForceNext,
   contextUsage,
   inputDisabled = false,
-  loading = false,
+  streaming = false,
   interruptible = false,
+  queue = [],
+  onRemoveFromQueue,
   pendingApproval = null,
   onApprovalResponse,
   pendingUserQuestion = null,
@@ -49,6 +57,28 @@ export function SessionShell({
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
   const scrollRef = useRef<ScrollBoxRenderable>(null);
   const prevChildrenCountRef = useRef(0);
+  const { push, pop } = useKeyboardLayer();
+
+  const [queueFocusedIndex, setQueueFocusedIndex] = useState<number | null>(null);
+
+  // Clamp to valid bounds during render; stale state after auto-drain is fine
+  // because QueuePanel is hidden when queue is empty and enterQueueFocus resets it.
+  // So when queue.length === 0, effectiveFocusedIndex is always null regardless of what stale value is sitting in queueFocusedIndex. The QueuePanel never sees the stale index.
+  // null = not in queue focus mode. A number = focused on that index.
+  const effectiveFocusedIndex: number | null =
+    queueFocusedIndex === null || queue.length === 0
+      ? null
+      : Math.min(queueFocusedIndex, queue.length - 1);
+
+  // Pop the keyboard layer when auto-drain empties the queue while focused.
+  // setState is intentionally absent — effectiveFocusedIndex handles the null
+  // case during render; the stale state value is reset by enterQueueFocus later.
+  useEffect(() => {
+    if (queueFocusedIndex !== null && queue.length === 0) {
+      pop("queue");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue.length]);
 
   // Auto-scroll to bottom only when a new message is added
   useEffect(() => {
@@ -65,6 +95,33 @@ export function SessionShell({
 
     prevChildrenCountRef.current = currentCount;
   }, [children]);
+
+
+  const exitQueueFocus = useCallback(() => {
+    setQueueFocusedIndex(null);
+    pop("queue");
+  }, [pop]);
+
+  const enterQueueFocus = useCallback(() => {
+    if (queue.length === 0) return;
+    setQueueFocusedIndex(queue.length - 1); // focus bottom item (nearest input)
+    push("queue", () => {
+      setQueueFocusedIndex(null);
+      return true;
+    });
+  }, [queue.length, push]);
+
+  const handleRemoveFromQueue = useCallback((index: number) => {
+    onRemoveFromQueue?.(index);
+    const newLength = queue.length - 1;
+    if (newLength === 0) {
+      exitQueueFocus();
+    } else {
+      setQueueFocusedIndex(Math.min(index, newLength - 1));
+    }
+  }, [queue.length, onRemoveFromQueue, exitQueueFocus]);
+
+  const queueLength = queue.length;
 
   return (
     <box
@@ -103,11 +160,26 @@ export function SessionShell({
             onResponse={onUserQuestionResponse}
           />
         ) : (
-          <InputBar
-            onSubmit={onSubmit}
-            contextUsage={contextUsage}
-            disabled={inputDisabled || loading}
-          />
+          <>
+            {queueLength > 0 && (
+              <QueuePanel
+                queue={queue}
+                focusedIndex={effectiveFocusedIndex}
+                onFocusChange={setQueueFocusedIndex}
+                onRemove={handleRemoveFromQueue}
+                exitQueueFocus={exitQueueFocus}
+              />
+            )}
+            <InputBar
+              onSubmit={onSubmit}
+              onForceNext={onForceNext}
+              onEnterQueueFocus={queueLength > 0 ? enterQueueFocus : undefined}
+              contextUsage={contextUsage}
+              disabled={inputDisabled}
+              streaming={streaming}
+              queueLength={queueLength}
+            />
+          </>
         )}
       </box>
       <box
@@ -120,7 +192,13 @@ export function SessionShell({
         paddingLeft={1}
       >
         <box flexDirection="row" alignItems="center" gap={2}>
-          {loading && interruptible ? <text>esc to interrupt</text> : null}
+          {streaming && interruptible ? (
+            queueLength > 0 ? (
+              <text>{queueLength} queued · enter to skip · esc to interrupt</text>
+            ) : (
+              <text>esc to interrupt</text>
+            )
+          ) : null}
         </box>
 
         <box flexDirection="row" gap={2} flexShrink={0} marginLeft="auto">

@@ -314,11 +314,15 @@ function FileMentionMenu({
 
 function getInputBarPlaceholder(
   disabled: boolean,
+  streaming: boolean,
+  queueLength: number,
   voiceInput: boolean,
   voiceState: "idle" | "downloading" | "recording" | "transcribing",
   downloadProgress: number | undefined,
 ): string {
   if (disabled) return "Agent is thinking… press esc to interrupt";
+  if (streaming && queueLength > 0) return `${queueLength} queued — press enter to skip ahead`;
+  if (streaming) return `Type to queue a message…`;
   if (!voiceInput) return `Ask anything... "Fix a bug in the database"`;
   if (voiceState === "downloading") {
     return downloadProgress !== undefined
@@ -336,11 +340,15 @@ export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
 ];
 type Props = {
   onSubmit: (text: string) => void;
+  onForceNext?: () => void;
+  onEnterQueueFocus?: () => void;
   contextUsage?: ContextUsage | null;
   disabled?: boolean;
+  streaming?: boolean;
+  queueLength?: number;
 };
 
-export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
+export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsage, disabled = false, streaming = false, queueLength = 0 }: Props) {
   const { mode, model, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
@@ -444,7 +452,7 @@ export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
   }, []);
 
   const handleSubmit = useCallback(() => {
-    if (disabled) return;
+    if (disabled && !streaming) return;
 
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -467,7 +475,7 @@ export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
     skipUndoRef.current = true;
     textarea.setText("");
     skipUndoRef.current = false;
-  }, [disabled, onSubmit, expandPastes]);
+  }, [disabled, streaming, onSubmit, expandPastes]);
 
   const handleMentionExecute = useCallback(
     (index: number) => {
@@ -582,7 +590,8 @@ export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
 
   // eslint-disable-next-line react-hooks/refs -- intentional: ref stores the latest submit handler so the textarea's onSubmit listener (wired once) never goes stale
   onSubmitRef.current = () => {
-    if (disabled) return;
+    // Block the submit handler only when the input is completely locked AND the agent is NOT streaming.
+    if (disabled && !streaming) return;
 
     if (showCommandMenu) {
       const command = resolveCommand(selectedIndex);
@@ -598,11 +607,18 @@ export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
       }
     }
 
+    // Force-next: Enter on empty input while streaming with items queued.
+    const textarea = textareaRef.current;
+    if (streaming && queueLength > 0 && (!textarea || textarea.plainText.trim().length === 0)) {
+      onForceNext?.();
+      return;
+    }
+
     handleSubmit();
   };
 
   useKeyboard((key) => {
-    if (disabled) return;
+    if (disabled || streaming) return;
     if (!voiceInput) return;
     if (!isTopLayer("base")) return;
     if (key.name !== " ") return;
@@ -653,7 +669,7 @@ export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
   }, { release: true });
 
   useKeyboard((key) => {
-    if (disabled) return;
+    if (disabled || streaming) return;
     if (!isTopLayer("base")) return;
     if (key.name === "tab") {
       key.preventDefault();
@@ -662,7 +678,7 @@ export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
   });
 
   useKeyboard((key) => {
-    if (disabled) return;
+    if (disabled || streaming) return;
     if (!isTopLayer("base")) return;
     if (showCommandMenu || showMentionMenu) return;
 
@@ -675,6 +691,13 @@ export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
         .slice(0, textarea.cursorOffset)
         .includes("\n");
       if (!cursorOnFirstLine) return;
+
+      // Empty input + queue present → enter queue focus instead of history nav.
+      if (text.length === 0 && queueLength > 0 && onEnterQueueFocus) {
+        key.preventDefault();
+        onEnterQueueFocus();
+        return;
+      }
 
       const history = historyRef.current;
       if (history.length === 0) return;
@@ -743,7 +766,7 @@ export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
         }
       }
 
-      if (disabled) return false;
+      if (disabled && !streaming) return false;
 
       const textarea = textareaRef.current;
       if (textarea && textarea.plainText.length > 0) {
@@ -759,7 +782,7 @@ export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
     });
 
     return () => setResponder("base", null);
-  }, [disabled, renderer, setResponder]);
+  }, [disabled, streaming, renderer, setResponder]);
 
   // Intercept long pastes: store full content and insert a short placeholder instead.
   useEffect(() => {
@@ -945,7 +968,7 @@ export function InputBar({ onSubmit, contextUsage, disabled = false }: Props) {
             }
             keyBindings={TEXTAREA_KEY_BINDINGS}
             onContentChange={handleTextareaContentChange}
-            placeholder={getInputBarPlaceholder(disabled, voiceInput, voiceState, downloadProgress)}
+            placeholder={getInputBarPlaceholder(disabled, streaming, queueLength, voiceInput, voiceState, downloadProgress)}
           />
           <StatusBar contextUsage={contextUsage} />
         </box>
