@@ -1,3 +1,5 @@
+import os from "node:os";
+import path from "node:path";
 import { readFileSync, unlinkSync } from "node:fs";
 
 export type VoiceConfig = {
@@ -6,17 +8,83 @@ export type VoiceConfig = {
   openaiKey?: string;
 };
 
-// Module-scoped pipeline — loaded once per process lifetime (2–5s cold start on first use).
-let _pipeline: unknown = null;
+// Progress callback receives 0–100 during download, then undefined when loading into memory.
+export type WarmProgressCallback = (progress: number | undefined) => void;
 
-async function getLocalPipeline(model: string): Promise<unknown> {
-  if (!_pipeline) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const transformers = await import("@xenova/transformers" as string) as any;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    _pipeline = await transformers.pipeline("automatic-speech-recognition", `Xenova/whisper-${model}`);
+const WHISPER_CACHE_DIR = path.join(os.homedir(), ".koincode", "whisper");
+
+// Module-scoped pipeline — loaded once per process lifetime.
+let _pipeline: unknown = null;
+// Tracks an in-flight warmup so multiple callers share the same Promise.
+let _warmingPromise: Promise<unknown> | null = null;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Transformers = any;
+
+async function loadTransformers(): Promise<Transformers> {
+  // Dynamic import so the WASM runtime is never loaded at startup.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const t = await import("@xenova/transformers" as string) as any;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+  t.env.cacheDir = WHISPER_CACHE_DIR;
+  return t;
+}
+
+async function getLocalPipeline(
+  model: string,
+  onProgress?: WarmProgressCallback,
+): Promise<unknown> {
+  if (_pipeline) return _pipeline;
+
+  // If already warming, wait for the existing promise (share the work).
+  if (_warmingPromise) {
+    return _warmingPromise;
   }
-  return _pipeline;
+
+  _warmingPromise = (async () => {
+    const t = await loadTransformers() as Transformers;
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const pipe = await t.pipeline(
+      "automatic-speech-recognition",
+      `Xenova/whisper-${model}`,
+      {
+        progress_callback: (event: {
+          status: string;
+          progress?: number;
+        }) => {
+          if (!onProgress) return;
+          if (event.status === "progress") {
+            onProgress(Math.round(event.progress ?? 0));
+          } else if (event.status === "loading" || event.status === "initiate") {
+            onProgress(undefined); // model loaded from disk, no download %
+          }
+        },
+      },
+    );
+
+    _pipeline = pipe;
+    _warmingPromise = null;
+    return pipe;
+  })();
+
+  return _warmingPromise;
+}
+
+/**
+ * Pre-loads the local Whisper pipeline in the background.
+ * Call this when voice mode is enabled so the first recording doesn't wait.
+ * onProgress receives 0–100 while downloading, undefined while loading into WASM.
+ */
+export async function warmLocalPipeline(
+  model: string,
+  onProgress?: WarmProgressCallback,
+): Promise<void> {
+  await getLocalPipeline(model, onProgress);
+}
+
+export function isLocalPipelineReady(): boolean {
+  return _pipeline !== null;
 }
 
 async function transcribeOpenAI(audioPath: string, apiKey: string): Promise<string> {

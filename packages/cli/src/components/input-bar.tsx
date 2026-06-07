@@ -3,7 +3,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 
 import { checkRecorderAvailable, startRecording } from "../lib/voice-recorder";
 import type { RecorderHandle } from "../lib/voice-recorder";
-import { transcribe } from "../lib/whisper";
+import { transcribe, warmLocalPipeline, isLocalPipelineReady } from "../lib/whisper";
 import { readGlobalConfig } from "../utils/configs/global-config";
 
 import { TextAttributes } from "@opentui/core";
@@ -334,7 +334,8 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
   const pasteContentRef = useRef<Map<string, string>>(new Map());
   const spaceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recorderRef = useRef<RecorderHandle | null>(null);
-  const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribing">("idle");
+  const [voiceState, setVoiceState] = useState<"idle" | "downloading" | "recording" | "transcribing">("idle");
+  const [downloadProgress, setDownloadProgress] = useState<number | undefined>(undefined);
 
   const renderer = useRenderer();
   const navigate = useNavigate();
@@ -582,6 +583,8 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
     if (key.eventType === "press" && !key.repeated) {
       key.preventDefault();
       if (spaceTimerRef.current) return;
+      // Block recording while the model is still downloading.
+      if (voiceState === "downloading") return;
       spaceTimerRef.current = setTimeout(() => {
         spaceTimerRef.current = null;
         void (async () => {
@@ -766,6 +769,30 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
     };
   }, [renderer]);
 
+  // When voice mode is enabled and the local backend will be used, pre-warm the
+  // Whisper pipeline so the first recording doesn't block on a cold download.
+  useEffect(() => {
+    if (!voiceInput) return;
+
+    const config = readGlobalConfig();
+    const usesLocal =
+      config.whisperBackend === "local" ||
+      (config.whisperBackend !== "openai" && !config.apiKeys?.openai);
+
+    if (!usesLocal || isLocalPipelineReady()) return;
+
+    setVoiceState("downloading");
+    setDownloadProgress(undefined);
+
+    void warmLocalPipeline(config.whisperModel ?? "base", (progress) => {
+      setDownloadProgress(progress);
+    }).then(() => {
+      setVoiceState("idle");
+      setDownloadProgress(undefined);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run only when voice mode is toggled on
+  }, [voiceInput]);
+
   useKeyboard((key) => {
     if (disabled) return;
     if (!showMentionMenu || !isTopLayer("mention")) return;
@@ -885,13 +912,17 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
             placeholder={
               disabled
                 ? "Agent is thinking… press esc to interrupt"
-                : voiceInput && voiceState === "recording"
-                  ? "Recording… release space to stop"
-                  : voiceInput && voiceState === "transcribing"
-                    ? "Transcribing…"
-                    : voiceInput
-                      ? "Hold space to speak… or type normally"
-                      : `Ask anything... "Fix a bug in the database"`
+                : voiceInput && voiceState === "downloading"
+                  ? downloadProgress !== undefined
+                    ? `Downloading Whisper model… ${downloadProgress}%`
+                    : "Loading Whisper model…"
+                  : voiceInput && voiceState === "recording"
+                    ? "Recording… release space to stop"
+                    : voiceInput && voiceState === "transcribing"
+                      ? "Transcribing…"
+                      : voiceInput
+                        ? "Hold space to speak… or type normally"
+                        : `Ask anything... "Fix a bug in the database"`
             }
           />
           <StatusBar />
