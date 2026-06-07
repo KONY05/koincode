@@ -24,7 +24,10 @@ export {
   type TodoItem,
 } from "./schemas";
 
-export { type ChatMessageMetadata } from "./chat";
+export {
+  type ChatMessageMetadata,
+  BOUNDARY_ROLES,
+} from "./chat";
 
 export {
   SERVER_PORT,

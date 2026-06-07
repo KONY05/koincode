@@ -1,4 +1,4 @@
-const BOUNDARY_ROLES = new Set(["clear_boundary", "compact_boundary"]);
+import { BOUNDARY_ROLES } from "@koincode/shared";
 
 /** Returns the index of the last clear/compact boundary in a DB message records array, or -1 if none. */
 export function getLastBoundaryIndex(records: Array<{ role: string }>): number {

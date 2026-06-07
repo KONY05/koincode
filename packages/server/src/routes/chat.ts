@@ -151,13 +151,20 @@ const app = new Hono().post("/", submitValidator, async (c) => {
 
   try {
     if (newMessages.length > 0) {
-      await db.message.createMany({
-        data: newMessages.map((msg, index) => ({
-          sessionId: id,
-          role: msg.role,
-          content: JSON.stringify(msg),
-          order: messageRecords.length + index,
-        })),
+      await db.$transaction(async (tx) => {
+        const { _max } = await tx.message.aggregate({
+          where: { sessionId: id },
+          _max: { order: true },
+        });
+        const nextOrder = (_max.order ?? -1) + 1;
+        await tx.message.createMany({
+          data: newMessages.map((msg, index) => ({
+            sessionId: id,
+            role: msg.role,
+            content: JSON.stringify(msg),
+            order: nextOrder + index,
+          })),
+        });
       });
     }
     logger.info(
@@ -234,22 +241,25 @@ const app = new Hono().post("/", submitValidator, async (c) => {
               }
             : event.responseMessage;
 
-          // Only insert the new response message, not delete and re-insert everything
-          // Also update session updatedAt timestamp
-          await db.$transaction([
-            db.message.create({
+          await db.$transaction(async (tx) => {
+            const { _max } = await tx.message.aggregate({
+              where: { sessionId: id },
+              _max: { order: true },
+            });
+            const nextOrder = (_max.order ?? -1) + 1;
+            await tx.message.create({
               data: {
                 sessionId: id,
                 role: responseMessage.role,
                 content: JSON.stringify(responseMessage),
-                order: messageRecords.length + newMessages.length,
+                order: nextOrder,
               },
-            }),
-            db.session.update({
+            });
+            await tx.session.update({
               where: { id },
               data: { updatedAt: new Date() },
-            }),
-          ]);
+            });
+          });
         } catch (err) {
           logger.error(`Failed to save messages for session ${id}:`, err);
         }

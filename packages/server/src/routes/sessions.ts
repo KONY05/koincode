@@ -171,20 +171,22 @@ const app = new Hono()
       return c.json({ error: "Session not found" }, 404);
     }
 
-    const lastMessage = await db.message.findFirst({
-      where: { sessionId: id },
-      orderBy: { order: "desc" },
-    });
-    const nextOrder = lastMessage ? lastMessage.order + 1 : 0;
     const clearedAt = new Date().toISOString();
 
-    await db.message.create({
-      data: {
-        sessionId: id,
-        role: "clear_boundary",
-        content: JSON.stringify({ type: "clear_boundary", clearedAt }),
-        order: nextOrder,
-      },
+    await db.$transaction(async (tx) => {
+      const { _max } = await tx.message.aggregate({
+        where: { sessionId: id },
+        _max: { order: true },
+      });
+      const nextOrder = (_max.order ?? -1) + 1;
+      await tx.message.create({
+        data: {
+          sessionId: id,
+          role: "clear_boundary",
+          content: JSON.stringify({ type: "clear_boundary", clearedAt }),
+          order: nextOrder,
+        },
+      });
     });
 
     return c.json({ clearedAt });
@@ -285,47 +287,51 @@ const app = new Hono()
       }
     })();
 
-    const nextOrder = messageRecords.length > 0
-      ? (messageRecords[messageRecords.length - 1]?.order ?? -1) + 1
-      : 0;
     const compactedAt = new Date().toISOString();
     const userMsgId = generateId();
     const assistantMsgId = generateId();
 
-    await db.message.createMany({
-      data: [
-        {
-          id: generateId(),
-          sessionId: id,
-          role: "compact_boundary",
-          content: JSON.stringify({ type: "compact_boundary", compactedAt }),
-          order: nextOrder,
-        },
-        {
-          id: generateId(),
-          sessionId: id,
-          role: "user",
-          content: JSON.stringify({
-            id: userMsgId,
+    await db.$transaction(async (tx) => {
+      const { _max } = await tx.message.aggregate({
+        where: { sessionId: id },
+        _max: { order: true },
+      });
+      const nextOrder = (_max.order ?? -1) + 1;
+      return tx.message.createMany({
+        data: [
+          {
+            id: generateId(),
+            sessionId: id,
+            role: "compact_boundary",
+            content: JSON.stringify({ type: "compact_boundary", compactedAt }),
+            order: nextOrder,
+          },
+          {
+            id: generateId(),
+            sessionId: id,
             role: "user",
-            parts: [{ type: "text", text: "Here is a summary of the work completed so far in this session. Use this as your full context — the prior conversation has been compacted." }],
-            metadata: {},
-          }),
-          order: nextOrder + 1,
-        },
-        {
-          id: generateId(),
-          sessionId: id,
-          role: "assistant",
-          content: JSON.stringify({
-            id: assistantMsgId,
+            content: JSON.stringify({
+              id: userMsgId,
+              role: "user",
+              parts: [{ type: "text", text: "Here is a summary of the work completed so far in this session. Use this as your full context — the prior conversation has been compacted." }],
+              metadata: {},
+            }),
+            order: nextOrder + 1,
+          },
+          {
+            id: generateId(),
+            sessionId: id,
             role: "assistant",
-            parts: [{ type: "text", text: summary }],
-            metadata: {},
-          }),
-          order: nextOrder + 2,
-        },
-      ],
+            content: JSON.stringify({
+              id: assistantMsgId,
+              role: "assistant",
+              parts: [{ type: "text", text: summary }],
+              metadata: {},
+            }),
+            order: nextOrder + 2,
+          },
+        ],
+      });
     });
 
     return c.json({ summary, compactedAt });

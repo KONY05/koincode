@@ -60,7 +60,7 @@ type ChatTools = {
 
 export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
-export function useChat(sessionId: string, initialMessages: Message[]) {
+export function useChat(sessionId: string, initialMessages: Message[], initialSystemEvents: SystemEvent[] = []) {
   const { mode, setMode, autoModeSwitch, setAutoModeSwitch } =
     usePromptConfig();
 
@@ -71,7 +71,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     useState<PendingUserQuestion | null>(null);
   const [pendingModeSwitch, setPendingModeSwitch] =
     useState<PendingModeSwitch | null>(null);
-  const [systemEvents, setSystemEvents] = useState<SystemEvent[]>([]);
+  const [systemEvents, setSystemEvents] = useState<SystemEvent[]>(initialSystemEvents);
   const [isSubagentRunning, setIsSubagentRunning] = useState(false);
 
   const resolveApprovalRef = useRef<((r: ApprovalResponse) => void) | null>(

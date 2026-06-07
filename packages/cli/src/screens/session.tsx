@@ -4,7 +4,7 @@ import { useKeyboard } from "@opentui/react";
 import type { InferResponseType } from "hono/client";
 import { z } from "zod";
 
-import { modeSchema } from "@koincode/shared";
+import { modeSchema, BOUNDARY_ROLES } from "@koincode/shared";
 import { SessionShell } from "../components/session-shell";
 import {
   UserMessage,
@@ -64,16 +64,17 @@ function ChatMessage({
 }
 
 /**
- * Returns how many valid AI messages appear before the last `clear_boundary` marker
- * in the raw session messages array. This count is used as the slice offset so the
- * transcript only renders messages that came after the most recent `/clear`.
+ * Returns how many valid AI messages appear before the last boundary marker
+ * (clear_boundary or compact_boundary) in the raw session messages array.
+ * Used as the slice offset so the transcript only renders post-boundary messages.
  *
- * Returns 0 if no boundary exists (nothing to hide).
+ * Returns 0 if no boundary exists.
  */
 function countMessagesBeforeLastBoundary(rawMessages: unknown[]): number {
   let lastBoundaryIdx = -1;
   for (let i = rawMessages.length - 1; i >= 0; i--) {
-    if ((rawMessages[i] as { type?: string } | null)?.type === "clear_boundary") {
+    const type = (rawMessages[i] as { type?: string } | null)?.type;
+    if (type && BOUNDARY_ROLES.has(type)) {
       lastBoundaryIdx = i;
       break;
     }
@@ -81,7 +82,7 @@ function countMessagesBeforeLastBoundary(rawMessages: unknown[]): number {
   if (lastBoundaryIdx === -1) return 0;
   return rawMessages
     .slice(0, lastBoundaryIdx)
-    .filter((m) => (m as { type?: string } | null)?.type !== "clear_boundary")
+    .filter((m) => !BOUNDARY_ROLES.has((m as { type?: string } | null)?.type ?? ""))
     .length;
 }
 
@@ -103,7 +104,8 @@ function SessionChat({
       (m): m is Message =>
         m !== null &&
         typeof m === "object" &&
-        (m as { type?: string }).type !== "clear_boundary",
+        (m as { type?: string }).type !== "clear_boundary" &&
+        (m as { type?: string }).type !== "compact_boundary",
     ),
   );
 
