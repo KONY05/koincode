@@ -314,6 +314,24 @@ type Props = {
   disabled?: boolean;
 };
 
+function getVoicePlaceholder(
+  disabled: boolean,
+  voiceInput: boolean,
+  voiceState: "idle" | "downloading" | "recording" | "transcribing",
+  downloadProgress: number | undefined,
+): string {
+  if (disabled) return "Agent is thinking… press esc to interrupt";
+  if (!voiceInput) return `Ask anything... "Fix a bug in the database"`;
+  if (voiceState === "downloading") {
+    return downloadProgress !== undefined
+      ? `Downloading Whisper model… ${downloadProgress}%`
+      : "Loading Whisper model…";
+  }
+  if (voiceState === "recording") return "Recording… release space to stop";
+  if (voiceState === "transcribing") return "Transcribing…";
+  return "Hold space to speak… or type normally";
+}
+
 export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
   { name: "return", action: "submit" },
   { name: "enter", action: "submit" },
@@ -909,21 +927,7 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
             }
             keyBindings={TEXTAREA_KEY_BINDINGS}
             onContentChange={handleTextareaContentChange}
-            placeholder={
-              disabled
-                ? "Agent is thinking… press esc to interrupt"
-                : voiceInput && voiceState === "downloading"
-                  ? downloadProgress !== undefined
-                    ? `Downloading Whisper model… ${downloadProgress}%`
-                    : "Loading Whisper model…"
-                  : voiceInput && voiceState === "recording"
-                    ? "Recording… release space to stop"
-                    : voiceInput && voiceState === "transcribing"
-                      ? "Transcribing…"
-                      : voiceInput
-                        ? "Hold space to speak… or type normally"
-                        : `Ask anything... "Fix a bug in the database"`
-            }
+            placeholder={getVoicePlaceholder(disabled, voiceInput, voiceState, downloadProgress)}
           />
           <StatusBar />
         </box>
