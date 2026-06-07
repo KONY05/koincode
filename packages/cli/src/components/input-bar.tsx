@@ -818,7 +818,6 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- run only when voice mode is toggled on
   }, [voiceInput]);
 
   useKeyboard((key) => {
