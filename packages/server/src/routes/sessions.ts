@@ -2,11 +2,10 @@ import { Hono } from "hono";
 // import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { generateId, generateText } from "ai";
+import { generateId } from "ai";
 
 import { db } from "@koincode/database/client";
-import { resolveChatModel } from "../lib/models";
-import { logger, getLastBoundaryIndex } from "../lib/helpers";
+import { logger, getLastBoundaryIndex, generateTextWithFallback } from "../lib/helpers";
 import { buildCompactionPrompt } from "../prompts/compaction-prompt";
 
 /** One-shot title generation using the model user is currently using **/
@@ -16,8 +15,7 @@ async function generateTitleFromMessage(message: string, model:string): Promise<
       return message.slice(0, 50) || "New Conversation";
     }
 
-    const result = await generateText({
-      model: resolveChatModel(model).model,
+    const result = await generateTextWithFallback(model, {
       prompt: `Generate a concise, descriptive title (max 50 characters) for this conversation based on the user's first message:\n\n${message}\n\nReturn only the title, no quotes or extra text.`,
       maxOutputTokens: 50,
     });
@@ -270,8 +268,7 @@ const app = new Hono()
         return "No significant conversation to summarize yet.";
       }
       try {
-        const result = await generateText({
-          model: resolveChatModel(model).model,
+        const result = await generateTextWithFallback(model, {
           messages: [
             {
               role: "user",
@@ -393,8 +390,7 @@ const app = new Hono()
 
     const summaryText = await (async () => {
       try {
-        const result = await generateText({
-          model: resolveChatModel(model).model,
+        const result = await generateTextWithFallback(model, {
           messages: [
             {
               role: "user",
