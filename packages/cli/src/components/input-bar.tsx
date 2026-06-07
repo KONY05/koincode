@@ -799,15 +799,25 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
 
     if (!usesLocal || isLocalPipelineReady()) return;
 
-    setVoiceState("downloading");
-    setDownloadProgress(undefined);
+    let cancelled = false;
 
-    void warmLocalPipeline(config.whisperModel ?? "base", (progress) => {
-      setDownloadProgress(progress);
-    }).then(() => {
-      setVoiceState("idle");
+    void (async () => {
+      setVoiceState("downloading");
       setDownloadProgress(undefined);
-    });
+
+      await warmLocalPipeline(config.whisperModel ?? "base", (progress) => {
+        if (!cancelled) setDownloadProgress(progress);
+      });
+
+      if (!cancelled) {
+        setVoiceState("idle");
+        setDownloadProgress(undefined);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- run only when voice mode is toggled on
   }, [voiceInput]);
 
