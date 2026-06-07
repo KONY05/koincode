@@ -2,7 +2,7 @@ import { Hono } from "hono";
 // import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { generateText } from "ai";
+import { generateId, generateText } from "ai";
 
 import { db } from "@koincode/database/client";
 import { resolveChatModel } from "../lib/models";
@@ -190,6 +190,118 @@ const app = new Hono()
     ]);
 
     return c.json({ success: true });
+  })
+  .post("/:id/handoff", async (c) => {
+    const id = c.req.param("id");
+
+    const session = await db.session.findUnique({ where: { id } });
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    const messageRecords = await db.message.findMany({
+      where: { sessionId: id },
+      orderBy: { order: "asc" },
+    });
+
+    const assistantMessages = messageRecords.filter((m) => m.role === "assistant");
+
+    // Near-empty session: skip summarization, create a plain new session
+    if (assistantMessages.length < 2) {
+      const newSession = await db.session.create({
+        data: {
+          title: `Continued: ${session.title}`,
+          cwd: session.cwd ?? undefined,
+          gitBranch: session.gitBranch ?? undefined,
+        },
+      });
+      return c.json({ sessionId: newSession.id });
+    }
+
+    // Extract model from last assistant message metadata
+    let model = "claude-opus-4-6";
+    const lastAssistant = assistantMessages[assistantMessages.length - 1]!;
+    try {
+      const parsed = JSON.parse(lastAssistant.content);
+      if (parsed?.metadata?.model) model = parsed.metadata.model;
+    } catch { /* ignore */ }
+
+    // Build plain-text transcript for the summary prompt
+    const conversationText = messageRecords
+      .map((m) => {
+        try {
+          const parsed = JSON.parse(m.content);
+          const text = (parsed.parts ?? [])
+            .filter((p: { type: string }) => p.type === "text")
+            .map((p: { text: string }) => p.text)
+            .join("");
+          return text ? `${m.role.toUpperCase()}: ${text}` : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .join("\n\n");
+
+    let summaryText = "";
+    try {
+      const result = await generateText({
+        model: resolveChatModel(model).model,
+        messages: [
+          {
+            role: "user",
+            content: `Here is a conversation transcript:\n\n${conversationText}\n\nSummarize the work done in this conversation concisely. Focus on:\n- What was built or changed\n- Decisions made and why\n- Any open questions or next steps\nKeep it under 300 words. Write in second person ("You were working on…").`,
+          },
+        ],
+        maxOutputTokens: 500,
+      });
+      summaryText = result.text.trim();
+    } catch (err) {
+      logger.error("Failed to generate handoff summary:", err);
+      summaryText = "Session context could not be summarized.";
+    }
+
+    const newSession = await db.session.create({
+      data: {
+        title: `Continued: ${session.title}`,
+        cwd: session.cwd ?? undefined,
+        gitBranch: session.gitBranch ?? undefined,
+      },
+    });
+
+    // Seed the new session with a synthetic context exchange
+    const userMsgId = generateId();
+    const assistantMsgId = generateId();
+    await db.message.createMany({
+      data: [
+        {
+          id: generateId(),
+          sessionId: newSession.id,
+          role: "user",
+          content: JSON.stringify({
+            id: userMsgId,
+            role: "user",
+            parts: [{ type: "text", text: "Here is a summary of work completed in a previous session. Use this as your starting context." }],
+            metadata: {},
+          }),
+          order: 0,
+        },
+        {
+          id: generateId(),
+          sessionId: newSession.id,
+          role: "assistant",
+          content: JSON.stringify({
+            id: assistantMsgId,
+            role: "assistant",
+            parts: [{ type: "text", text: summaryText }],
+            metadata: {},
+          }),
+          order: 1,
+        },
+      ],
+    });
+
+    return c.json({ sessionId: newSession.id });
   });
 
 export default app;

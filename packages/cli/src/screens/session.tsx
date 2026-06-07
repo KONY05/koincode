@@ -67,10 +67,12 @@ function SessionChat({
   session,
   initialState,
   onDeleteLastMessage,
+  onHandoff,
 }: {
   session: SessionData;
   initialState: z.infer<typeof initialStateSchema> | null;
   onDeleteLastMessage?: () => void;
+  onHandoff?: () => Promise<void>;
 }) {
   const [initialMessages] = useState(
     () => session.messages as unknown as Message[],
@@ -211,6 +213,7 @@ function SessionChat({
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
       onInvokeSkill={handleInvokeSkill}
+      onHandoff={onHandoff}
       loading={
         status === "submitted" || status === "streaming" || isSubagentRunning
       }
@@ -291,6 +294,24 @@ export function Session() {
     };
   }, [id, toast, navigate]);
 
+  const handleHandoff = async () => {
+    if (!session) return;
+    toast.show({ variant: "info", message: "Summarizing session…" });
+    try {
+      const res = await apiClient.sessions[":id"].handoff.$post({
+        param: { id: session.id },
+      });
+      if (!res.ok) throw new Error(await getErrorMessage(res));
+      const { sessionId } = await res.json();
+      navigate(`/session/${sessionId}`);
+    } catch (err) {
+      toast.show({
+        variant: "error",
+        message: err instanceof Error ? err.message : "Handoff failed",
+      });
+    }
+  };
+
   const handleDeleteLastMessage = async () => {
     if (!session) return;
     try {
@@ -336,6 +357,7 @@ export function Session() {
       session={session}
       initialState={initialState}
       onDeleteLastMessage={handleDeleteLastMessage}
+      onHandoff={handleHandoff}
     />
   );
 }

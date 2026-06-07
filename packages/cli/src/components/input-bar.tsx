@@ -306,6 +306,7 @@ function FileMentionMenu({
 type Props = {
   onSubmit: (text: string) => void;
   onInvokeSkill?: (skillName: string) => Promise<void>;
+  onHandoff?: () => Promise<void>;
   disabled?: boolean;
 };
 
@@ -314,7 +315,7 @@ export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
   { name: "enter", action: "submit" },
 ];
 
-export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
+export function InputBar({ onSubmit, onInvokeSkill, onHandoff, disabled = false }: Props) {
   const { mode, toggleMode, setMode, setModel } = usePromptConfig();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => {});
@@ -483,6 +484,7 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
           setMode,
           setModel,
           invokeSkill: onInvokeSkill ?? (() => Promise.resolve()),
+          handoff: onHandoff ?? (() => Promise.resolve()),
         });
       } else {
         skipUndoRef.current = true;
@@ -490,7 +492,7 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
         skipUndoRef.current = false;
       }
     },
-    [renderer, toast, dialog, navigate, mode, setMode, setModel, onInvokeSkill],
+    [renderer, toast, dialog, navigate, mode, setMode, setModel, onInvokeSkill, onHandoff],
   );
 
   const handleCommandExecute = useCallback(
