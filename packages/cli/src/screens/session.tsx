@@ -132,6 +132,8 @@ function SessionChat({
     systemEvents,
     isSubagentRunning,
     contextUsage,
+    messageQueue,
+    removeFromQueue,
     addSystemEvent,
     submit,
     abort,
@@ -310,13 +312,16 @@ function SessionChat({
     >
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
+      onForceNext={interrupt}
       contextUsage={contextUsage}
-      loading={
+      streaming={
         status === "submitted" || status === "streaming" || isSubagentRunning || isCompacting
       }
       interruptible={
         status === "submitted" || status === "streaming" || isSubagentRunning
       }
+      queue={messageQueue}
+      onRemoveFromQueue={removeFromQueue}
       pendingApproval={pendingApproval}
       onApprovalResponse={resolveApproval}
       pendingUserQuestion={pendingUserQuestion}
@@ -446,7 +451,7 @@ export function Session() {
   };
 
   if (!session) {
-    return <SessionShell onSubmit={() => {}} inputDisabled loading />;
+    return <SessionShell onSubmit={() => {}} inputDisabled />;
   }
 
   return (

@@ -140,14 +140,25 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     }
   }
 
+  // Drop consecutive same-role messages. This can happen when onFinish fails to
+  // fire after an interrupt, leaving an orphaned user message in the DB with no
+  // assistant response. The next submission would then send two user messages in
+  // a row, which strict providers (Anthropic) reject. We keep the last message
+  // in each consecutive same-role run so the newest user turn always wins.
+  const deduped = mergedMessages.filter(
+    (msg, i, arr) => i === arr.length - 1 || msg.role !== arr[i + 1]?.role,
+  );
+
   const nextMessages = await validateUIMessages<KoincodeUIMessage>({
-    messages: mergedMessages,
+    messages: deduped,
     tools,
   });
 
   // Only persist messages that are genuinely new (not already stored in the DB).
   // previousMessages are already in the DB — writing them again would create duplicates.
-  const newMessages = nextMessages.slice(previousMessages.length);
+  // Use ID matching rather than a slice offset so deduplication above doesn't shift the boundary.
+  const previousMessageIds = new Set(previousMessages.map((m) => m.id));
+  const newMessages = nextMessages.filter((m) => !previousMessageIds.has(m.id));
 
   try {
     if (newMessages.length > 0) {

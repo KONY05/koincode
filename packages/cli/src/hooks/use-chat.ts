@@ -60,18 +60,29 @@ type ChatTools = {
 
 export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
+export type QueuedMessage = { userText: string; mode: ModeType; model: string };
+
 export function useChat(sessionId: string, initialMessages: Message[], initialSystemEvents: SystemEvent[] = []) {
   const { mode, setMode, autoModeSwitch, setAutoModeSwitch } =
     usePromptConfig();
 
   const [wasInterrupted, setWasInterrupted] = useState(false);
+
+  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([]);
+  const messageQueueRef = useRef<QueuedMessage[]>([]);
+  useEffect(() => {
+    messageQueueRef.current = messageQueue;
+  }, [messageQueue]);
+
   const [pendingApproval, setPendingApproval] =
     useState<PendingApproval | null>(null);
   const [pendingUserQuestion, setPendingUserQuestion] =
     useState<PendingUserQuestion | null>(null);
   const [pendingModeSwitch, setPendingModeSwitch] =
     useState<PendingModeSwitch | null>(null);
+
   const [systemEvents, setSystemEvents] = useState<SystemEvent[]>(initialSystemEvents);
+  
   const [isSubagentRunning, setIsSubagentRunning] = useState(false);
 
   const resolveApprovalRef = useRef<((r: ApprovalResponse) => void) | null>(
@@ -425,6 +436,23 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
   });
 
+  // Auto-drain: when the agent finishes, send the next queued message.
+  useEffect(() => {
+    if (chat.status !== "ready") return;
+    const queue = messageQueueRef.current;
+    if (queue.length === 0) return;
+    const [next, ...rest] = queue;
+    setMessageQueue(rest);
+    if (next) {
+      setWasInterrupted(false);
+      void chat.sendMessage({
+        text: next.userText,
+        metadata: { mode: next.mode, model: next.model },
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.status]);
+
   const contextUsage = useMemo((): ContextUsage | null => {
     const lastWithUsage = [...chat.messages].reverse().find(
       (m) => m.role === "assistant" && m.metadata?.usage,
@@ -473,11 +501,20 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
         { id: crypto.randomUUID(), text, afterMessageCount: chat.messages.length },
       ]);
     },
+    messageQueue,
+    queueLength: messageQueue.length,
+    removeFromQueue: (index: number) => {
+      setMessageQueue((prev) => prev.filter((_, i) => i !== index));
+    },
     submit: (params: {
       userText: string;
       mode: ModeType;
       model: string;
     }) => {
+      if (chat.status === "submitted" || chat.status === "streaming") {
+        setMessageQueue((prev) => [...prev, params]);
+        return;
+      }
       setWasInterrupted(false);
       return chat.sendMessage({
         text: params.userText,
@@ -487,7 +524,10 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
         },
       });
     },
-    abort: chat.stop,
+    abort: () => {
+      setMessageQueue([]);
+      return chat.stop();
+    },
     interrupt: () => {
       setWasInterrupted(true);
       chat.stop();

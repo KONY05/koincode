@@ -80,7 +80,7 @@ export function NewSession() {
   if (!state) return null;
 
   return (
-    <SessionShell onSubmit={() => {}} inputDisabled loading>
+    <SessionShell onSubmit={() => {}} inputDisabled>
       <UserMessage message={state.message} mode={state.mode} />
     </SessionShell>
   );
