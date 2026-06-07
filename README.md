@@ -1,9 +1,10 @@
 <div align="center">
 
 <br />
-<br />
 
-<h1>KOINCODE</h1>
+<img src="./assets/koincode.png" alt="KOINCODE" width="320" />
+
+<br />
 
 <p>A local-first terminal AI coding agent.</p>
 
