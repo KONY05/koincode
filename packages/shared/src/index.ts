@@ -3,6 +3,7 @@ export {
   DEFAULT_CHAT_MODEL_ID,
   findSupportedChatModel,
   isLocalModelId,
+  getContextWindow,
   type ModelPricing,
   type SupportedProvider,
   type SupportedChatModel,

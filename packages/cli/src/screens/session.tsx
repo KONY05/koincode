@@ -128,6 +128,8 @@ function SessionChat({
     resolveModeSwitch,
     systemEvents,
     isSubagentRunning,
+    contextUsage,
+    addSystemEvent,
     submit,
     abort,
     interrupt,
@@ -242,6 +244,49 @@ function SessionChat({
     return items;
   }, [messages, systemEvents, localClearMsgCount]);
 
+  const [isCompacting, setIsCompacting] = useState(false);
+  const hasAutoCompactedRef = useRef(false);
+
+  const runCompact = async (source: "manual" | "auto") => {
+    setIsCompacting(true);
+    const label = source === "auto" ? "Context full — auto-compacting…" : "Compacting context…";
+    toast.show({ variant: "info", message: label });
+    try {
+      const res = await apiClient.sessions[":id"].compact.$post({ param: { id: session.id } });
+      if (!res.ok) throw new Error("Compact failed");
+      const eventText = source === "auto"
+        ? "Context auto-compacted — history summarized, context window reset"
+        : "Context compacted — history summarized, context window reset";
+      addSystemEvent(eventText);
+      toast.show({ variant: "success", message: source === "auto" ? "Context auto-compacted" : "Context compacted" });
+    } catch (err) {
+      toast.show({
+        variant: "error",
+        message: err instanceof Error ? err.message : "Compact failed",
+      });
+      if (source === "auto") hasAutoCompactedRef.current = false;
+    } finally {
+      setIsCompacting(false);
+    }
+  };
+
+  // Auto-compact when context is full (≥ 95% — leaves room for the model's final response)
+  useEffect(() => {
+    if (!contextUsage || contextUsage.percent < 95) {
+      hasAutoCompactedRef.current = false;
+      return;
+    }
+    if (hasAutoCompactedRef.current) return;
+    if (status === "streaming" || status === "submitted") return;
+
+    hasAutoCompactedRef.current = true;
+    // Defer to next tick so setState inside runCompact doesn't fire synchronously within the effect.
+    const t = setTimeout(() => void runCompact("auto"), 0);
+    return () => clearTimeout(t);
+  // runCompact is stable enough not to be listed — adding it would re-trigger on every render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextUsage, status]);
+
   const handleInvokeSkill = async (skillName: string) => {
     await submit({ userText: `Execute skill: ${skillName}`, mode, model });
   };
@@ -251,14 +296,18 @@ function SessionChat({
     setLocalClearMsgCount(messages.length);
   };
 
+  const handleCompact = () => runCompact("manual");
+
   return (
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
       onInvokeSkill={handleInvokeSkill}
       onClearSession={handleClearSession}
       onHandoff={onHandoff}
+      onCompact={handleCompact}
+      contextUsage={contextUsage}
       loading={
-        status === "submitted" || status === "streaming" || isSubagentRunning
+        status === "submitted" || status === "streaming" || isSubagentRunning || isCompacting
       }
       interruptible={
         status === "submitted" || status === "streaming" || isSubagentRunning

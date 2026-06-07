@@ -9,6 +9,7 @@ import {
 
 import {
   type ChatMessageMetadata,
+  getContextWindow,
   Mode,
   type ModeType,
   type ToolContracts,
@@ -42,6 +43,12 @@ export type SystemEvent = {
   id: string;
   text: string;
   afterMessageCount: number;
+};
+
+export type ContextUsage = {
+  tokensUsed: number;
+  contextWindow: number;
+  percent: number;
 };
 
 type ChatTools = {
@@ -418,6 +425,22 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
   });
 
+  const contextUsage = useMemo((): ContextUsage | null => {
+    const lastWithUsage = [...chat.messages].reverse().find(
+      (m) => m.role === "assistant" && m.metadata?.usage,
+    );
+    if (!lastWithUsage?.metadata?.usage) return null;
+
+    const modelId = lastWithUsage.metadata.model ?? "";
+    const contextWindow = getContextWindow(String(modelId));
+    const tokensUsed = lastWithUsage.metadata.usage.inputTokens ?? 0;
+    return {
+      tokensUsed,
+      contextWindow,
+      percent: Math.min(100, Math.round((tokensUsed / contextWindow) * 100)),
+    };
+  }, [chat.messages]);
+
   const resolveApproval = useCallback((response: ApprovalResponse) => {
     resolveApprovalRef.current?.(response);
   }, []);
@@ -443,6 +466,13 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     resolveModeSwitch,
     systemEvents,
     isSubagentRunning,
+    contextUsage,
+    addSystemEvent: (text: string) => {
+      setSystemEvents((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), text, afterMessageCount: chat.messages.length },
+      ]);
+    },
     submit: (params: {
       userText: string;
       mode: ModeType;

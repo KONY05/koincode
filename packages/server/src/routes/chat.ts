@@ -21,8 +21,8 @@ import {
   type ChatMessageMetadata,
   type ToolContracts,
 } from "@koincode/shared";
-import { logger } from "../lib/helpers";
-import { buildSystemPrompt } from "../system-prompt";
+import { logger, getLastBoundaryIndex } from "../lib/helpers";
+import { buildSystemPrompt } from "../prompts/system-prompt";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
 
 type KoincodeUIMessage = UIMessage<
@@ -113,14 +113,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     }
   });
 
-  // Slice from the last clear_boundary marker so the LLM only sees post-clear history.
-  let lastClearIdx = -1;
-  for (let i = parsedRecords.length - 1; i >= 0; i--) {
-    if ((parsedRecords[i] as { type?: string } | null)?.type === "clear_boundary") {
-      lastClearIdx = i;
-      break;
-    }
-  }
+  const lastClearIdx = getLastBoundaryIndex(messageRecords);
 
   const previousMessages = parsedRecords
     .slice(lastClearIdx + 1)

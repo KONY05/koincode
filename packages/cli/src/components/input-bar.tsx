@@ -1,11 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 
-import { checkRecorderAvailable, startRecording } from "../lib/voice-recorder";
-import type { RecorderHandle } from "../lib/voice-recorder";
-import { transcribe, warmLocalPipeline, isLocalPipelineReady } from "../lib/whisper";
-import { readGlobalConfig } from "../utils/configs/global-config";
-
 import { TextAttributes } from "@opentui/core";
 import type { PasteEvent } from "@opentui/core";
 import { decodePasteBytes } from "@opentui/core";
@@ -20,6 +15,12 @@ import {
   useEffect,
   type RefObject,
 } from "react";
+
+import { checkRecorderAvailable, startRecording } from "../lib/voice-recorder";
+import type { RecorderHandle } from "../lib/voice-recorder";
+import { transcribe, warmLocalPipeline, isLocalPipelineReady } from "../lib/whisper";
+import { readGlobalConfig } from "../utils/configs/global-config";
+import type { ContextUsage } from "../hooks/use-chat";
 
 import { EmptyBorder } from "./border";
 import { StatusBar } from "./status-bar";
@@ -308,15 +309,9 @@ function FileMentionMenu({
   );
 }
 
-type Props = {
-  onSubmit: (text: string) => void;
-  onInvokeSkill?: (skillName: string) => Promise<void>;
-  onClearSession?: () => Promise<void>;
-  onHandoff?: () => Promise<void>;
-  disabled?: boolean;
-};
 
-function getVoicePlaceholder(
+
+function getInputBarPlaceholder(
   disabled: boolean,
   voiceInput: boolean,
   voiceState: "idle" | "downloading" | "recording" | "transcribing",
@@ -338,9 +333,18 @@ export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
   { name: "return", action: "submit" },
   { name: "enter", action: "submit" },
 ];
+type Props = {
+  onSubmit: (text: string) => void;
+  onInvokeSkill?: (skillName: string) => Promise<void>;
+  onClearSession?: () => Promise<void>;
+  onHandoff?: () => Promise<void>;
+  onCompact?: () => Promise<void>;
+  contextUsage?: ContextUsage | null;
+  disabled?: boolean;
+};
 
-export function InputBar({ onSubmit, onInvokeSkill, onClearSession, onHandoff, disabled = false }: Props) {
-  const { mode, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
+export function InputBar({ onSubmit, onInvokeSkill, onClearSession, onHandoff, onCompact, contextUsage, disabled = false }: Props) {
+  const { mode, model, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => {});
   const activeMentionRef = useRef<MentionMatch | null>(null);
@@ -509,12 +513,15 @@ export function InputBar({ onSubmit, onInvokeSkill, onClearSession, onHandoff, d
           dialog,
           navigate,
           mode,
+          model,
           setMode,
           setModel,
           invokeSkill: onInvokeSkill ?? (() => Promise.resolve()),
           clearSession: onClearSession ?? (() => Promise.resolve()),
           handoff: onHandoff ?? (() => Promise.resolve()),
+          compact: onCompact ?? (() => Promise.resolve()),
           toggleVoice,
+          contextUsage: contextUsage ?? null,
         });
       } else {
         skipUndoRef.current = true;
@@ -522,7 +529,7 @@ export function InputBar({ onSubmit, onInvokeSkill, onClearSession, onHandoff, d
         skipUndoRef.current = false;
       }
     },
-    [renderer, toast, dialog, navigate, mode, setMode, setModel, onInvokeSkill, onClearSession, onHandoff, toggleVoice],
+    [renderer, toast, dialog, navigate, mode, model, setMode, setModel, onInvokeSkill, onClearSession, onHandoff, onCompact, contextUsage, toggleVoice],
   );
 
   const handleCommandExecute = useCallback(
@@ -940,9 +947,9 @@ export function InputBar({ onSubmit, onInvokeSkill, onClearSession, onHandoff, d
             }
             keyBindings={TEXTAREA_KEY_BINDINGS}
             onContentChange={handleTextareaContentChange}
-            placeholder={getVoicePlaceholder(disabled, voiceInput, voiceState, downloadProgress)}
+            placeholder={getInputBarPlaceholder(disabled, voiceInput, voiceState, downloadProgress)}
           />
-          <StatusBar />
+          <StatusBar contextUsage={contextUsage} />
         </box>
       </box>
     </box>

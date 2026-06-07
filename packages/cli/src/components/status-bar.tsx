@@ -2,10 +2,26 @@ import { TextAttributes } from "@opentui/core";
 import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
 import { Mode } from "@koincode/shared";
+import type { ContextUsage } from "../hooks/use-chat";
 
-export function StatusBar() {
+const RING_SEGMENTS = 10;
+const RING_THRESHOLD = 80; // from what context percent to show the ring
+
+function buildRing(percent: number): string {
+  const filled = Math.min(RING_SEGMENTS, Math.floor(percent / RING_SEGMENTS));
+  return "●".repeat(filled) + "○".repeat(RING_SEGMENTS - filled);
+}
+
+type Props = {
+  contextUsage?: ContextUsage | null;
+};
+
+export function StatusBar({ contextUsage }: Props) {
   const { mode, model, voiceInput } = usePromptConfig();
   const { colors } = useTheme();
+
+  const showRing = contextUsage !== null && contextUsage !== undefined && contextUsage.percent >= RING_THRESHOLD;
+  const ringColor = contextUsage && contextUsage.percent >= 95 ? "red" : "yellow";
 
   return (
     <box flexDirection="row" gap={1}>
@@ -17,12 +33,22 @@ export function StatusBar() {
         ›
       </text>
       <text>{model}</text>
+
       {voiceInput && (
         <>
           <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
           <text fg={colors.primary}>voice</text>
         </>
       )}
+
+      {showRing && (
+        <>
+          <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
+          <text fg={ringColor}>
+            {buildRing(contextUsage!.percent)} {contextUsage!.percent}%
+          </text>
+        </>
+      )}
     </box>
   );
-};
+}

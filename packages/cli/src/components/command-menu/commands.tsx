@@ -1,6 +1,7 @@
 import { SUPPORTED_CHAT_MODELS } from "@koincode/shared";
 import {
   AgentsDialogContent,
+  ContextDialogContent,
   HelpDialogContent,
   ModelsDialogContent,
   SessionsDialogContent,
@@ -102,6 +103,30 @@ export const COMMANDS: Command[] = [
         title: "Keyboard Shortcuts",
         children: <HelpDialogContent />,
       });
+    },
+  },
+  {
+    name: "context",
+    description: "View context window usage",
+    value: "/context",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "Context Usage",
+        children: (
+          <ContextDialogContent
+            contextUsage={ctx.contextUsage}
+            model={ctx.model}
+          />
+        ),
+      });
+    },
+  },
+  {
+    name: "compact",
+    description: "Summarize conversation and reset the context window",
+    value: "/compact",
+    action: async (ctx) => {
+      await ctx.compact();
     },
   },
   {

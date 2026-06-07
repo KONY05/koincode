@@ -6,7 +6,8 @@ import { generateId, generateText } from "ai";
 
 import { db } from "@koincode/database/client";
 import { resolveChatModel } from "../lib/models";
-import { logger } from "../lib/helpers";
+import { logger, getLastBoundaryIndex } from "../lib/helpers";
+import { buildCompactionPrompt } from "../prompts/compaction-prompt";
 
 /** One-shot title generation using the model user is currently using **/
 async function generateTitleFromMessage(message: string, model:string): Promise<string> {
@@ -217,6 +218,118 @@ const app = new Hono()
 
     return c.json({ success: true });
   })
+  .post("/:id/compact", async (c) => {
+    const id = c.req.param("id");
+
+    const session = await db.session.findUnique({ where: { id } });
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    const messageRecords = await db.message.findMany({
+      where: { sessionId: id },
+      orderBy: { order: "asc" },
+    });
+
+    // Slice from the last boundary (clear or compact) so we only summarize the current window.
+    const windowRecords = messageRecords.slice(getLastBoundaryIndex(messageRecords) + 1);
+
+    const assistantMessages = windowRecords.filter((m) => m.role === "assistant");
+
+    // Extract model from the last assistant message metadata.
+    let model = "claude-sonnet-4-6";
+    const lastAssistant = assistantMessages[assistantMessages.length - 1];
+    if (lastAssistant) {
+      try {
+        const parsed = JSON.parse(lastAssistant.content);
+        if (parsed?.metadata?.model) model = parsed.metadata.model;
+      } catch { /* ignore */ }
+    }
+
+    // Build plain-text transcript for the summary prompt.
+    const conversationText = windowRecords
+      .map((m) => {
+        try {
+          const parsed = JSON.parse(m.content);
+          const text = (parsed.parts ?? [])
+            .filter((p: { type: string }) => p.type === "text")
+            .map((p: { text: string }) => p.text)
+            .join("");
+          return text ? `${m.role.toUpperCase()}: ${text}` : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .join("\n\n");
+
+    const summary = await (async () => {
+      if (assistantMessages.length < 2 || !conversationText.trim()) {
+        return "No significant conversation to summarize yet.";
+      }
+      try {
+        const result = await generateText({
+          model: resolveChatModel(model).model,
+          messages: [
+            {
+              role: "user",
+              content: buildCompactionPrompt(conversationText),
+            },
+          ],
+          maxOutputTokens: 1200,
+        });
+        return result.text.trim();
+      } catch (err) {
+        logger.error("Failed to generate compact summary:", err);
+        return "Context compaction summary could not be generated.";
+      }
+    })();
+
+    const nextOrder = messageRecords.length > 0
+      ? (messageRecords[messageRecords.length - 1]?.order ?? -1) + 1
+      : 0;
+    const compactedAt = new Date().toISOString();
+    const userMsgId = generateId();
+    const assistantMsgId = generateId();
+
+    await db.message.createMany({
+      data: [
+        {
+          id: generateId(),
+          sessionId: id,
+          role: "compact_boundary",
+          content: JSON.stringify({ type: "compact_boundary", compactedAt }),
+          order: nextOrder,
+        },
+        {
+          id: generateId(),
+          sessionId: id,
+          role: "user",
+          content: JSON.stringify({
+            id: userMsgId,
+            role: "user",
+            parts: [{ type: "text", text: "Here is a summary of the work completed so far in this session. Use this as your full context — the prior conversation has been compacted." }],
+            metadata: {},
+          }),
+          order: nextOrder + 1,
+        },
+        {
+          id: generateId(),
+          sessionId: id,
+          role: "assistant",
+          content: JSON.stringify({
+            id: assistantMsgId,
+            role: "assistant",
+            parts: [{ type: "text", text: summary }],
+            metadata: {},
+          }),
+          order: nextOrder + 2,
+        },
+      ],
+    });
+
+    return c.json({ summary, compactedAt });
+  })
   .post("/:id/handoff", async (c) => {
     const id = c.req.param("id");
 
@@ -230,7 +343,10 @@ const app = new Hono()
       orderBy: { order: "asc" },
     });
 
-    const assistantMessages = messageRecords.filter((m) => m.role === "assistant");
+    // Slice from the last boundary so we only summarize the current window.
+    const windowRecords = messageRecords.slice(getLastBoundaryIndex(messageRecords) + 1);
+
+    const assistantMessages = windowRecords.filter((m) => m.role === "assistant");
 
     // Near-empty session: skip summarization, create a plain new session
     if (assistantMessages.length < 2) {
@@ -245,7 +361,7 @@ const app = new Hono()
     }
 
     // Extract model from last assistant message metadata
-    let model = "claude-opus-4-6";
+    let model = "claude-sonnet-4-6";
     const lastAssistant = assistantMessages[assistantMessages.length - 1]!;
     try {
       const parsed = JSON.parse(lastAssistant.content);
@@ -253,7 +369,7 @@ const app = new Hono()
     } catch { /* ignore */ }
 
     // Build plain-text transcript for the summary prompt
-    const conversationText = messageRecords
+    const conversationText = windowRecords
       .map((m) => {
         try {
           const parsed = JSON.parse(m.content);

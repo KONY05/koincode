@@ -15,7 +15,7 @@ import type {
   ModeSwitchResponse,
 } from "./widget/mode-switch-widget";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
-import type { PendingUserQuestion } from "../hooks/use-chat";
+import type { PendingUserQuestion, ContextUsage } from "../hooks/use-chat";
 
 type Props = {
   children?: ReactNode;
@@ -23,6 +23,8 @@ type Props = {
   onInvokeSkill?: (skillName: string) => Promise<void>;
   onClearSession?: () => Promise<void>;
   onHandoff?: () => Promise<void>;
+  onCompact?: () => Promise<void>;
+  contextUsage?: ContextUsage | null;
   inputDisabled?: boolean;
   loading?: boolean;
   interruptible?: boolean;
@@ -40,6 +42,8 @@ export function SessionShell({
   onInvokeSkill,
   onClearSession,
   onHandoff,
+  onCompact,
+  contextUsage,
   inputDisabled = false,
   loading = false,
   interruptible = false,
@@ -112,6 +116,8 @@ export function SessionShell({
             onInvokeSkill={onInvokeSkill}
             onClearSession={onClearSession}
             onHandoff={onHandoff}
+            onCompact={onCompact}
+            contextUsage={contextUsage}
             disabled={inputDisabled || loading}
           />
         )}
