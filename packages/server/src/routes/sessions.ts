@@ -8,14 +8,15 @@ import { db } from "@koincode/database/client";
 import { resolveChatModel } from "../lib/models";
 import { logger } from "../lib/helpers";
 
-async function generateTitleFromMessage(message: string): Promise<string> {
+/** One-shot title generation using the model user is currently using **/
+async function generateTitleFromMessage(message: string, model:string): Promise<string> {
   try {
     if (!message || message.length < 10) {
       return message.slice(0, 50) || "New Conversation";
     }
 
     const result = await generateText({
-      model: resolveChatModel("google/gemma-4-31b-it:free").model,
+      model: resolveChatModel(model).model,
       prompt: `Generate a concise, descriptive title (max 50 characters) for this conversation based on the user's first message:\n\n${message}\n\nReturn only the title, no quotes or extra text.`,
       maxOutputTokens: 50,
     });
@@ -30,14 +31,9 @@ async function generateTitleFromMessage(message: string): Promise<string> {
 
 const createSessionSchema = z.object({
   title: z.string(),
+  model: z.string(),
   cwd: z.string().optional(),
   gitBranch: z.string().optional(),
-  initialMessage: z
-    .object({
-      role: z.string(),
-      content: z.string(),
-    })
-    .optional(),
 });
 
 const listSessionsSchema = z.object({
@@ -133,26 +129,14 @@ const app = new Hono()
     //   { message: "Mock error: session loading failed" }
     // )
 
-    const { title, cwd, gitBranch, initialMessage } = c.req.valid("json");
+    const { title, cwd, model, gitBranch } = c.req.valid("json");
 
     const session = await db.session.create({
       data: { title, cwd, gitBranch },
     });
 
-    // If initial message is provided, store it in the Message table
-    if (initialMessage) {
-      await db.message.create({
-        data: {
-          sessionId: session.id,
-          role: initialMessage.role,
-          content: initialMessage.content,
-          order: 0,
-        },
-      });
-    }
-
     // Generate better title in background without blocking
-    generateTitleFromMessage(title)
+    generateTitleFromMessage(title, model)
       .then((generatedTitle) => {
         return db.session.update({
           where: { id: session.id },

@@ -61,7 +61,10 @@ Create a git commit for the user's current changes.
 4. Write a commit message:
    - Subject line: imperative mood, under 72 characters, no trailing period
    - Body (optional): explains *why* the change was made, not what
-5. Create the commit: \`git commit -m "subject"\`
+5. Wait for user to review and approve the commit message, show options of (yes, edit and cancel)
+6. If the user chooses edit, ask for the new commit message and create the commit with the new commit message
+7. If the user chooses cancel, cancel the commit
+8. Create the commit: \`git commit -m "subject"\`
 
 ## Notes
 

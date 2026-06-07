@@ -114,17 +114,22 @@ function SessionChat({
     if (!initialState || initialMessages.length !== 0) return;
 
     hasAutoSubmittedRef.current = true;
-    submit({
-      userText: initialState.message,
-      mode: initialState.mode,
-      model: initialState.model,
-    }).catch((err) => {
-      toast.show({
-        variant: "error",
-        message:
-          err instanceof Error ? err.message : "Failed to get agent response",
-      });
-    });
+    const autoSubmit = async () => {
+      try {
+        await submit({
+          userText: initialState.message,
+          mode: initialState.mode,
+          model: initialState.model,
+        });
+      } catch (err) {
+        toast.show({
+          variant: "error",
+          message:
+            err instanceof Error ? err.message : "Failed to get agent response",
+        });
+      }
+    };
+    void autoSubmit();
   }, [initialState, initialMessages, submit, toast]);
 
   // Let the user cancel a reply even before the first streamed chunk arrives.
