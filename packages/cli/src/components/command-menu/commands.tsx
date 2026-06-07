@@ -9,6 +9,7 @@ import {
 } from "../dialogs";
 import type { Command } from "./types";
 import { loadSkillsManifest } from "../../lib/skills";
+import { readGlobalConfig } from "../../utils/configs/global-config";
 
 export const COMMANDS: Command[] = [
   {
@@ -109,6 +110,19 @@ export const COMMANDS: Command[] = [
     value: "/clear",
     action: async (ctx) => {
       await ctx.clearSession();
+    },
+  },
+  {
+    name: "voice",
+    description: "Toggle voice input (hold space to speak)",
+    value: "/voice",
+    action: (ctx) => {
+      ctx.toggleVoice();
+      const newState = readGlobalConfig().voiceInput ?? false;
+      ctx.toast.show({
+        variant: "success",
+        message: newState ? "Voice input enabled — hold space to speak" : "Voice input disabled",
+      });
     },
   },
   {

@@ -13,6 +13,7 @@ export type CommandContext = {
   invokeSkill: (skillName: string) => Promise<void>;
   clearSession: () => Promise<void>;
   handoff: () => Promise<void>;
+  toggleVoice: () => void;
 };
 
 export type Command = {
