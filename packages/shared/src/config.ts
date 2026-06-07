@@ -91,4 +91,7 @@ export type KoincodeGlobalConfig = {
   port?: number;
   ollamaBaseURL?: string;
   localModels?: LocalModelConfig[];
+  voiceInput?: boolean;
+  whisperModel?: "tiny" | "base" | "small";
+  whisperBackend?: "auto" | "openai" | "local";
 };

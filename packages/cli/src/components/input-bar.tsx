@@ -1,6 +1,11 @@
 import { readdir } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 
+import { checkRecorderAvailable, startRecording } from "../lib/voice-recorder";
+import type { RecorderHandle } from "../lib/voice-recorder";
+import { transcribe } from "../lib/whisper";
+import { readGlobalConfig } from "../utils/configs/global-config";
+
 import { TextAttributes } from "@opentui/core";
 import type { PasteEvent } from "@opentui/core";
 import { decodePasteBytes } from "@opentui/core";
@@ -315,7 +320,7 @@ export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
 ];
 
 export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
-  const { mode, toggleMode, setMode, setModel } = usePromptConfig();
+  const { mode, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => {});
   const activeMentionRef = useRef<MentionMatch | null>(null);
@@ -327,6 +332,9 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
   const skipUndoRef = useRef(false);
   const pasteCounterRef = useRef(0);
   const pasteContentRef = useRef<Map<string, string>>(new Map());
+  const spaceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recorderRef = useRef<RecorderHandle | null>(null);
+  const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribing">("idle");
 
   const renderer = useRenderer();
   const navigate = useNavigate();
@@ -483,6 +491,7 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
           setMode,
           setModel,
           invokeSkill: onInvokeSkill ?? (() => Promise.resolve()),
+          toggleVoice,
         });
       } else {
         skipUndoRef.current = true;
@@ -490,7 +499,7 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
         skipUndoRef.current = false;
       }
     },
-    [renderer, toast, dialog, navigate, mode, setMode, setModel, onInvokeSkill],
+    [renderer, toast, dialog, navigate, mode, setMode, setModel, onInvokeSkill, toggleVoice],
   );
 
   const handleCommandExecute = useCallback(
@@ -563,6 +572,55 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
 
     handleSubmit();
   };
+
+  useKeyboard((key) => {
+    if (disabled) return;
+    if (!voiceInput) return;
+    if (!isTopLayer("base")) return;
+    if (key.name !== " ") return;
+
+    if (key.eventType === "press" && !key.repeated) {
+      key.preventDefault();
+      if (spaceTimerRef.current) return;
+      spaceTimerRef.current = setTimeout(() => {
+        spaceTimerRef.current = null;
+        void (async () => {
+          const { ok, hint } = await checkRecorderAvailable();
+          if (!ok) {
+            toast.show({ variant: "error", message: hint ?? "Recorder not available" });
+            return;
+          }
+          recorderRef.current = await startRecording();
+          setVoiceState("recording");
+        })();
+      }, 300);
+    } else if (key.eventType === "release") {
+      key.preventDefault();
+      if (spaceTimerRef.current) {
+        // Short press — insert normal space
+        clearTimeout(spaceTimerRef.current);
+        spaceTimerRef.current = null;
+        textareaRef.current?.insertText(" ");
+        return;
+      }
+      if (voiceState === "recording" && recorderRef.current) {
+        const recorder = recorderRef.current;
+        recorderRef.current = null;
+        setVoiceState("transcribing");
+        void (async () => {
+          const wavPath = await recorder.stop();
+          const config = readGlobalConfig();
+          const text = await transcribe(wavPath, {
+            whisperModel: config.whisperModel ?? "base",
+            whisperBackend: config.whisperBackend ?? "auto",
+            openaiKey: config.apiKeys?.openai,
+          });
+          if (text) textareaRef.current?.insertText(text + " ");
+          setVoiceState("idle");
+        })();
+      }
+    }
+  }, { release: true });
 
   useKeyboard((key) => {
     if (disabled) return;
@@ -827,7 +885,13 @@ export function InputBar({ onSubmit, onInvokeSkill, disabled = false }: Props) {
             placeholder={
               disabled
                 ? "Agent is thinking… press esc to interrupt"
-                : `Ask anything... "Fix a bug in the database"`
+                : voiceInput && voiceState === "recording"
+                  ? "Recording… release space to stop"
+                  : voiceInput && voiceState === "transcribing"
+                    ? "Transcribing…"
+                    : voiceInput
+                      ? "Hold space to speak… or type normally"
+                      : `Ask anything... "Fix a bug in the database"`
             }
           />
           <StatusBar />

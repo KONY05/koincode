@@ -4,12 +4,11 @@ import { usePromptConfig } from "../providers/prompt-config";
 import { Mode } from "@koincode/shared";
 
 export function StatusBar() {
-  const { mode, model } = usePromptConfig();
+  const { mode, model, voiceInput } = usePromptConfig();
   const { colors } = useTheme();
 
   return (
     <box flexDirection="row" gap={1}>
-      
       <text fg={mode === Mode.PLAN ? colors.planMode : colors.primary}>
         {mode === Mode.PLAN ? "Plan" : "Build"}
       </text>
@@ -18,6 +17,12 @@ export function StatusBar() {
         ›
       </text>
       <text>{model}</text>
+      {voiceInput && (
+        <>
+          <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
+          <text fg={colors.primary}>voice</text>
+        </>
+      )}
     </box>
   );
 };

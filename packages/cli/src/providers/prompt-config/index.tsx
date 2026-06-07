@@ -21,6 +21,8 @@ type PromptConfigContextValue = {
   setModel: (model: string) => void;
   autoModeSwitch: "confirm" | "auto";
   setAutoModeSwitch: (v: "confirm" | "auto") => void;
+  voiceInput: boolean;
+  toggleVoice: () => void;
 };
 
 const PromptConfigContext = createContext<PromptConfigContextValue | null>(
@@ -45,6 +47,10 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     () => readGlobalConfig().autoModeSwitch ?? "confirm",
   );
 
+  const [voiceInput, setVoiceInputState] = useState<boolean>(
+    () => readGlobalConfig().voiceInput ?? false,
+  );
+
   const toggleMode = useCallback(() => {
     setMode((m) => (m === Mode.BUILD ? Mode.PLAN : Mode.BUILD));
   }, []);
@@ -59,6 +65,14 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     updateGlobalConfig({ autoModeSwitch: v });
   }, []);
 
+  const toggleVoice = useCallback(() => {
+    setVoiceInputState((v) => {
+      const next = !v;
+      updateGlobalConfig({ voiceInput: next });
+      return next;
+    });
+  }, []);
+
   return (
     <PromptConfigContext.Provider
       value={{
@@ -69,6 +83,8 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
         setModel,
         autoModeSwitch,
         setAutoModeSwitch,
+        voiceInput,
+        toggleVoice,
       }}
     >
       {children}
