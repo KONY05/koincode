@@ -20,6 +20,14 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: "handoff",
+    description: "Summarize this session and continue in a new one",
+    value: "/handoff",
+    action: async (ctx) => {
+      await ctx.handoff();
+    },
+  },
+  {
     name: "agents",
     description: "Switch agents",
     value: "/agents",

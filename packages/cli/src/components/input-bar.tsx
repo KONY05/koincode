@@ -307,6 +307,7 @@ type Props = {
   onSubmit: (text: string) => void;
   onInvokeSkill?: (skillName: string) => Promise<void>;
   onClearSession?: () => Promise<void>;
+  onHandoff?: () => Promise<void>;
   disabled?: boolean;
 };
 
@@ -315,7 +316,7 @@ export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
   { name: "enter", action: "submit" },
 ];
 
-export function InputBar({ onSubmit, onInvokeSkill, onClearSession, disabled = false }: Props) {
+export function InputBar({ onSubmit, onInvokeSkill, onClearSession, onHandoff, disabled = false }: Props) {
   const { mode, toggleMode, setMode, setModel } = usePromptConfig();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => {});
@@ -485,6 +486,7 @@ export function InputBar({ onSubmit, onInvokeSkill, onClearSession, disabled = f
           setModel,
           invokeSkill: onInvokeSkill ?? (() => Promise.resolve()),
           clearSession: onClearSession ?? (() => Promise.resolve()),
+          handoff: onHandoff ?? (() => Promise.resolve()),
         });
       } else {
         skipUndoRef.current = true;
@@ -492,7 +494,7 @@ export function InputBar({ onSubmit, onInvokeSkill, onClearSession, disabled = f
         skipUndoRef.current = false;
       }
     },
-    [renderer, toast, dialog, navigate, mode, setMode, setModel, onInvokeSkill, onClearSession],
+    [renderer, toast, dialog, navigate, mode, setMode, setModel, onInvokeSkill, onClearSession, onHandoff],
   );
 
   const handleCommandExecute = useCallback(

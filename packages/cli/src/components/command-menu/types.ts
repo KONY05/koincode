@@ -12,6 +12,7 @@ export type CommandContext = {
   setModel: (model: string) => void;
   invokeSkill: (skillName: string) => Promise<void>;
   clearSession: () => Promise<void>;
+  handoff: () => Promise<void>;
 };
 
 export type Command = {

@@ -22,6 +22,7 @@ type Props = {
   onSubmit: (text: string) => void;
   onInvokeSkill?: (skillName: string) => Promise<void>;
   onClearSession?: () => Promise<void>;
+  onHandoff?: () => Promise<void>;
   inputDisabled?: boolean;
   loading?: boolean;
   interruptible?: boolean;
@@ -38,6 +39,7 @@ export function SessionShell({
   onSubmit,
   onInvokeSkill,
   onClearSession,
+  onHandoff,
   inputDisabled = false,
   loading = false,
   interruptible = false,
@@ -109,6 +111,7 @@ export function SessionShell({
             onSubmit={onSubmit}
             onInvokeSkill={onInvokeSkill}
             onClearSession={onClearSession}
+            onHandoff={onHandoff}
             disabled={inputDisabled || loading}
           />
         )}
