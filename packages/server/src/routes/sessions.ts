@@ -162,6 +162,32 @@ const app = new Hono()
 
     return c.json({ success: true });
   })
+  .post("/:id/clear", async (c) => {
+    const id = c.req.param("id");
+
+    const session = await db.session.findUnique({ where: { id } });
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    const lastMessage = await db.message.findFirst({
+      where: { sessionId: id },
+      orderBy: { order: "desc" },
+    });
+    const nextOrder = lastMessage ? lastMessage.order + 1 : 0;
+    const clearedAt = new Date().toISOString();
+
+    await db.message.create({
+      data: {
+        sessionId: id,
+        role: "clear_boundary",
+        content: JSON.stringify({ type: "clear_boundary", clearedAt }),
+        order: nextOrder,
+      },
+    });
+
+    return c.json({ clearedAt });
+  })
   .delete("/:id/messages/last-user", async (c) => {
     const id = c.req.param("id");
 

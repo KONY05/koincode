@@ -105,14 +105,25 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     orderBy: { order: "asc" },
   });
 
-  const previousMessages = messageRecords
-    .map((m) => {
-      try {
-        return JSON.parse(m.content) as KoincodeUIMessage;
-      } catch {
-        return null;
-      }
-    })
+  const parsedRecords = messageRecords.map((m) => {
+    try {
+      return JSON.parse(m.content);
+    } catch {
+      return null;
+    }
+  });
+
+  // Slice from the last clear_boundary marker so the LLM only sees post-clear history.
+  let lastClearIdx = -1;
+  for (let i = parsedRecords.length - 1; i >= 0; i--) {
+    if ((parsedRecords[i] as { type?: string } | null)?.type === "clear_boundary") {
+      lastClearIdx = i;
+      break;
+    }
+  }
+
+  const previousMessages = parsedRecords
+    .slice(lastClearIdx + 1)
     .filter(
       (m): m is KoincodeUIMessage => m !== null && !!m.id && m.parts.length > 0,
     );
@@ -230,10 +241,6 @@ const app = new Hono().post("/", submitValidator, async (c) => {
               }
             : event.responseMessage;
 
-          const allMessages = event.isContinuation
-            ? [...nextMessages.slice(0, -1), responseMessage]
-            : [...nextMessages, responseMessage];
-
           // Only insert the new response message, not delete and re-insert everything
           // Also update session updatedAt timestamp
           await db.$transaction([
@@ -242,7 +249,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
                 sessionId: id,
                 role: responseMessage.role,
                 content: JSON.stringify(responseMessage),
-                order: allMessages.length - 1,
+                order: messageRecords.length + newMessages.length,
               },
             }),
             db.session.update({

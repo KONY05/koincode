@@ -96,6 +96,14 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: "clear",
+    description: "Reset AI context — start fresh without losing history",
+    value: "/clear",
+    action: async (ctx) => {
+      await ctx.clearSession();
+    },
+  },
+  {
     name: "exit",
     description: "Quit the application",
     value: "/exit",

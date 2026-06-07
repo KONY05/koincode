@@ -345,3 +345,8 @@ export type ToolContracts = typeof buildToolContracts;
 export function getToolContracts(mode: ModeType) {
   return mode === Mode.PLAN ? readOnlyToolContracts : buildToolContracts;
 }
+
+export type ClearBoundaryMarker = {
+  type: "clear_boundary";
+  clearedAt: string;
+};

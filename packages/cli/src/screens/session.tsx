@@ -63,6 +63,28 @@ function ChatMessage({
   );
 }
 
+/**
+ * Returns how many valid AI messages appear before the last `clear_boundary` marker
+ * in the raw session messages array. This count is used as the slice offset so the
+ * transcript only renders messages that came after the most recent `/clear`.
+ *
+ * Returns 0 if no boundary exists (nothing to hide).
+ */
+function countMessagesBeforeLastBoundary(rawMessages: unknown[]): number {
+  let lastBoundaryIdx = -1;
+  for (let i = rawMessages.length - 1; i >= 0; i--) {
+    if ((rawMessages[i] as { type?: string } | null)?.type === "clear_boundary") {
+      lastBoundaryIdx = i;
+      break;
+    }
+  }
+  if (lastBoundaryIdx === -1) return 0;
+  return rawMessages
+    .slice(0, lastBoundaryIdx)
+    .filter((m) => (m as { type?: string } | null)?.type !== "clear_boundary")
+    .length;
+}
+
 function SessionChat({
   session,
   initialState,
@@ -72,8 +94,19 @@ function SessionChat({
   initialState: z.infer<typeof initialStateSchema> | null;
   onDeleteLastMessage?: () => void;
 }) {
-  const [initialMessages] = useState(
-    () => session.messages as unknown as Message[],
+  const rawSessionMessages = session.messages as unknown[];
+
+  const [initialMessages] = useState<Message[]>(() =>
+    rawSessionMessages.filter(
+      (m): m is Message =>
+        m !== null &&
+        typeof m === "object" &&
+        (m as { type?: string }).type !== "clear_boundary",
+    ),
+  );
+
+  const [localClearMsgCount, setLocalClearMsgCount] = useState(() =>
+    countMessagesBeforeLastBoundary(rawSessionMessages),
   );
   const { mode, model } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
@@ -160,15 +193,13 @@ function SessionChat({
     }
   });
 
-  // Merge AI messages and system events (e.g. mode switch dividers) into one ordered list.
+  // Build the visible transcript by interleaving AI messages with system events (e.g. mode
+  // switch dividers). Messages and events at or before localClearMsgCount are skipped — they
+  // predate the last /clear and should not be shown.
   //
-  // systemEvents are tagged with `afterMessageCount` — how many messages existed when the
-  // event fired. eventIdx is a forward-only cursor so each event is placed exactly once.
-  //
-  // For each message at index i, we insert any events whose afterMessageCount <= i+1,
-  // meaning they fired while there were at most i+1 messages, so they belong right after
-  // message i. The trailing while handles events that outlast all current messages (fired
-  // while the last message was still streaming).
+  // System events carry an `afterMessageCount` that records how many messages existed when
+  // the event fired, which lets us place each divider directly after the message it followed.
+  // eventIdx is a forward-only cursor so every event is visited exactly once.
   const transcript = useMemo(() => {
     type Item =
       | { type: "message"; msg: Message; index: number }
@@ -178,39 +209,51 @@ function SessionChat({
     let eventIdx = 0;
 
     for (let i = 0; i < messages.length; i++) {
-      items.push({ type: "message", msg: messages[i]!, index: i });
+      if (i >= localClearMsgCount) {
+        items.push({ type: "message", msg: messages[i]!, index: i });
+      }
       while (
         eventIdx < systemEvents.length &&
         systemEvents[eventIdx]!.afterMessageCount <= i + 1
       ) {
+        if (systemEvents[eventIdx]!.afterMessageCount > localClearMsgCount) {
+          items.push({
+            type: "system",
+            id: systemEvents[eventIdx]!.id,
+            text: systemEvents[eventIdx]!.text,
+          });
+        }
+        eventIdx++;
+      }
+    }
+    while (eventIdx < systemEvents.length) {
+      if (systemEvents[eventIdx]!.afterMessageCount > localClearMsgCount) {
         items.push({
           type: "system",
           id: systemEvents[eventIdx]!.id,
           text: systemEvents[eventIdx]!.text,
         });
-        eventIdx++;
       }
-    }
-    while (eventIdx < systemEvents.length) {
-      items.push({
-        type: "system",
-        id: systemEvents[eventIdx]!.id,
-        text: systemEvents[eventIdx]!.text,
-      });
       eventIdx++;
     }
 
     return items;
-  }, [messages, systemEvents]);
+  }, [messages, systemEvents, localClearMsgCount]);
 
   const handleInvokeSkill = async (skillName: string) => {
     await submit({ userText: `Execute skill: ${skillName}`, mode, model });
+  };
+
+  const handleClearSession = async () => {
+    await apiClient.sessions[":id"].clear.$post({ param: { id: session.id } });
+    setLocalClearMsgCount(messages.length);
   };
 
   return (
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
       onInvokeSkill={handleInvokeSkill}
+      onClearSession={handleClearSession}
       loading={
         status === "submitted" || status === "streaming" || isSubagentRunning
       }

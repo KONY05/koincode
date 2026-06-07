@@ -21,6 +21,7 @@ type Props = {
   children?: ReactNode;
   onSubmit: (text: string) => void;
   onInvokeSkill?: (skillName: string) => Promise<void>;
+  onClearSession?: () => Promise<void>;
   inputDisabled?: boolean;
   loading?: boolean;
   interruptible?: boolean;
@@ -36,6 +37,7 @@ export function SessionShell({
   children,
   onSubmit,
   onInvokeSkill,
+  onClearSession,
   inputDisabled = false,
   loading = false,
   interruptible = false,
@@ -106,6 +108,7 @@ export function SessionShell({
           <InputBar
             onSubmit={onSubmit}
             onInvokeSkill={onInvokeSkill}
+            onClearSession={onClearSession}
             disabled={inputDisabled || loading}
           />
         )}

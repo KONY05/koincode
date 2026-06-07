@@ -11,6 +11,7 @@ export type CommandContext = {
   setMode: (mode: ModeType) => void;
   setModel: (model: string) => void;
   invokeSkill: (skillName: string) => Promise<void>;
+  clearSession: () => Promise<void>;
 };
 
 export type Command = {
