@@ -7,8 +7,14 @@ import { resolveInsideCwd } from "./utils";
 
 const normalize = (s: string) => s.replace(/\r\n/g, "\n").trimEnd();
 
+// Some models (e.g. free/small models) emit literal \n instead of real newlines in JSON strings.
+const unescape = (s: string) => s.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "");
+
 export async function runEditFile(input: unknown) {
-  const { path, oldString, newString } = toolInputSchemas.editFile.parse(input);
+  const parsed = toolInputSchemas.editFile.parse(input);
+  const path = parsed.path;
+  const oldString = unescape(parsed.oldString);
+  const newString = unescape(parsed.newString);
   const { cwd, resolved } = resolveInsideCwd(path);
   const content = await readFile(resolved, "utf-8");
 
