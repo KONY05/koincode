@@ -348,6 +348,7 @@ const appWithAgentStep = app.post(
       messages,
       tools,
       stopWhen: stepCountIs(1),
+      abortSignal: AbortSignal.timeout(60_000),
       providerOptions: resolvedModel.providerOptions,
     });
 
