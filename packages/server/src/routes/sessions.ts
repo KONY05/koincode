@@ -236,13 +236,15 @@ const app = new Hono()
 
     const assistantMessages = windowRecords.filter((m) => m.role === "assistant");
 
-    // Extract model from the last assistant message metadata.
+    // Extract model and mode from the last assistant message metadata.
     let model = "claude-sonnet-4-6";
+    let mode = "BUILD";
     const lastAssistant = assistantMessages[assistantMessages.length - 1];
     if (lastAssistant) {
       try {
         const parsed = JSON.parse(lastAssistant.content);
         if (parsed?.metadata?.model) model = parsed.metadata.model;
+        if (parsed?.metadata?.mode) mode = parsed.metadata.mode;
       } catch { /* ignore */ }
     }
 
@@ -311,7 +313,7 @@ const app = new Hono()
               id: userMsgId,
               role: "user",
               parts: [{ type: "text", text: "Here is a summary of the work completed so far in this session. Use this as your full context — the prior conversation has been compacted." }],
-              metadata: {},
+              metadata: { model, mode },
             }),
             order: nextOrder + 1,
           },
@@ -323,7 +325,7 @@ const app = new Hono()
               id: assistantMsgId,
               role: "assistant",
               parts: [{ type: "text", text: summary }],
-              metadata: {},
+              metadata: { model, mode },
             }),
             order: nextOrder + 2,
           },
@@ -363,12 +365,14 @@ const app = new Hono()
       return c.json({ sessionId: newSession.id });
     }
 
-    // Extract model from last assistant message metadata
+    // Extract model and mode from last assistant message metadata
     let model = "claude-sonnet-4-6";
+    let mode = "BUILD";
     const lastAssistant = assistantMessages[assistantMessages.length - 1]!;
     try {
       const parsed = JSON.parse(lastAssistant.content);
       if (parsed?.metadata?.model) model = parsed.metadata.model;
+      if (parsed?.metadata?.mode) mode = parsed.metadata.mode;
     } catch { /* ignore */ }
 
     // Build plain-text transcript for the summary prompt
@@ -427,7 +431,7 @@ const app = new Hono()
             id: userMsgId,
             role: "user",
             parts: [{ type: "text", text: "Here is a summary of work completed in a previous session. Use this as your starting context." }],
-            metadata: {},
+            metadata: { model, mode },
           }),
           order: 0,
         },
@@ -439,7 +443,7 @@ const app = new Hono()
             id: assistantMsgId,
             role: "assistant",
             parts: [{ type: "text", text: summaryText }],
-            metadata: {},
+            metadata: { model, mode },
           }),
           order: 1,
         },

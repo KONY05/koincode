@@ -26,6 +26,7 @@ type Props = {
   contextUsage?: ContextUsage | null;
   inputDisabled?: boolean;
   streaming?: boolean;
+  loadingAction?: string;
   interruptible?: boolean;
   queue?: QueuedMessage[];
   onRemoveFromQueue?: (index: number) => void;
@@ -44,6 +45,7 @@ export function SessionShell({
   contextUsage,
   inputDisabled = false,
   streaming = false,
+  loadingAction,
   interruptible = false,
   queue = [],
   onRemoveFromQueue,
@@ -198,6 +200,8 @@ export function SessionShell({
             ) : (
               <text>esc to interrupt</text>
             )
+          ) : streaming ? (
+            <text attributes={TextAttributes.DIM}>{loadingAction ?? "working…"}</text>
           ) : null}
         </box>
 

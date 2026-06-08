@@ -250,6 +250,7 @@ function SessionChat({
   }, [messages, systemEvents, localClearMsgCount]);
 
   const [isCompacting, setIsCompacting] = useState(false);
+  const [isHandingOff, setIsHandingOff] = useState(false);
   const hasAutoCompactedRef = useRef(false);
 
   const runCompact = async (source: "manual" | "auto") => {
@@ -303,11 +304,20 @@ function SessionChat({
 
   const handleCompact = () => runCompact("manual");
 
+  const handleHandoffWithLoading = async () => {
+    setIsHandingOff(true);
+    try {
+      await onHandoff();
+    } finally {
+      setIsHandingOff(false);
+    }
+  };
+
   return (
     <SessionActionsProvider
       invokeSkill={handleInvokeSkill}
       clearSession={handleClearSession}
-      handoff={onHandoff}
+      handoff={handleHandoffWithLoading}
       compact={handleCompact}
     >
     <SessionShell
@@ -315,7 +325,12 @@ function SessionChat({
       onForceNext={interrupt}
       contextUsage={contextUsage}
       streaming={
-        status === "submitted" || status === "streaming" || isSubagentRunning || isCompacting
+        status === "submitted" || status === "streaming" || isSubagentRunning || isCompacting || isHandingOff
+      }
+      loadingAction={
+        isCompacting ? "compacting…" :
+        isHandingOff ? "summarizing…" :
+        undefined
       }
       interruptible={
         status === "submitted" || status === "streaming" || isSubagentRunning
@@ -406,7 +421,7 @@ export function Session() {
       });
       if (!res.ok) throw new Error(await getErrorMessage(res));
       const { sessionId } = await res.json();
-      navigate(`/session/${sessionId}`);
+      navigate(`/sessions/${sessionId}`);
     } catch (err) {
       toast.show({
         variant: "error",

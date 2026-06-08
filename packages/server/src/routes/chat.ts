@@ -154,11 +154,17 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     tools,
   });
 
-  // Only persist messages that are genuinely new (not already stored in the DB).
-  // previousMessages are already in the DB — writing them again would create duplicates.
-  // Use ID matching rather than a slice offset so deduplication above doesn't shift the boundary.
-  const previousMessageIds = new Set(previousMessages.map((m) => m.id));
-  const newMessages = nextMessages.filter((m) => !previousMessageIds.has(m.id));
+  // Only persist messages genuinely absent from the DB. We match by UIMessage ID
+  // embedded in the content JSON, not by slice offset, because onFinish saves the
+  // assistant response asynchronously. If a follow-up request (e.g. tool-result
+  // round-trip) arrives before onFinish completes, slice-based detection would
+  // re-save the same assistant message and create duplicates.
+  const storedMsgIds = new Set(
+    parsedRecords
+      .map((m) => (m as { id?: string } | null)?.id)
+      .filter((msgId): msgId is string => !!msgId),
+  );
+  const newMessages = nextMessages.filter((m) => !storedMsgIds.has(m.id));
 
   try {
     if (newMessages.length > 0) {
@@ -188,8 +194,6 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   const modelMessages = await convertToModelMessages(nextMessages, {
     tools,
   });
-  let completedUsage: LanguageModelUsage | null = null;
-
   const result = streamText({
     model: resolvedModel.model,
     system: buildSystemPrompt({ mode, userMemory, skillsManifest }),
@@ -197,9 +201,6 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     tools,
     abortSignal: c.req.raw.signal,
     providerOptions: resolvedModel.providerOptions,
-    onFinish(event) {
-      completedUsage = event.totalUsage;
-    },
   });
 
   return result.toUIMessageStreamResponse<KoincodeUIMessage>({
@@ -212,11 +213,12 @@ const app = new Hono().post("/", submitValidator, async (c) => {
 
       if (part.type !== "finish") return undefined;
 
+      const usage = (part as unknown as { totalUsage?: LanguageModelUsage }).totalUsage;
       return {
         mode,
         model,
         durationMs: Date.now() - startTime,
-        ...(completedUsage ? { usage: completedUsage } : {}),
+        ...(usage ? { usage } : {}),
       };
     },
     onFinish(event) {
@@ -253,6 +255,17 @@ const app = new Hono().post("/", submitValidator, async (c) => {
             : event.responseMessage;
 
           await db.$transaction(async (tx) => {
+            // Guard against duplicate saves: the pre-save on the next request can
+            // race with this onFinish and already have stored this message by ID.
+            const existing = await tx.message.findFirst({
+              where: { sessionId: id, content: { contains: `"id":"${responseMessage.id}"` } },
+              select: { id: true },
+            });
+            if (existing) {
+              // Already saved by pre-save — just bump the session timestamp.
+              await tx.session.update({ where: { id }, data: { updatedAt: new Date() } });
+              return;
+            }
             const { _max } = await tx.message.aggregate({
               where: { sessionId: id },
               _max: { order: true },
