@@ -77,9 +77,9 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 const app = new Hono().post("/", submitValidator, async (c) => {
   const { id, messages, mode, model, skillsManifest } = c.req.valid("json");
 
-  logger.info(
-    `Received chat request for session ${id} with ${messages.length} messages`,
-  );
+  // logger.info(
+  //   `Received chat request for session ${id} with ${messages.length} messages`,
+  // );
 
   const session = await db.session.findUnique({
     where: { id },
@@ -184,9 +184,9 @@ const app = new Hono().post("/", submitValidator, async (c) => {
         });
       });
     }
-    logger.info(
-      `Persisted ${newMessages.length} new message(s) for session ${id}`,
-    );
+    // logger.info(
+    //   `Persisted ${newMessages.length} new message(s) for session ${id}`,
+    // );
   } catch (err) {
     logger.error(`Failed to pre-save messages for session ${id}:`, err);
   }
