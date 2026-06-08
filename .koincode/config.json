@@ -1,17 +1,13 @@
 {
   "permissions": {
-    "shell:cd": "allowed"
+    "shell:cd": "allowed",
+    "shell:bin:echo": "allowed"
   },
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node -e \"const data = JSON.parse(require('fs').readFileSync(0, 'utf-8')); console.log('Hook triggered for tool:', data.tool_name);\""
-          }
-        ]
+        "matcher": "writeFile|editFile",
+        "hooks": []
       }
     ]
   }
