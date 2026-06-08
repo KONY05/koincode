@@ -406,7 +406,7 @@ export function Session() {
       });
       if (!res.ok) throw new Error(await getErrorMessage(res));
       const { sessionId } = await res.json();
-      navigate(`/session/${sessionId}`);
+      navigate(`/sessions/${sessionId}`);
     } catch (err) {
       toast.show({
         variant: "error",
