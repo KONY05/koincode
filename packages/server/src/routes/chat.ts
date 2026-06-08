@@ -262,7 +262,13 @@ const app = new Hono().post("/", submitValidator, async (c) => {
               select: { id: true },
             });
             if (existing) {
-              // Already saved by pre-save — just bump the session timestamp.
+              // The pre-save stored this message earlier (e.g. the assistant
+              // message with tool calls). onFinish now has the same message ID
+              // but with follow-up text appended — update to preserve it.
+              await tx.message.update({
+                where: { id: existing.id },
+                data: { content: JSON.stringify(responseMessage) },
+              });
               await tx.session.update({ where: { id }, data: { updatedAt: new Date() } });
               return;
             }
