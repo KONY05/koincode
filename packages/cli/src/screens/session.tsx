@@ -304,16 +304,14 @@ function SessionChat({
 
   const handleCompact = () => runCompact("manual");
 
-  const handleHandoffWithLoading = onHandoff
-    ? async () => {
-        setIsHandingOff(true);
-        try {
-          await onHandoff();
-        } finally {
-          setIsHandingOff(false);
-        }
-      }
-    : undefined;
+  const handleHandoffWithLoading = async () => {
+    setIsHandingOff(true);
+    try {
+      await onHandoff();
+    } finally {
+      setIsHandingOff(false);
+    }
+  };
 
   return (
     <SessionActionsProvider

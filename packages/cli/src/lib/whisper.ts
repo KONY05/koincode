@@ -25,7 +25,6 @@ async function loadTransformers(): Promise<Transformers> {
   // Dynamic import so the WASM runtime is never loaded at startup.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const t = await import("@xenova/transformers" as string) as any;
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
   t.env.cacheDir = WHISPER_CACHE_DIR;
   return t;
 }
@@ -44,7 +43,6 @@ async function getLocalPipeline(
   _warmingPromise = (async () => {
     const t = await loadTransformers() as Transformers;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const pipe = await t.pipeline(
       "automatic-speech-recognition",
       `Xenova/whisper-${model}`,

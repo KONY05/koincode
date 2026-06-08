@@ -489,6 +489,13 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
     resolveModeSwitchRef.current?.(response);
   }, []);
 
+  const abort = useCallback(() => {
+    setMessageQueue([]);
+    return chat.stop();
+  // chat.stop is stable (provided by useAiChat), so this callback never changes reference.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return {
     messages: chat.messages,
     status: chat.status,
@@ -532,10 +539,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
         },
       });
     },
-    abort: () => {
-      setMessageQueue([]);
-      return chat.stop();
-    },
+    abort,
     interrupt: () => {
       setWasInterrupted(true);
       chat.stop();
