@@ -1,4 +1,4 @@
-import { Mode, type ModeType } from "@koincode/shared";
+import { Mode, readOnlyToolContracts, type ModeType } from "@koincode/shared";
 import { runShellCommand } from "./shell";
 import { runEditFile } from "./edit-file";
 import { runGlob } from "./glob";
@@ -19,31 +19,14 @@ import { runReadSkill } from "./read-skill";
 import { runWriteSkill } from "./write-skill";
 import { runHooks } from "../utils/hooks";
 
-const PLAN_TOOLS = [
-  "readFile",
-  "listDirectory",
-  "glob",
-  "grep",
-  "createTodos",
-  "updateTodos",
-  "webFetch",
-  "webSearch",
-  "askUser",
-  "memoryAdd",
-  "memoryUpdate",
-  "memoryDelete",
-  "memoryList",
-  "spawnAgent",
-  "manageHook",
-  "readSkill",
-];
+const PLAN_TOOLS = new Set(Object.keys(readOnlyToolContracts));
 
 export async function executeLocalTool(
   toolName: string,
   input: unknown,
   mode: ModeType,
 ) {
-  if (mode === Mode.PLAN && !PLAN_TOOLS.includes(toolName)) {
+  if (mode === Mode.PLAN && !PLAN_TOOLS.has(toolName)) {
     throw new Error(`Tool ${toolName} is not available in PLAN mode`);
   }
 
