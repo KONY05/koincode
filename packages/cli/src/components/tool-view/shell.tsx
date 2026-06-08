@@ -1,13 +1,51 @@
 import { TextAttributes } from "@opentui/core";
 
 import { Spinner } from "../spinner";
+import { EmptyBorder } from "../border";
 import type { ThemeColors } from "../../providers/theme/theme";
 
-const MAX_LINES = 15;
+const MAX_LINES = 12;
 const MAX_LINE_LEN = 120;
 
 function clipLine(line: string): string {
   return line.length > MAX_LINE_LEN ? line.slice(0, MAX_LINE_LEN) + "…" : line;
+}
+
+function OutputBlock({
+  lines,
+  overflow,
+  borderColor,
+  fg,
+  colors,
+}: {
+  lines: string[];
+  overflow: number;
+  borderColor: string;
+  fg?: string;
+  colors: ThemeColors;
+}) {
+  if (lines.length === 0) return null;
+  return (
+    <box
+      width="100%"
+      border={["left"]}
+      borderColor={borderColor}
+      customBorderChars={{ ...EmptyBorder, vertical: "│" }}
+      paddingLeft={1}
+      marginTop={1}
+    >
+      {lines.map((line, i) => (
+        <text key={i} attributes={TextAttributes.DIM} fg={fg}>
+          {clipLine(line)}
+        </text>
+      ))}
+      {overflow > 0 && (
+        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+          … {overflow} more {overflow === 1 ? "line" : "lines"}
+        </text>
+      )}
+    </box>
+  );
 }
 
 export default function ShellView({
@@ -34,41 +72,54 @@ export default function ShellView({
 
   const stdoutLines = result?.stdout?.split("\n").filter(Boolean) ?? [];
   const stderrLines = result?.stderr?.split("\n").filter(Boolean) ?? [];
-  const allLines = [...stdoutLines, ...stderrLines];
-  const visibleLines = allLines.slice(0, MAX_LINES);
-  const overflow = allLines.length - MAX_LINES;
-  const failed =
-    typeof result?.exitCode === "number" && result.exitCode !== 0;
+
+  const stdoutVisible = stdoutLines.slice(0, MAX_LINES);
+  const stdoutOverflow = stdoutLines.length - stdoutVisible.length;
+
+  const stderrVisible = stderrLines.slice(0, MAX_LINES);
+  const stderrOverflow = stderrLines.length - stderrVisible.length;
+
+  const failed = typeof result?.exitCode === "number" && result.exitCode !== 0;
+  const done = !pending && result !== null;
 
   return (
     <box width="100%">
-      <box flexDirection="row" gap={1} alignItems="center">
-        <text fg={colors.info}>$</text>
-        <text>{command}</text>
-        {pending && <Spinner activeColor={colors.info} />}
+      <box flexDirection="row" justifyContent="space-between" width="100%">
+        <box flexDirection="row" gap={1}>
+          <text fg={colors.info}>❯</text>
+          <text>{command}</text>
+        </box>
+        <box>
+          {pending ? (
+            <Spinner activeColor={colors.info} />
+          ) : done && failed ? (
+            <text fg={colors.error}>✗ {result!.exitCode}</text>
+          ) : done ? (
+            <text fg={colors.success}>✓</text>
+          ) : null}
+        </box>
       </box>
 
-      {visibleLines.length > 0 && (
-        <box width="100%" paddingLeft={2} paddingTop={1}>
-          {visibleLines.map((line, i) => (
-            <text key={i} attributes={TextAttributes.DIM}>
-              {clipLine(line)}
-            </text>
-          ))}
-          {overflow > 0 && (
-            <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
-              … {overflow} more {overflow === 1 ? "line" : "lines"}
-            </text>
-          )}
-        </box>
-      )}
+      <OutputBlock
+        lines={stdoutVisible}
+        overflow={stdoutOverflow}
+        borderColor={colors.dimSeparator}
+        colors={colors}
+      />
 
-      {failed && (
+      <OutputBlock
+        lines={stderrVisible}
+        overflow={stderrOverflow}
+        borderColor={colors.error}
+        fg={colors.error}
+        colors={colors}
+      />
+
+      {!!error && (
         <text fg={colors.error} paddingLeft={2}>
-          exit {result!.exitCode}
+          {error}
         </text>
       )}
-      {!!error && <text fg={colors.error}>{error}</text>}
     </box>
   );
 }
