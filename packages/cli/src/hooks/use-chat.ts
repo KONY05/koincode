@@ -49,6 +49,7 @@ export type ContextUsage = {
   tokensUsed: number;
   contextWindow: number;
   percent: number;
+  hasUsageData: boolean;
 };
 
 type ChatTools = {
@@ -426,10 +427,16 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
   });
 
   const contextUsage = useMemo((): ContextUsage | null => {
+    const hasAssistantMessages = chat.messages.some((m) => m.role === "assistant");
+    if (!hasAssistantMessages) return null;
+
     const lastWithUsage = [...chat.messages].reverse().find(
       (m) => m.role === "assistant" && m.metadata?.usage,
     );
-    if (!lastWithUsage?.metadata?.usage) return null;
+    if (!lastWithUsage?.metadata?.usage) {
+      // Messages exist but the model doesn't report token usage
+      return { tokensUsed: 0, contextWindow: 0, percent: 0, hasUsageData: false };
+    }
 
     const modelId = lastWithUsage.metadata.model ?? "";
     const contextWindow = getContextWindow(String(modelId));
@@ -438,6 +445,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
       tokensUsed,
       contextWindow,
       percent: Math.min(100, Math.round((tokensUsed / contextWindow) * 100)),
+      hasUsageData: true,
     };
   }, [chat.messages]);
 

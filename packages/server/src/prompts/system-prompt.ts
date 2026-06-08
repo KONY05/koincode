@@ -40,6 +40,8 @@ export function buildSystemPrompt({ mode, userMemory, skillsManifest }: SystemPr
     parts.push(getMemorySection(userMemory));
   }
 
+  parts.push(getCompactSummarySection());
+
   return parts.join("\n\n");
 }
 
@@ -246,6 +248,12 @@ Edge cases, warnings, or caveats.
 - Prefer \`bunx\` for JS/TS one-off commands
 - Write structured output (JSON) to stdout; diagnostics to stderr
 - Skills are plain markdown files and can also be edited directly in any text editor`;
+}
+
+function getCompactSummarySection(): string {
+  return `# Context Compaction
+
+If the conversation begins with a message like "Here is a summary of the work completed so far…" or "Here is a summary of work completed in a previous session…", that is a compacted context summary. **Read it fully before responding or using any tools.** It contains all necessary context — do not use tools like \`glob\`, \`readFile\`, or \`shell\` to re-derive information already present in the summary. Treat it as your complete working memory for the session.`;
 }
 
 function getMemorySection(memory: string): string {

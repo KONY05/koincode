@@ -27,6 +27,7 @@ type Props = {
   contextUsage?: ContextUsage | null;
   inputDisabled?: boolean;
   loading?: boolean;
+  loadingAction?: string;
   interruptible?: boolean;
   pendingApproval?: PendingApproval | null;
   onApprovalResponse?: (response: ApprovalResponse) => void;
@@ -46,6 +47,7 @@ export function SessionShell({
   contextUsage,
   inputDisabled = false,
   loading = false,
+  loadingAction,
   interruptible = false,
   pendingApproval = null,
   onApprovalResponse,
@@ -132,7 +134,11 @@ export function SessionShell({
         paddingLeft={1}
       >
         <box flexDirection="row" alignItems="center" gap={2}>
-          {loading && interruptible ? <text>esc to interrupt</text> : null}
+          {loading && interruptible ? (
+            <text>esc to interrupt</text>
+          ) : loading ? (
+            <text attributes={TextAttributes.DIM}>{loadingAction ?? "working…"}</text>
+          ) : null}
         </box>
 
         <box flexDirection="row" gap={2} flexShrink={0} marginLeft="auto">

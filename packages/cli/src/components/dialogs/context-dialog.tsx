@@ -31,6 +31,17 @@ export function ContextDialogContent({ contextUsage, model }: Props) {
     );
   }
 
+  if (!contextUsage.hasUsageData) {
+    return (
+      <box flexDirection="column" gap={1} paddingX={1} paddingY={1}>
+        <text fg={colors.primary}>{model}</text>
+        <text attributes={TextAttributes.DIM}>
+          This model does not report token usage.
+        </text>
+      </box>
+    );
+  }
+
   const { tokensUsed, contextWindow, percent } = contextUsage;
   const freeTokens = contextWindow - tokensUsed;
   const contextWindowK = contextWindow >= 1_000_000
