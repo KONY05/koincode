@@ -145,7 +145,7 @@ function getToolUsageSection(mode: ModeType, mcpServers?: McpServerStatus[]): st
   const connectedServers = mcpServers?.filter((s) => s.status === "connected") ?? [];
   const mcpSection =
     connectedServers.length > 0
-      ? `\n\n### Connected MCP Servers\nThe following MCP servers are connected and their tools are available to you. Tool names are prefixed with the server name (e.g. \`github__create_issue\`):\n${connectedServers.map((s) => `- **${s.name}** — ${s.toolCount} tool(s)`).join("\n")}`
+      ? `\n\n### Connected MCP Servers\nThe following MCP servers are connected. Their tools are available alongside the built-in tools above — tool names are prefixed with the server name (e.g. \`github__create_issue\`):\n${connectedServers.map((s) => `- **${s.name}** — ${s.toolCount} tool(s)`).join("\n")}\n\nPrefer MCP tools over \`shell\` when they cover the action (e.g. use \`github__create_issue\` rather than running \`gh\` via shell). Call \`manageMcp\` if you need to inspect what tools a server exposes.`
       : "";
 
   return `# Tool Usage
