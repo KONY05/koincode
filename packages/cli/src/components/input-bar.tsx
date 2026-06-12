@@ -17,8 +17,9 @@ import {
 } from "react";
 
 import { checkRecorderAvailable, startRecording } from "../lib/voice-recorder";
+// warmRecorder and isRecorderReady imported when voice is re-enabled
 import type { RecorderHandle } from "../lib/voice-recorder";
-import { transcribe, warmLocalPipeline, isLocalPipelineReady } from "../lib/whisper";
+import { transcribe } from "../lib/whisper";
 import { readGlobalConfig } from "../utils/configs/global-config";
 import type { ContextUsage } from "../hooks/use-chat";
 
@@ -317,21 +318,15 @@ function getInputBarPlaceholder(
   streaming: boolean,
   queueLength: number,
   voiceInput: boolean,
-  voiceState: "idle" | "downloading" | "recording" | "transcribing",
-  downloadProgress: number | undefined,
+  voiceState: "idle" | "recording" | "transcribing",
 ): string {
   if (disabled) return "Agent is thinking… press esc to interrupt";
   if (streaming && queueLength > 0) return `${queueLength} queued — press enter to skip ahead`;
   if (streaming) return `Type to queue a message…`;
   if (!voiceInput) return `Ask anything... "Fix a bug in the database"`;
-  if (voiceState === "downloading") {
-    return downloadProgress !== undefined
-      ? `Downloading Whisper model… ${downloadProgress}%`
-      : "Loading Whisper model…";
-  }
-  if (voiceState === "recording") return "Recording… release space to stop";
+  if (voiceState === "recording") return "Recording… ctrl+r to stop";
   if (voiceState === "transcribing") return "Transcribing…";
-  return "Hold space to speak… or type normally";
+  return "ctrl+r to record… or type normally";
 }
 
 export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
@@ -343,12 +338,13 @@ type Props = {
   onForceNext?: () => void;
   onEnterQueueFocus?: () => void;
   contextUsage?: ContextUsage | null;
+  mcpServerCount?: number;
   disabled?: boolean;
   streaming?: boolean;
   queueLength?: number;
 };
 
-export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsage, disabled = false, streaming = false, queueLength = 0 }: Props) {
+export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsage, mcpServerCount, disabled = false, streaming = false, queueLength = 0 }: Props) {
   const { mode, model, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
@@ -362,10 +358,10 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
   const skipUndoRef = useRef(false);
   const pasteCounterRef = useRef(0);
   const pasteContentRef = useRef<Map<string, string>>(new Map());
-  const spaceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recorderRef = useRef<RecorderHandle | null>(null);
-  const [voiceState, setVoiceState] = useState<"idle" | "downloading" | "recording" | "transcribing">("idle");
-  const [downloadProgress, setDownloadProgress] = useState<number | undefined>(undefined);
+  const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribing">("idle");
+
+  const effectiveDisabled = disabled;
 
   const renderer = useRenderer();
   const navigate = useNavigate();
@@ -452,7 +448,7 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
   }, []);
 
   const handleSubmit = useCallback(() => {
-    if (disabled && !streaming) return;
+    if (effectiveDisabled && !streaming) return;
 
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -475,7 +471,7 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
     skipUndoRef.current = true;
     textarea.setText("");
     skipUndoRef.current = false;
-  }, [disabled, streaming, onSubmit, expandPastes]);
+  }, [effectiveDisabled, streaming, onSubmit, expandPastes]);
 
   const handleMentionExecute = useCallback(
     (index: number) => {
@@ -591,7 +587,7 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
   // eslint-disable-next-line react-hooks/refs -- intentional: ref stores the latest submit handler so the textarea's onSubmit listener (wired once) never goes stale
   onSubmitRef.current = () => {
     // Block the submit handler only when the input is completely locked AND the agent is NOT streaming.
-    if (disabled && !streaming) return;
+    if (effectiveDisabled && !streaming) return;
 
     if (showCommandMenu) {
       const command = resolveCommand(selectedIndex);
@@ -618,58 +614,44 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
   };
 
   useKeyboard((key) => {
-    if (disabled || streaming) return;
+    if (effectiveDisabled || streaming) return;
     if (!voiceInput) return;
     if (!isTopLayer("base")) return;
-    if (key.name !== " ") return;
+    // ctrl+r toggles recording on/off (toggle avoids needing key-release events).
+    if (!key.ctrl || key.name !== "r") return;
+    if (key.repeated) return;
+    key.preventDefault();
 
-    if (key.eventType === "press" && !key.repeated) {
-      key.preventDefault();
-      if (spaceTimerRef.current) return;
-      // Block recording while the model is still downloading.
-      if (voiceState === "downloading") return;
-      spaceTimerRef.current = setTimeout(() => {
-        spaceTimerRef.current = null;
-        void (async () => {
-          const { ok, hint } = await checkRecorderAvailable();
-          if (!ok) {
-            toast.show({ variant: "error", message: hint ?? "Recorder not available" });
-            return;
-          }
-          recorderRef.current = await startRecording();
-          setVoiceState("recording");
-        })();
-      }, 300);
-    } else if (key.eventType === "release") {
-      key.preventDefault();
-      if (spaceTimerRef.current) {
-        // Short press — insert normal space
-        clearTimeout(spaceTimerRef.current);
-        spaceTimerRef.current = null;
-        textareaRef.current?.insertText(" ");
-        return;
-      }
-      if (voiceState === "recording" && recorderRef.current) {
-        const recorder = recorderRef.current;
-        recorderRef.current = null;
-        setVoiceState("transcribing");
-        void (async () => {
-          const wavPath = await recorder.stop();
-          const config = readGlobalConfig();
-          const text = await transcribe(wavPath, {
-            whisperModel: config.whisperModel ?? "base",
-            whisperBackend: config.whisperBackend ?? "auto",
-            openaiKey: config.apiKeys?.openai,
-          });
-          if (text) textareaRef.current?.insertText(text + " ");
-          setVoiceState("idle");
-        })();
-      }
+    if (voiceState === "idle") {
+      void (async () => {
+        const { ok, hint } = await checkRecorderAvailable();
+        if (!ok) {
+          toast.show({ variant: "error", message: hint ?? "Recorder not available" });
+          return;
+        }
+        recorderRef.current = await startRecording();
+        setVoiceState("recording");
+      })();
+    } else if (voiceState === "recording" && recorderRef.current) {
+      const recorder = recorderRef.current;
+      recorderRef.current = null;
+      setVoiceState("transcribing");
+      void (async () => {
+        const wavPath = await recorder.stop();
+        const config = readGlobalConfig();
+        const text = await transcribe(wavPath, {
+          whisperBackend: config.whisperBackend ?? "auto",
+          openaiKey: config.apiKeys?.openai,
+          openrouterKey: config.apiKeys?.openrouter,
+        });
+        if (text) textareaRef.current?.insertText(text + " ");
+        setVoiceState("idle");
+      })();
     }
-  }, { release: true });
+  });
 
   useKeyboard((key) => {
-    if (disabled || streaming) return;
+    if (effectiveDisabled || streaming) return;
     if (!isTopLayer("base")) return;
     if (key.name === "tab") {
       key.preventDefault();
@@ -678,7 +660,7 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
   });
 
   useKeyboard((key) => {
-    if (disabled || streaming) return;
+    if (effectiveDisabled || streaming) return;
     if (!isTopLayer("base")) return;
     if (showCommandMenu || showMentionMenu) return;
 
@@ -766,7 +748,7 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
         }
       }
 
-      if (disabled && !streaming) return false;
+      if (effectiveDisabled && !streaming) return false;
 
       const textarea = textareaRef.current;
       if (textarea && textarea.plainText.length > 0) {
@@ -782,7 +764,7 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
     });
 
     return () => setResponder("base", null);
-  }, [disabled, streaming, renderer, setResponder]);
+  }, [effectiveDisabled, streaming, renderer, setResponder]);
 
   // Intercept long pastes: store full content and insert a short placeholder instead.
   useEffect(() => {
@@ -819,41 +801,22 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
     };
   }, [renderer]);
 
-  // When voice mode is enabled and the local backend will be used, pre-warm the
-  // Whisper pipeline so the first recording doesn't block on a cold download.
-  useEffect(() => {
-    if (!voiceInput) return;
-
-    const config = readGlobalConfig();
-    const usesLocal =
-      config.whisperBackend === "local" ||
-      (config.whisperBackend !== "openai" && !config.apiKeys?.openai);
-
-    if (!usesLocal || isLocalPipelineReady()) return;
-
-    let cancelled = false;
-
-    void (async () => {
-      setVoiceState("downloading");
-      setDownloadProgress(undefined);
-
-      await warmLocalPipeline(config.whisperModel ?? "base", (progress) => {
-        if (!cancelled) setDownloadProgress(progress);
-      });
-
-      if (!cancelled) {
-        setVoiceState("idle");
-        setDownloadProgress(undefined);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [voiceInput]);
+  // Voice warmup disabled — see TODO in commands.tsx. Re-enable body when voice is re-introduced.
+  // useEffect(() => {
+  //   if (!voiceInput || isRecorderReady()) return;
+  //   let cancelled = false;
+  //   queueMicrotask(() => { if (!cancelled) setVoiceState("compiling"); });
+  //   void warmRecorder()
+  //     .then(() => { if (!cancelled) setVoiceState("idle"); })
+  //     .catch(() => {
+  //       if (!cancelled) setVoiceState("idle");
+  //       toast.show({ variant: "error", message: "Failed to build voice recorder. Run: xcode-select --install" });
+  //     });
+  //   return () => { cancelled = true; };
+  // }, [voiceInput, toast]);
 
   useKeyboard((key) => {
-    if (disabled) return;
+    if (effectiveDisabled) return;
     if (!showMentionMenu || !isTopLayer("mention")) return;
 
     if (key.name === "escape") {
@@ -961,16 +924,16 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
           <textarea
             ref={textareaRef}
             focused={
-              !disabled &&
+              !effectiveDisabled &&
               (isTopLayer("base") ||
                 isTopLayer("command") ||
                 isTopLayer("mention"))
             }
             keyBindings={TEXTAREA_KEY_BINDINGS}
             onContentChange={handleTextareaContentChange}
-            placeholder={getInputBarPlaceholder(disabled, streaming, queueLength, voiceInput, voiceState, downloadProgress)}
+            placeholder={getInputBarPlaceholder(disabled, streaming, queueLength, voiceInput, voiceState)}
           />
-          <StatusBar contextUsage={contextUsage} />
+          <StatusBar contextUsage={contextUsage} mcpServerCount={mcpServerCount} />
         </box>
       </box>
     </box>

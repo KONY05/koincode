@@ -1,3 +1,26 @@
+export type McpServerConfig = {
+  /** Stdio transport: the executable to run (e.g. "npx"). Mutually exclusive with `url`. */
+  command?: string;
+  /** Args passed to the stdio command (e.g. ["-y", "@modelcontextprotocol/server-github"]). */
+  args?: string[];
+  /** Extra environment variables merged with the current process env (e.g. API tokens). */
+  env?: Record<string, string>;
+  /**
+   * Remote transport URL. Defaults to Streamable HTTP (the current MCP standard).
+   * Set `transport: "sse"` if the server only supports the legacy SSE protocol.
+   * Mutually exclusive with `command`.
+   */
+  url?: string;
+  /**
+   * Remote transport protocol. Only relevant when `url` is set.
+   * - `"http"` (default) — Streamable HTTP, the current MCP standard.
+   * - `"sse"` — Legacy Server-Sent Events transport for older servers.
+   */
+  transport?: "http" | "sse";
+  /** Set to false to skip connecting to this server at startup. Defaults to true. */
+  enabled?: boolean;
+};
+
 export type ApiKeys = {
   openrouter?: string;
   anthropic?: string;
@@ -41,14 +64,15 @@ export type CommandHookHandler = {
 //   if?: string;
 // };
 
-// export type McpToolHookHandler = {
-//   type: "mcp_tool";
-//   tool: string;
-//   args?: Record<string, unknown>;
-//   timeout?: number;
-//   async?: boolean;
-//   if?: string;
-// };
+export type McpToolHookHandler = {
+  type: "mcp_tool";
+  /** Namespaced tool name, e.g. "slack__post_message" */
+  tool: string;
+  args?: Record<string, unknown>;
+  timeout?: number;
+  async?: boolean;
+  if?: string;
+};
 
 // export type PromptHookHandler = {
 //   type: "prompt";
@@ -63,14 +87,7 @@ export type CommandHookHandler = {
 //   if?: string;
 // };
 
-// export type HookHandler =
-//   | CommandHookHandler
-//   | HttpHookHandler
-//   | McpToolHookHandler
-//   | PromptHookHandler
-//   | AgentHookHandler;
-
-export type HookHandler = CommandHookHandler;
+export type HookHandler = CommandHookHandler | McpToolHookHandler;
 
 export type HookMatcherGroup = {
   matcher: string;
@@ -92,6 +109,6 @@ export type KoincodeGlobalConfig = {
   ollamaBaseURL?: string;
   localModels?: LocalModelConfig[];
   voiceInput?: boolean;
-  whisperModel?: "tiny" | "base" | "small";
-  whisperBackend?: "auto" | "openai" | "local";
+  whisperBackend?: "auto" | "openai" | "openrouter";
+  mcpServers?: Record<string, McpServerConfig>;
 };

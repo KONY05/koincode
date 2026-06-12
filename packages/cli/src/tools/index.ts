@@ -1,4 +1,4 @@
-import { Mode, type ModeType } from "@koincode/shared";
+import { Mode, readOnlyToolContracts, type ModeType } from "@koincode/shared";
 import { runShellCommand } from "./shell";
 import { runEditFile } from "./edit-file";
 import { runGlob } from "./glob";
@@ -17,33 +17,17 @@ import {
 import { runManageHook } from "./manage-hook";
 import { runReadSkill } from "./read-skill";
 import { runWriteSkill } from "./write-skill";
+import { runMcpTool, runManageMcp } from "./mcp";
 import { runHooks } from "../utils/hooks";
 
-const PLAN_TOOLS = [
-  "readFile",
-  "listDirectory",
-  "glob",
-  "grep",
-  "createTodos",
-  "updateTodos",
-  "webFetch",
-  "webSearch",
-  "askUser",
-  "memoryAdd",
-  "memoryUpdate",
-  "memoryDelete",
-  "memoryList",
-  "spawnAgent",
-  "manageHook",
-  "readSkill",
-];
+const PLAN_TOOLS = new Set(Object.keys(readOnlyToolContracts));
 
 export async function executeLocalTool(
   toolName: string,
   input: unknown,
   mode: ModeType,
 ) {
-  if (mode === Mode.PLAN && !PLAN_TOOLS.includes(toolName)) {
+  if (mode === Mode.PLAN && !PLAN_TOOLS.has(toolName)) {
     throw new Error(`Tool ${toolName} is not available in PLAN mode`);
   }
 
@@ -102,10 +86,17 @@ export async function executeLocalTool(
       case "writeSkill":
         toolOutput = runWriteSkill(input);
         break;
+      case "manageMcp":
+        toolOutput = await runManageMcp();
+        break;
       // These are fully handled in use-chat.ts before reaching here; these paths should never run.
       // case "askUser":
       // case "switchMode":
       default:
+        if (toolName.includes("__")) {
+          toolOutput = await runMcpTool(toolName, input);
+          break;
+        }
         throw new Error(`Unknown tool: ${toolName}`);
     }
 

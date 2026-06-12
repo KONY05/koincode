@@ -8,10 +8,12 @@ import { spawn } from "child_process";
 import { readGlobalConfig } from "../configs/global-config";
 import { readProjectConfig } from "../configs/project-config";
 import { matchHook } from "./matcher";
+import { runMcpTool } from "../../tools/mcp";
 import type {
   HookEventType,
   HooksConfig,
   CommandHookHandler,
+  McpToolHookHandler,
   HookHandler,
   HookMatcherGroup,
 } from "@koincode/shared";
@@ -75,9 +77,22 @@ export async function executeHook(
   hook: HookHandler,
   eventData: HookEventData,
 ): Promise<HookResult> {
-  if (hook.type !== "command") {
-    console.warn(`Hook type ${hook.type} not yet implemented`);
-    return { exitCode: 0, stdout: "", stderr: "" };
+  if (hook.type === "mcp_tool") {
+    const mcpHook = hook as McpToolHookHandler;
+    const timeout = mcpHook.timeout ?? 30000;
+    try {
+      const result = await Promise.race([
+        runMcpTool(mcpHook.tool, mcpHook.args ?? {}),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`MCP hook timed out after ${timeout}ms`)), timeout),
+        ),
+      ]);
+      return { exitCode: 0, stdout: typeof result === "string" ? result : JSON.stringify(result), stderr: "" };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`MCP hook failed: ${msg}`);
+      return { exitCode: 1, stdout: "", stderr: msg };
+    }
   }
 
   const commandHook = hook as CommandHookHandler;

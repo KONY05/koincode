@@ -9,6 +9,7 @@
     "kimi",
     "koincode",
     "mistralai",
+    "modelcontextprotocol",
     "moonshotai",
     "nemotron",
     "ollama",
@@ -19,6 +20,7 @@
     "qwen",
     "Renderable",
     "scrollbox",
+    "Streamable",
     "subshell"
   ]
 }

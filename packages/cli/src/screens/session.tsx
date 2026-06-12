@@ -90,11 +90,13 @@ function countMessagesBeforeLastBoundary(rawMessages: unknown[]): number {
 function SessionChat({
   session,
   initialState,
+  mcpServerCount,
   onDeleteLastMessage,
   onHandoff,
 }: {
   session: SessionData;
   initialState: z.infer<typeof initialStateSchema> | null;
+  mcpServerCount?: number;
   onDeleteLastMessage?: () => void;
   onHandoff: () => Promise<void>;
 }) {
@@ -255,21 +257,29 @@ function SessionChat({
 
   const runCompact = async (source: "manual" | "auto") => {
     setIsCompacting(true);
+
     const label = source === "auto" ? "Context full — auto-compacting…" : "Compacting context…";
+
     toast.show({ variant: "info", message: label });
+
     try {
       const res = await apiClient.sessions[":id"].compact.$post({ param: { id: session.id } });
+
       if (!res.ok) throw new Error("Compact failed");
+
       const eventText = source === "auto"
         ? "Context auto-compacted — history summarized, context window reset"
         : "Context compacted — history summarized, context window reset";
+
       addSystemEvent(eventText);
+
       toast.show({ variant: "success", message: source === "auto" ? "Context auto-compacted" : "Context compacted" });
     } catch (err) {
       toast.show({
         variant: "error",
         message: err instanceof Error ? err.message : "Compact failed",
       });
+      
       if (source === "auto") hasAutoCompactedRef.current = false;
     } finally {
       setIsCompacting(false);
@@ -324,6 +334,7 @@ function SessionChat({
       onSubmit={(text) => submit({ userText: text, mode, model })}
       onForceNext={interrupt}
       contextUsage={contextUsage}
+      mcpServerCount={mcpServerCount}
       streaming={
         status === "submitted" || status === "streaming" || isSubagentRunning || isCompacting || isHandingOff
       }
@@ -376,6 +387,24 @@ export function Session() {
   const toast = useToast();
 
   const [session, setSession] = useState<SessionData | null>(null);
+  const [mcpServerCount, setMcpServerCount] = useState(0);
+
+  useEffect(() => {
+    const fetchMcpStatus = async () => {
+      try {
+        const res = await apiClient.mcp.servers.$get();
+
+        if (!res.ok) return;
+
+        const servers = await res.json();
+
+        setMcpServerCount(servers.filter((s) => s.status === "connected").length);
+      } catch {
+        // non-fatal — status bar just won't show the count
+      }
+    };
+    void fetchMcpStatus();
+  }, []);
 
   const initialState = useMemo(() => {
     const parsed = initialStateSchema.safeParse(location.state);
@@ -474,6 +503,7 @@ export function Session() {
       key={session.id}
       session={session}
       initialState={initialState}
+      mcpServerCount={mcpServerCount}
       onDeleteLastMessage={handleDeleteLastMessage}
       onHandoff={handleHandoff}
     />

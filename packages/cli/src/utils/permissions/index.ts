@@ -13,18 +13,22 @@ export type PermissionKey =
   | "shell:subshell"
   | "shell:interpreter"
   | "file:sensitive"
-  | `shell:bin:${string}`;
+  | `shell:bin:${string}`
+  | `mcp:${string}`;
 
 export type PendingApproval = {
   key: PermissionKey;
   label: string;
   description: string;
   tier: PermissionTier;
+  /** When true, the widget shows "Allow for session" instead of "Allow for project". */
+  isMcp?: boolean;
 };
 
 export type ApprovalResponse =
   | { type: "allow-once" }
   | { type: "allow-for-project" }
+  | { type: "allow-for-session" }
   | { type: "deny" };
 
 export type PermissionInfo =

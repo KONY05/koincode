@@ -22,6 +22,7 @@ import {
   type ToolContracts,
 } from "@koincode/shared";
 import { logger, getLastBoundaryIndex } from "../lib/helpers";
+import { getMcpTools, getMcpServerStatus } from "../lib/mcp-manager";
 import { buildSystemPrompt } from "../prompts/system-prompt";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
 
@@ -77,9 +78,9 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 const app = new Hono().post("/", submitValidator, async (c) => {
   const { id, messages, mode, model, skillsManifest } = c.req.valid("json");
 
-  logger.info(
-    `Received chat request for session ${id} with ${messages.length} messages`,
-  );
+  // logger.info(
+  //   `Received chat request for session ${id} with ${messages.length} messages`,
+  // );
 
   const session = await db.session.findUnique({
     where: { id },
@@ -91,7 +92,8 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   }
 
   const startTime = Date.now();
-  const tools = getToolContracts(mode);
+  const tools = { ...getToolContracts(mode), ...getMcpTools() };
+  const mcpStatus = getMcpServerStatus();
   const resolvedModel = resolveChatModel(model);
   const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
   const userMemory =
@@ -184,9 +186,9 @@ const app = new Hono().post("/", submitValidator, async (c) => {
         });
       });
     }
-    logger.info(
-      `Persisted ${newMessages.length} new message(s) for session ${id}`,
-    );
+    // logger.info(
+    //   `Persisted ${newMessages.length} new message(s) for session ${id}`,
+    // );
   } catch (err) {
     logger.error(`Failed to pre-save messages for session ${id}:`, err);
   }
@@ -196,7 +198,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   });
   const result = streamText({
     model: resolvedModel.model,
-    system: buildSystemPrompt({ mode, userMemory, skillsManifest }),
+    system: buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers: mcpStatus }),
     messages: modelMessages,
     tools,
     abortSignal: c.req.raw.signal,
@@ -262,7 +264,13 @@ const app = new Hono().post("/", submitValidator, async (c) => {
               select: { id: true },
             });
             if (existing) {
-              // Already saved by pre-save — just bump the session timestamp.
+              // The pre-save stored this message earlier (e.g. the assistant
+              // message with tool calls). onFinish now has the same message ID
+              // but with follow-up text appended — update to preserve it.
+              await tx.message.update({
+                where: { id: existing.id },
+                data: { content: JSON.stringify(responseMessage) },
+              });
               await tx.session.update({ where: { id }, data: { updatedAt: new Date() } });
               return;
             }
@@ -339,7 +347,7 @@ const appWithAgentStep = app.post(
   async (c) => {
     const { messages, mode, model } = c.req.valid("json");
 
-    const tools = getToolContracts(mode);
+    const tools = { ...getToolContracts(mode), ...getMcpTools() };
     const resolvedModel = resolveChatModel(model);
 
     const result = await generateText({
@@ -348,6 +356,7 @@ const appWithAgentStep = app.post(
       messages,
       tools,
       stopWhen: stepCountIs(1),
+      abortSignal: AbortSignal.timeout(60_000),
       providerOptions: resolvedModel.providerOptions,
     });
 

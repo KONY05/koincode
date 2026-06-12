@@ -17,6 +17,7 @@
     "@hono/zod-validator": "^0.7.6",
     "@koincode/database": "workspace:*",
     "@koincode/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@openrouter/ai-sdk-provider": "^2.9.0",
     "ai": "^6.0.154",
     "dotenv": "^17.4.1",

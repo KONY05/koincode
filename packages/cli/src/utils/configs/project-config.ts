@@ -5,12 +5,14 @@ import {
   PROJECT_CONFIG_DIR,
   PROJECT_CONFIG_FILE,
   type HooksConfig,
+  type McpServerConfig,
 } from "@koincode/shared";
 
 type ProjectConfig = {
   permissions?: Partial<Record<PermissionKey, "allowed">>;
   sensitivePatterns?: string[];
   hooks?: HooksConfig;
+  mcpServers?: Record<string, McpServerConfig>;
 };
 
 function getPaths() {

@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import { logger } from "./lib/helpers";
+import { initializeMcp, shutdownMcp } from "./lib/mcp-manager";
 import { GLOBAL_CONFIG_DIR, DB_PATH, SERVER_PORT } from "@koincode/shared";
 // import type { KoincodeConfig } from "@koincode/shared";
 
@@ -12,6 +13,7 @@ import sessions from "./routes/sessions";
 import chat from "./routes/chat";
 import memory from "./routes/memory";
 import localModels from "./routes/local-models";
+import mcp from "./routes/mcp";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -28,6 +30,16 @@ try {
   logger.error("Startup failed:", e instanceof Error ? e.message : e);
   process.exit(1);
 }
+
+// Non-fatal — server starts even if MCP connections fail
+initializeMcp().catch((err) => {
+  logger.error("MCP initialization error:", err instanceof Error ? err.message : err);
+});
+
+process.on("SIGTERM", async () => {
+  await shutdownMcp();
+  process.exit(0);
+});
 
 const app = new Hono();
 
@@ -52,7 +64,8 @@ const routes = app
   .route("/sessions", sessions)
   .route("/chat", chat)
   .route("/memory", memory)
-  .route("/local-models", localModels);
+  .route("/local-models", localModels)
+  .route("/mcp", mcp);
 
 export type AppType = typeof routes;
 

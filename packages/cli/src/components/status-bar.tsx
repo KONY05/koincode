@@ -14,9 +14,10 @@ function buildRing(percent: number): string {
 
 type Props = {
   contextUsage?: ContextUsage | null;
+  mcpServerCount?: number;
 };
 
-export function StatusBar({ contextUsage }: Props) {
+export function StatusBar({ contextUsage, mcpServerCount }: Props) {
   const { mode, model, voiceInput } = usePromptConfig();
   const { colors } = useTheme();
 
@@ -24,30 +25,38 @@ export function StatusBar({ contextUsage }: Props) {
   const ringColor = contextUsage && contextUsage.percent >= 95 ? "red" : "yellow";
 
   return (
-    <box flexDirection="row" gap={1}>
-      <text fg={mode === Mode.PLAN ? colors.planMode : colors.primary}>
-        {mode === Mode.PLAN ? "Plan" : "Build"}
-      </text>
+    <box flexDirection="row" gap={1} width="100%" justifyContent="space-between">
+      <box flexDirection="row" gap={1}>
+        <text fg={mode === Mode.PLAN ? colors.planMode : colors.primary}>
+          {mode === Mode.PLAN ? "Plan" : "Build"}
+        </text>
 
-      <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
-        ›
-      </text>
-      <text>{model}</text>
+        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+          ›
+        </text>
+        <text>{model}</text>
 
-      {voiceInput && (
-        <>
-          <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
-          <text fg={colors.primary}>voice</text>
-        </>
-      )}
+        {voiceInput && (
+          <>
+            <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
+            <text fg={colors.primary}>voice</text>
+          </>
+        )}
+
+        {mcpServerCount != null && mcpServerCount > 0 && (
+          <>
+            <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
+            <text attributes={TextAttributes.DIM} fg={colors.info}>
+              {mcpServerCount} mcp
+            </text>
+          </>
+        )}
+      </box>
 
       {showRing && (
-        <>
-          <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
-          <text fg={ringColor}>
-            {buildRing(contextUsage!.percent)} {contextUsage!.percent}%
-          </text>
-        </>
+        <text fg={ringColor}>
+          {buildRing(contextUsage!.percent)} {contextUsage!.percent}%
+        </text>
       )}
     </box>
   );

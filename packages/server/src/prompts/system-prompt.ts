@@ -14,20 +14,28 @@ type SkillManifestEntry = {
   scope: "global" | "project" | "builtin";
 };
 
+type McpServerStatus = {
+  name: string;
+  status: string;
+  toolCount: number;
+  error?: string;
+};
+
 type SystemPromptParams = {
   mode: ModeType;
   userMemory?: string;
   skillsManifest?: SkillManifestEntry[];
+  mcpServers?: McpServerStatus[];
 };
 
-export function buildSystemPrompt({ mode, userMemory, skillsManifest }: SystemPromptParams): string {
+export function buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers }: SystemPromptParams): string {
   const parts: string[] = [];
 
   parts.push(getIdentitySection());
   parts.push(getEnvironmentSection());
   parts.push(getAgentsMdSection());
   parts.push(getModeSection(mode));
-  parts.push(getToolUsageSection(mode));
+  parts.push(getToolUsageSection(mode, mcpServers));
   parts.push(getSecuritySection());
   parts.push(getCodingGuidelinesSection());
   parts.push(getOperationalSection());
@@ -121,7 +129,7 @@ function formatToolList(contracts: Record<string, Tool>): string {
     .join("\n");
 }
 
-function getToolUsageSection(mode: ModeType): string {
+function getToolUsageSection(mode: ModeType, mcpServers?: McpServerStatus[]): string {
   const sharedRules = `### Rules
 1. **Be decisive.** Use \`glob\` and \`grep\` to find what's relevant, then read only those files. Don't read every file in the project.
 2. **Never re-read files** you already read in this conversation.
@@ -134,10 +142,16 @@ function getToolUsageSection(mode: ModeType): string {
       ? "\n4. **Prefer `editFile` for small changes** to existing files. Only use `writeFile` when creating new files or rewriting most of a file."
       : "";
 
+  const connectedServers = mcpServers?.filter((s) => s.status === "connected") ?? [];
+  const mcpSection =
+    connectedServers.length > 0
+      ? `\n\n### Connected MCP Servers\nThe following MCP servers are connected. Their tools are available alongside the built-in tools above — tool names are prefixed with the server name (e.g. \`github__create_issue\`):\n${connectedServers.map((s) => `- **${s.name}** — ${s.toolCount} tool(s)`).join("\n")}\n\nPrefer MCP tools over \`shell\` when they cover the action (e.g. use \`github__create_issue\` rather than running \`gh\` via shell). Call \`manageMcp\` if you need to inspect what tools a server exposes.`
+      : "";
+
   return `# Tool Usage
 
 You have these tools available:
-${toolList}
+${toolList}${mcpSection}
 
 ${sharedRules}${buildOnlyRule}`;
 }

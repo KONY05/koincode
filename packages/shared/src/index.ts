@@ -40,6 +40,8 @@ export {
   PID_FILE,
 } from "./paths";
 
+export { parseMcpToolName, isMcpTool } from "./mcp";
+
 export type {
   KoincodeGlobalConfig,
   ApiKeys,
@@ -47,11 +49,12 @@ export type {
   HookEventType,
   HookHandlerType,
   CommandHookHandler,
+  McpToolHookHandler,
   // HttpHookHandler,
-  // McpToolHookHandler,
   // PromptHookHandler,
   // AgentHookHandler,
   HookHandler,
   HookMatcherGroup,
   HooksConfig,
+  McpServerConfig,
 } from "./config";

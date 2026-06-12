@@ -7,6 +7,7 @@ import { generateId } from "ai";
 import { db } from "@koincode/database/client";
 import { logger, getLastBoundaryIndex, generateTextWithFallback } from "../lib/helpers";
 import { buildCompactionPrompt } from "../prompts/compaction-prompt";
+import { buildHandoffPrompt } from "../prompts/handoff-prompt";
 
 /** One-shot title generation using the model user is currently using **/
 async function generateTitleFromMessage(message: string, model:string): Promise<string> {
@@ -398,10 +399,10 @@ const app = new Hono()
           messages: [
             {
               role: "user",
-              content: `Here is a conversation transcript:\n\n${conversationText}\n\nSummarize the work done in this conversation concisely. Focus on:\n- What was built or changed\n- Decisions made and why\n- Any open questions or next steps\nKeep it under 300 words. Write in second person ("You were working on…").`,
+              content: buildHandoffPrompt(conversationText),
             },
           ],
-          maxOutputTokens: 500,
+          maxOutputTokens: 1200,
         });
         return result.text.trim();
       } catch (err) {
@@ -430,7 +431,7 @@ const app = new Hono()
           content: JSON.stringify({
             id: userMsgId,
             role: "user",
-            parts: [{ type: "text", text: "Here is a summary of work completed in a previous session. Use this as your starting context." }],
+            parts: [{ type: "text", text: "Here is a detailed handoff brief from a previous session. Use this as your complete starting context — you have no access to the prior conversation history." }],
             metadata: { model, mode },
           }),
           order: 0,
