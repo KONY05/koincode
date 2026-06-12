@@ -80,14 +80,6 @@ export function updateGlobalConfig(
     next.voiceInput = updates.voiceInput;
   }
 
-  if (updates.whisperModel !== undefined) {
-    if (!updates.whisperModel) {
-      delete next.whisperModel;
-    } else {
-      next.whisperModel = updates.whisperModel;
-    }
-  }
-
   if (updates.whisperBackend !== undefined) {
     if (!updates.whisperBackend) {
       delete next.whisperBackend;

@@ -10,7 +10,6 @@ import {
 } from "../dialogs";
 import type { Command } from "./types";
 import { loadSkillsManifest } from "../../lib/skills";
-import { readGlobalConfig } from "../../utils/configs/global-config";
 
 export const COMMANDS: Command[] = [
   {
@@ -137,19 +136,16 @@ export const COMMANDS: Command[] = [
       await ctx.clearSession();
     },
   },
-  {
-    name: "voice",
-    description: "Toggle voice input (hold space to speak)",
-    value: "/voice",
-    action: (ctx) => {
-      ctx.toggleVoice();
-      const newState = readGlobalConfig().voiceInput ?? false;
-      ctx.toast.show({
-        variant: "success",
-        message: newState ? "Voice input enabled — hold space to speak" : "Voice input disabled",
-      });
-    },
-  },
+  // TODO: voice input — re-enable once recorder bootstrap is reliable.
+  // The infrastructure is in lib/whisper.ts and lib/voice-recorder.ts.
+  // Blocker: swiftc compilation at runtime is fragile; solution is to ship a
+  // pre-compiled arm64+x86_64 fat binary in the package instead.
+  // {
+  //   name: "voice",
+  //   description: "Toggle voice input (ctrl+r to record)",
+  //   value: "/voice",
+  //   action: (ctx) => { ctx.toggleVoice(); },
+  // },
   {
     name: "exit",
     description: "Quit the application",
