@@ -1,3 +1,26 @@
+export type McpServerConfig = {
+  /** Stdio transport: the executable to run (e.g. "npx"). Mutually exclusive with `url`. */
+  command?: string;
+  /** Args passed to the stdio command (e.g. ["-y", "@modelcontextprotocol/server-github"]). */
+  args?: string[];
+  /** Extra environment variables merged with the current process env (e.g. API tokens). */
+  env?: Record<string, string>;
+  /**
+   * Remote transport URL. Defaults to Streamable HTTP (the current MCP standard).
+   * Set `transport: "sse"` if the server only supports the legacy SSE protocol.
+   * Mutually exclusive with `command`.
+   */
+  url?: string;
+  /**
+   * Remote transport protocol. Only relevant when `url` is set.
+   * - `"http"` (default) — Streamable HTTP, the current MCP standard.
+   * - `"sse"` — Legacy Server-Sent Events transport for older servers.
+   */
+  transport?: "http" | "sse";
+  /** Set to false to skip connecting to this server at startup. Defaults to true. */
+  enabled?: boolean;
+};
+
 export type ApiKeys = {
   openrouter?: string;
   anthropic?: string;
@@ -93,4 +116,5 @@ export type KoincodeGlobalConfig = {
   localModels?: LocalModelConfig[];
   voiceInput?: boolean;
   whisperBackend?: "auto" | "openai" | "openrouter";
+  mcpServers?: Record<string, McpServerConfig>;
 };

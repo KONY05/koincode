@@ -12,6 +12,7 @@ import EditFileDiff from "../tool-view/edit-file";
 import WriteFilePreview from "../tool-view/write-file";
 import TodoList from "../tool-view/todo-list";
 import ShellView from "../tool-view/shell";
+import McpToolView, { isMcpTool } from "../tool-view/mcp-tool";
 import { Spinner } from "../spinner";
 
 const treeSitterClient = getTreeSitterClient();
@@ -127,6 +128,19 @@ function renderToolContent({
         {pending ? " …" : ""}
         {errorText ? ` ${errorText}` : ""}
       </text>
+    );
+  }
+
+  if (isMcpTool(toolName)) {
+    return (
+      <McpToolView
+        toolName={toolName}
+        input={input}
+        output={output}
+        pending={pending}
+        error={errorText}
+        colors={colors}
+      />
     );
   }
 

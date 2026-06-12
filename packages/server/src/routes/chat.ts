@@ -22,6 +22,7 @@ import {
   type ToolContracts,
 } from "@koincode/shared";
 import { logger, getLastBoundaryIndex } from "../lib/helpers";
+import { getMcpTools, getMcpServerStatus } from "../lib/mcp-manager";
 import { buildSystemPrompt } from "../prompts/system-prompt";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
 
@@ -91,7 +92,8 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   }
 
   const startTime = Date.now();
-  const tools = getToolContracts(mode);
+  const tools = { ...getToolContracts(mode), ...getMcpTools() };
+  const mcpStatus = getMcpServerStatus();
   const resolvedModel = resolveChatModel(model);
   const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
   const userMemory =
@@ -196,7 +198,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   });
   const result = streamText({
     model: resolvedModel.model,
-    system: buildSystemPrompt({ mode, userMemory, skillsManifest }),
+    system: buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers: mcpStatus }),
     messages: modelMessages,
     tools,
     abortSignal: c.req.raw.signal,
@@ -345,7 +347,7 @@ const appWithAgentStep = app.post(
   async (c) => {
     const { messages, mode, model } = c.req.valid("json");
 
-    const tools = getToolContracts(mode);
+    const tools = { ...getToolContracts(mode), ...getMcpTools() };
     const resolvedModel = resolveChatModel(model);
 
     const result = await generateText({

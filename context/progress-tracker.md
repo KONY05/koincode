@@ -29,7 +29,7 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## In Progress
 
-- None.
+- **MCP support (Phase 1)** — Core implementation complete. Server connects to MCP servers at startup, merges their tools into every chat request. See `context/feature-specs/23-mcp-support-integration.md` for Phase 2 items (manageMcp tool, status bar, per-session permissions).
 
 ## Recently Completed (Phase 2 — continued)
 

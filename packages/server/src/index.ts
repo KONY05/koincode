@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import { logger } from "./lib/helpers";
+import { initializeMcp, shutdownMcp } from "./lib/mcp-manager";
 import { GLOBAL_CONFIG_DIR, DB_PATH, SERVER_PORT } from "@koincode/shared";
 // import type { KoincodeConfig } from "@koincode/shared";
 
@@ -28,6 +29,16 @@ try {
   logger.error("Startup failed:", e instanceof Error ? e.message : e);
   process.exit(1);
 }
+
+// Non-fatal — server starts even if MCP connections fail
+initializeMcp().catch((err) => {
+  logger.error("MCP initialization error:", err instanceof Error ? err.message : err);
+});
+
+process.on("SIGTERM", async () => {
+  await shutdownMcp();
+  process.exit(0);
+});
 
 const app = new Hono();
 

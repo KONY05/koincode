@@ -54,4 +54,5 @@ export type {
   HookHandler,
   HookMatcherGroup,
   HooksConfig,
+  McpServerConfig,
 } from "./config";
