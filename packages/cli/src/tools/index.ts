@@ -17,6 +17,7 @@ import {
 import { runManageHook } from "./manage-hook";
 import { runReadSkill } from "./read-skill";
 import { runWriteSkill } from "./write-skill";
+import { runMcpTool, runManageMcp } from "./mcp";
 import { runHooks } from "../utils/hooks";
 
 const PLAN_TOOLS = new Set(Object.keys(readOnlyToolContracts));
@@ -85,10 +86,17 @@ export async function executeLocalTool(
       case "writeSkill":
         toolOutput = runWriteSkill(input);
         break;
+      case "manageMcp":
+        toolOutput = await runManageMcp();
+        break;
       // These are fully handled in use-chat.ts before reaching here; these paths should never run.
       // case "askUser":
       // case "switchMode":
       default:
+        if (toolName.includes("__")) {
+          toolOutput = await runMcpTool(toolName, input);
+          break;
+        }
         throw new Error(`Unknown tool: ${toolName}`);
     }
 

@@ -29,9 +29,12 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## In Progress
 
-- **MCP support (Phase 1)** — Core implementation complete. Server connects to MCP servers at startup, merges their tools into every chat request. See `context/feature-specs/23-mcp-support-integration.md` for Phase 2 items (manageMcp tool, status bar, per-session permissions).
+- Nothing currently in progress.
 
 ## Recently Completed (Phase 2 — continued)
+
+- **MCP support (Phase 1 + 2)** — Full implementation complete. Phase 1: server connects to MCP servers at startup via `mcp-manager.ts`, merges their tools (namespaced `serverName__toolName`) into every chat request. Phase 2: per-session approval gate before first MCP tool call; `manageMcp` read-only tool for the agent to inspect server status; `GET /mcp/servers` + `POST /mcp/call` routes; MCP server count shown in the status bar (`› N mcp`). See `context/feature-specs/23-mcp-support-integration.md`.
+
 
 - **Context management** — `/context` command opens a modal showing tokens used vs. model context window (single bar, exact from API usage data). `/compact` command summarizes the conversation via the AI, stores a `compact_boundary` marker server-side, and resets the LLM context to just the summary + new messages — old messages remain visible in the transcript with a "Context compacted" divider. Status bar shows a 10-segment dot ring (`●●●●●●●●○○`) when usage ≥ 80%, turning red at 95%. Auto-compaction triggers automatically at 90% between responses. `getContextWindow(modelId)` added to `@koincode/shared` with per-model sizes for all supported models. `contextUsage` (tokensUsed, contextWindow, percent) exposed from `useChat` and threaded through SessionShell → InputBar → StatusBar. New server route `POST /sessions/:id/compact`; chat boundary scan now recognizes both `clear_boundary` and `compact_boundary`. Feature spec: `context/feature-specs/21-context-management.md`.
 

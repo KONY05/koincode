@@ -14,9 +14,10 @@ function buildRing(percent: number): string {
 
 type Props = {
   contextUsage?: ContextUsage | null;
+  mcpServerCount?: number;
 };
 
-export function StatusBar({ contextUsage }: Props) {
+export function StatusBar({ contextUsage, mcpServerCount }: Props) {
   const { mode, model, voiceInput } = usePromptConfig();
   const { colors } = useTheme();
 
@@ -39,6 +40,15 @@ export function StatusBar({ contextUsage }: Props) {
           <>
             <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
             <text fg={colors.primary}>voice</text>
+          </>
+        )}
+
+        {mcpServerCount != null && mcpServerCount > 0 && (
+          <>
+            <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
+            <text attributes={TextAttributes.DIM} fg={colors.info}>
+              {mcpServerCount} mcp
+            </text>
           </>
         )}
       </box>

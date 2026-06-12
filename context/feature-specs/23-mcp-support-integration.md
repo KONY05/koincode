@@ -87,8 +87,81 @@ Format mirrors Claude Desktop's `mcpServers` config for familiarity. Anything th
 
 These are immediate follow-ons to discuss once core is working:
 
-- **`manageMcp` agent tool** — lets the agent (and user) list connected servers, see their tools, and check connection status. Useful for debugging when tools aren't appearing as expected.
-- **MCP status in the CLI status bar** — surface connected server count alongside mode/model in the header or status bar.
-- **Per-session MCP permissions** — similar to file/shell permissions: the agent asks before calling an MCP tool for the first time in a session.
-- **`manageMcp` tool for adding/removing servers at runtime** — so the agent can wire up a new MCP server mid-session without restarting.
-- **`mcp_tool` hook handler type** — the commented-out `mcp_tool` hook type in `schemas.ts` can be unlocked once MCP is live, enabling hooks that trigger MCP tool calls on file edits, shell commands, etc.
+- **`manageMcp` agent tool** — ✅ Done (Phase 2)
+- **MCP status in the CLI status bar** — ✅ Done (Phase 2)
+- **Per-session MCP permissions** — ✅ Done (Phase 2)
+- **`manageMcp` tool for adding/removing servers at runtime** — deferred
+- **`mcp_tool` hook handler type** — deferred
+
+## Phase 2: Permissions, `manageMcp` Tool, and Status Bar
+
+### Overview
+
+Three additions built on top of the Phase 1 core:
+
+1. **Per-session MCP permissions** — first use of any tool from an unapproved server blocks execution and shows an approval widget. Approved servers are tracked in an in-memory `Set` scoped to the current `useChat` instance (cleared on navigation away). The widget offers "Allow for session" (adds to the in-memory set) or "Deny" — no project-level persistence for MCP, since the user already consented by adding the server to `~/.koincode/config.json`.
+
+2. **`manageMcp` read-only tool** — available in both PLAN and BUILD modes. Returns a JSON summary of all configured servers: name, status (`connected`/`error`/`disabled`), tool count, and error message if any. The agent calls this to debug connectivity or report what's available.
+
+3. **MCP server count in the status bar** — connected server count shown as `› N mcp` (dimmed) after the model name. Fetched once on session mount via `GET /mcp/servers`.
+
+### Files changed
+
+**`packages/shared/src/schemas.ts`**
+- Added `manageMcp: z.object({})` to `toolInputSchemas`
+- Added `manageMcp` to `readOnlyToolContracts` (no `execute` — dispatched client-side)
+
+**`packages/server/src/lib/mcp-manager.ts`**
+- Removed `execute` from MCP tool objects (tools now stream to CLI like built-ins)
+- Added `callMcpTool(namespacedToolName, args)` export — delegates to `client.callTool()`, returns stringified content
+- Transport selection: `StreamableHTTPClientTransport` default for URL servers; `SSEClientTransport` only when `config.transport === "sse"` is set explicitly
+
+**`packages/server/src/routes/mcp.ts`** (new)
+- `GET /mcp/servers` — returns `getMcpServerStatus()` array
+- `POST /mcp/call` — validates body, calls `callMcpTool`, returns `{ result }`
+
+**`packages/server/src/index.ts`**
+- Added `.route("/mcp", mcp)` to the routes chain
+
+**`packages/cli/src/tools/mcp.ts`** (new)
+- `runMcpTool(toolName, args)` — POSTs to `/mcp/call`
+- `runManageMcp()` — GETs `/mcp/servers`, returns formatted status
+
+**`packages/cli/src/tools/index.ts`**
+- Added `manageMcp` case
+- Added `if (toolName.includes("__"))` catch-all routing to `runMcpTool`
+
+**`packages/cli/src/utils/permissions/index.ts`**
+- Added `` `mcp:${string}` `` to `PermissionKey`
+- Added `isMcp?: boolean` to `PendingApproval`
+- Added `{ type: "allow-for-session" }` to `ApprovalResponse`
+
+**`packages/cli/src/components/widget/approval-widget.tsx`**
+- `isMcp` approval shows `MCP_OPTIONS` (Allow for session / Deny) instead of standard options
+
+**`packages/cli/src/hooks/use-chat.ts`**
+- Added `approvedMcpServersRef = useRef<Set<string>>(new Set())`
+- MCP gate runs before the standard permission gate for any `toolName.includes("__")` tool call
+
+**`packages/cli/src/components/status-bar.tsx`**
+- Added `mcpServerCount?: number` prop; renders `› N mcp` when count > 0
+
+**`packages/cli/src/components/session-shell.tsx`** / **`input-bar.tsx`**
+- Threads `mcpServerCount` through to `StatusBar`
+
+**`packages/cli/src/screens/session.tsx`**
+- Fetches `GET /mcp/servers` on mount, counts connected servers, passes `mcpServerCount` to `SessionChat` → `SessionShell`
+
+
+# Hook Type: mcp_tool
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "writeFile",
+      "hooks": [{ "type": "mcp_tool", "tool": "slack__post_message", "args": { "channel": "#dev", "text": "File written" } }]
+    }]
+  }
+}
+```

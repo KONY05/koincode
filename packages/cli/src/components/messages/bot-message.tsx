@@ -6,13 +6,13 @@ import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 import { usePromptConfig } from "../../providers/prompt-config";
 import type { Message } from "../../hooks/use-chat";
-import { Mode } from "@koincode/shared";
+import { Mode, isMcpTool } from "@koincode/shared";
 import { createMarkdownSyntaxStyle } from "../../utils/syntax-style";
 import EditFileDiff from "../tool-view/edit-file";
 import WriteFilePreview from "../tool-view/write-file";
 import TodoList from "../tool-view/todo-list";
 import ShellView from "../tool-view/shell";
-import McpToolView, { isMcpTool } from "../tool-view/mcp-tool";
+import McpToolView, { ManageMcpView } from "../tool-view/mcp-tool";
 import { Spinner } from "../spinner";
 
 const treeSitterClient = getTreeSitterClient();
@@ -128,6 +128,12 @@ function renderToolContent({
         {pending ? " …" : ""}
         {errorText ? ` ${errorText}` : ""}
       </text>
+    );
+  }
+
+  if (toolName === "manageMcp") {
+    return (
+      <ManageMcpView pending={pending} output={output} error={errorText} colors={colors} />
     );
   }
 

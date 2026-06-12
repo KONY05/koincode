@@ -86,6 +86,9 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
   
   const [isSubagentRunning, setIsSubagentRunning] = useState(false);
 
+  // MCP servers approved for the lifetime of this session (server name → approved).
+  const approvedMcpServersRef = useRef<Set<string>>(new Set());
+
   const resolveApprovalRef = useRef<((r: ApprovalResponse) => void) | null>(
     null,
   );
@@ -330,6 +333,53 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
             output: { result: `switched to ${target} mode` },
           });
           return;
+        }
+
+        // MCP approval gate — fires before the standard permission check.
+        // Asks once per server per session; "Allow for session" skips future prompts.
+        if (toolCall.toolName.includes("__")) {
+          const serverName = toolCall.toolName.split("__")[0]!;
+          
+          if (!approvedMcpServersRef.current.has(serverName)) {
+            const responsePromise = new Promise<ApprovalResponse>((outerResolve) => {
+              interactionMutexRef.current = interactionMutexRef.current
+                .then(
+                  () =>
+                    new Promise<void>((releaseMutex) => {
+                      resolveApprovalRef.current = (r) => {
+                        outerResolve(r);
+                        releaseMutex();
+                      };
+                      setPendingApproval({
+                        key: `mcp:${serverName}`,
+                        label: `MCP: ${serverName}`,
+                        description: toolCall.toolName.split("__")[1] ?? toolCall.toolName,
+                        tier: "normal",
+                        isMcp: true,
+                      });
+                    }),
+                )
+                .then(() => {
+                  setPendingApproval(null);
+                  resolveApprovalRef.current = null;
+                });
+            });
+
+            const response = await responsePromise;
+
+            if (response.type === "deny") {
+              chat.addToolOutput({
+                tool: toolCall.toolName as keyof ChatTools,
+                toolCallId: toolCall.toolCallId,
+                output: { denied: true, reason: "User rejected this MCP action" },
+              });
+              return;
+            }
+
+            if (response.type === "allow-for-session") {
+              approvedMcpServersRef.current.add(serverName);
+            }
+          }
         }
 
         // Permission gate for all other tools.

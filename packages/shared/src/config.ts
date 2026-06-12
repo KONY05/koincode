@@ -64,14 +64,15 @@ export type CommandHookHandler = {
 //   if?: string;
 // };
 
-// export type McpToolHookHandler = {
-//   type: "mcp_tool";
-//   tool: string;
-//   args?: Record<string, unknown>;
-//   timeout?: number;
-//   async?: boolean;
-//   if?: string;
-// };
+export type McpToolHookHandler = {
+  type: "mcp_tool";
+  /** Namespaced tool name, e.g. "slack__post_message" */
+  tool: string;
+  args?: Record<string, unknown>;
+  timeout?: number;
+  async?: boolean;
+  if?: string;
+};
 
 // export type PromptHookHandler = {
 //   type: "prompt";
@@ -86,14 +87,7 @@ export type CommandHookHandler = {
 //   if?: string;
 // };
 
-// export type HookHandler =
-//   | CommandHookHandler
-//   | HttpHookHandler
-//   | McpToolHookHandler
-//   | PromptHookHandler
-//   | AgentHookHandler;
-
-export type HookHandler = CommandHookHandler;
+export type HookHandler = CommandHookHandler | McpToolHookHandler;
 
 export type HookMatcherGroup = {
   matcher: string;

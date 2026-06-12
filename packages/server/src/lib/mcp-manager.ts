@@ -5,7 +5,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
-import { GLOBAL_CONFIG_FILE, PROJECT_CONFIG_FILE, type McpServerConfig } from "@koincode/shared";
+import { GLOBAL_CONFIG_FILE, PROJECT_CONFIG_FILE, parseMcpToolName, type McpServerConfig } from "@koincode/shared";
 import { logger } from "./helpers";
 
 type McpServerEntry = {
@@ -87,30 +87,13 @@ async function connectServer(name: string, config: McpServerConfig): Promise<voi
   for (const mcpTool of mcpTools) {
     const toolName = `${name}__${mcpTool.name}`;
 
+    // No `execute` — streamed to the CLI for client-side execution and the approval gate.
     aiTools[toolName] = tool({
       description: `[${name}] ${mcpTool.description ?? ""}`.trim(),
       // jsonSchema() wraps a raw JSON Schema object for the AI SDK — no Zod conversion needed.
       inputSchema: jsonSchema(
         (mcpTool.inputSchema as Record<string, unknown>) ?? { type: "object", properties: {} },
       ),
-      execute: async (args: Record<string, unknown>) => {
-        const result = await client.callTool({ name: mcpTool.name, arguments: args });
-
-        type ContentItem = { type: string; text?: string };
-
-        const content = (result as { content: ContentItem[]; isError?: boolean }).content ?? [];
-
-        const isError = (result as { isError?: boolean }).isError ?? false;
-
-        const text = content
-          .filter((c) => c.type === "text")
-          .map((c) => c.text ?? "")
-          .join("\n");
-
-        if (isError) return { error: text };
-
-        return text || "(no output)";
-      },
     });
   }
 
@@ -212,6 +195,45 @@ export function getMcpServerStatus(): Array<{
     toolCount: Object.keys(entry.tools).length,
     ...(entry.error ? { error: entry.error } : {}),
   }));
+}
+
+/**
+ * Executes a tool call on the named MCP server. Called by the /mcp/call route so
+ * the CLI can forward tool calls received from the LLM stream.
+ *
+ * @param namespacedToolName  e.g. "filesystem__read_file"
+ * @param args                The tool arguments from the LLM call
+ */
+export async function callMcpTool(
+  namespacedToolName: string,
+  args: unknown,
+): Promise<string | { error: string }> {
+  const { server: serverName, tool: toolName } = parseMcpToolName(namespacedToolName);
+  const entry = servers.get(serverName);
+
+  if (!entry || entry.status !== "connected") {
+    return { error: `MCP server "${serverName}" is not connected` };
+  }
+
+  const result = await entry.client.callTool({
+    name: toolName,
+    arguments: args as Record<string, unknown>,
+  });
+
+  type ContentItem = { type: string; text?: string };
+
+  const content = (result as { content: ContentItem[]; isError?: boolean }).content ?? [];
+
+  const isError = (result as { isError?: boolean }).isError ?? false;
+
+  const text = content
+    .filter((c) => c.type === "text")
+    .map((c) => c.text ?? "")
+    .join("\n");
+
+  if (isError) return { error: text };
+  
+  return text || "(no output)";
 }
 
 /**

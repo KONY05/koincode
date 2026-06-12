@@ -131,6 +131,7 @@ export const toolInputSchemas = {
       .default("PLAN")
       .describe("Starting mode for the sub-agent"),
   }),
+  manageMcp: z.object({}),
   readSkill: z.object({
     name: z.string().describe("Skill name to read"),
     file: z
@@ -178,7 +179,8 @@ export const toolInputSchemas = {
         "Index of hook to update (for update action). If not provided, replaces all hooks for the matcher",
       ),
     hook: z
-      .object({
+      .discriminatedUnion("type", [
+        z.object({
           type: z.literal("command"),
           command: z.string(),
           args: z.array(z.string()).optional(),
@@ -186,50 +188,18 @@ export const toolInputSchemas = {
           shell: z.enum(["bash", "powershell"]).optional(),
           async: z.boolean().optional(),
           if: z.string().optional(),
-        })
+        }),
+        z.object({
+          type: z.literal("mcp_tool"),
+          tool: z.string().describe("Namespaced MCP tool name, e.g. 'slack__post_message'"),
+          args: z.record(z.string(), z.unknown()).optional(),
+          timeout: z.number().optional(),
+          async: z.boolean().optional(),
+          if: z.string().optional(),
+        }),
+      ])
       .optional()
       .describe("Hook handler configuration"),
-      // eslint-disable-next-line no-irregular-whitespace
-      // * NOTE: FOR WHEN WE WANT TO ADD MORE HOOK TYPES 
-      //  .discriminatedUnion("type", [
-      //   z.object({
-      //     type: z.literal("command"),
-      //     command: z.string(),
-      //     args: z.array(z.string()).optional(),
-      //     timeout: z.number().optional(),
-      //     shell: z.enum(["bash", "powershell"]).optional(),
-      //     async: z.boolean().optional(),
-      //     if: z.string().optional(),
-      //   }),
-      //   z.object({
-      //     type: z.literal("http"),
-      //     url: z.string(),
-      //     method: z.enum(["GET", "POST", "PUT", "DELETE"]).optional(),
-      //     headers: z.record(z.string(), z.string()).optional(),
-      //     timeout: z.number().optional(),
-      //     async: z.boolean().optional(),
-      //     if: z.string().optional(),
-      //   }),
-      //   z.object({
-      //     type: z.literal("mcp_tool"),
-      //     tool: z.string(),
-      //     args: z.record(z.string(), z.any()).optional(),
-      //     timeout: z.number().optional(),
-      //     async: z.boolean().optional(),
-      //     if: z.string().optional(),
-      //   }),
-      //   z.object({
-      //     type: z.literal("prompt"),
-      //     prompt: z.string(),
-      //     if: z.string().optional(),
-      //   }),
-      //   z.object({
-      //     type: z.literal("agent"),
-      //     agent: z.string(),
-      //     task: z.string(),
-      //     if: z.string().optional(),
-      //   }),
-      // ])
   }),
 } as const;
 
@@ -314,6 +284,11 @@ export const readOnlyToolContracts = {
     description:
       "Read a skill's instructions and file listing. Omit 'file' to read SKILL.md and see all available files in the skill directory. Pass a relative 'file' path (e.g. 'scripts/run.sh') to read a specific file within the skill. The returned skillDir is the absolute path — use it when constructing shell commands to run skill scripts.",
     inputSchema: toolInputSchemas.readSkill,
+  }),
+  manageMcp: tool({
+    description:
+      "List all configured MCP servers, their connection status, and how many tools each one provides. Use this to check which external services (GitHub, Slack, etc.) are available before trying to use their tools.",
+    inputSchema: toolInputSchemas.manageMcp,
   }),
 } as const;
 

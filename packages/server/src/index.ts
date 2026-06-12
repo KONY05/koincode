@@ -13,6 +13,7 @@ import sessions from "./routes/sessions";
 import chat from "./routes/chat";
 import memory from "./routes/memory";
 import localModels from "./routes/local-models";
+import mcp from "./routes/mcp";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -63,7 +64,8 @@ const routes = app
   .route("/sessions", sessions)
   .route("/chat", chat)
   .route("/memory", memory)
-  .route("/local-models", localModels);
+  .route("/local-models", localModels)
+  .route("/mcp", mcp);
 
 export type AppType = typeof routes;
 

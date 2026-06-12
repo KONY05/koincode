@@ -1,4 +1,5 @@
 import { TextAttributes } from "@opentui/core";
+import { parseMcpToolName } from "@koincode/shared";
 
 import { Spinner } from "../spinner";
 import { EmptyBorder } from "../border";
@@ -11,15 +12,42 @@ function clipLine(line: string): string {
   return line.length > MAX_LINE_LEN ? line.slice(0, MAX_LINE_LEN) + "…" : line;
 }
 
-/** Splits "serverName__toolName" into { server: "serverName", tool: "tool_name" } */
-export function parseMcpToolName(toolName: string): { server: string; tool: string } {
-  const idx = toolName.indexOf("__");
-  if (idx === -1) return { server: "", tool: toolName };
-  return { server: toolName.slice(0, idx), tool: toolName.slice(idx + 2) };
-}
+type McpServerStatus = { name: string; status: string; toolCount: number; error?: string };
 
-export function isMcpTool(toolName: string): boolean {
-  return toolName.includes("__");
+export function ManageMcpView({
+  pending,
+  output,
+  error,
+  colors,
+}: {
+  pending: boolean;
+  output?: unknown;
+  error?: string;
+  colors: ThemeColors;
+}) {
+  const servers = !pending && Array.isArray(output) ? (output as McpServerStatus[]) : null;
+
+  return (
+    <box flexDirection="column" gap={0}>
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>MCP servers:</em>
+        {pending ? " …" : ""}
+        {error ? ` ${error}` : ""}
+      </text>
+      {servers?.map((s) => (
+        <text key={s.name} attributes={TextAttributes.DIM}>
+          {"  "}
+          <em fg={s.status === "connected" ? colors.success : colors.error}>
+            {s.status === "connected" ? "✓" : "✗"}
+          </em>
+          {" "}{s.name}{s.status === "connected" ? ` (${s.toolCount} tools)` : ""}{s.error ? ` — ${s.error}` : ""}
+        </text>
+      ))}
+      {servers?.length === 0 && (
+        <text attributes={TextAttributes.DIM}>{"  "}no servers configured</text>
+      )}
+    </box>
+  );
 }
 
 export default function McpToolView({

@@ -16,13 +16,15 @@ type Option = {
   shortcut: string;
 };
 
-const OPTIONS: Option[] = [
+const STANDARD_OPTIONS: Option[] = [
   { response: { type: "allow-once" }, label: "Allow once", shortcut: "1" },
-  {
-    response: { type: "allow-for-project" },
-    label: "Allow for project",
-    shortcut: "2",
-  },
+  { response: { type: "allow-for-project" }, label: "Allow for project", shortcut: "2" },
+  { response: { type: "deny" }, label: "Deny", shortcut: "3" },
+];
+
+const MCP_OPTIONS: Option[] = [
+  { response: { type: "allow-once" }, label: "Allow once", shortcut: "1" },
+  { response: { type: "allow-for-session" }, label: "Allow for session", shortcut: "2" },
   { response: { type: "deny" }, label: "Deny", shortcut: "3" },
 ];
 
@@ -36,6 +38,7 @@ export function ApprovalWidget({ approval, onResponse }: Props) {
   const { push, pop, isTopLayer } = useKeyboardLayer();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
+  const OPTIONS = approval.isMcp ? MCP_OPTIONS : STANDARD_OPTIONS;
   const borderColor =
     approval.tier === "destructive" ? colors.error : colors.primary;
   const icon = approval.tier === "destructive" ? "!" : "?";
