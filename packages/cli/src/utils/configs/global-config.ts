@@ -80,6 +80,10 @@ export function updateGlobalConfig(
     next.voiceInput = updates.voiceInput;
   }
 
+  if (updates.browserHeadless !== undefined) {
+    next.browserHeadless = updates.browserHeadless;
+  }
+
   if (updates.whisperBackend !== undefined) {
     if (!updates.whisperBackend) {
       delete next.whisperBackend;

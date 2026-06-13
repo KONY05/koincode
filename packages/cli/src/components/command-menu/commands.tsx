@@ -11,6 +11,7 @@ import {
 import type { Command } from "./types";
 import { loadSkillsManifest } from "../../lib/skills";
 import { restartServer } from "../../lib/server-manager";
+import { readGlobalConfig, updateGlobalConfig } from "../../utils/configs/global-config";
 
 export const COMMANDS: Command[] = [
   {
@@ -147,6 +148,19 @@ export const COMMANDS: Command[] = [
   //   value: "/voice",
   //   action: (ctx) => { ctx.toggleVoice(); },
   // },
+  {
+    name: "browser-headless",
+    description: "Toggle headless mode for the browser tool",
+    value: "/browser-headless",
+    action: (ctx) => {
+      const current = readGlobalConfig().browserHeadless ?? false;
+      updateGlobalConfig({ browserHeadless: !current });
+      ctx.toast.show({
+        message: `Browser headless mode ${!current ? "enabled" : "disabled"}`,
+        variant: "info",
+      });
+    },
+  },
   {
     name: "restart-server",
     description: "Restart the background server process",
