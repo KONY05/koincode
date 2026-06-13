@@ -1,12 +1,4 @@
 #!/usr/bin/env bun
-import dotenv from "dotenv";
-import path from "path";
-
-dotenv.config({
-  path: path.resolve(import.meta.dirname, "../../../.env"),
-  quiet: true,
-});
-
 import { ensureServerRunning } from "../src/lib/server-manager";
 import { updateGlobalConfig } from "../src/utils/configs/global-config";
 

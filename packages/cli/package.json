@@ -1,14 +1,41 @@
 {
-  "name": "@koincode/cli",
+  "name": "koincode",
+  "version": "1.0.1",
   "module": "src/index.tsx",
+  "main": "dist/koincode",
   "type": "module",
-  "private": true,
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "description": "An open source local-first terminal coding agent. Peer programming with any frontier model or local/free models to run agentic development.",
+  "homepage": "https://github.com/KONY05/koincode#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KONY05/koincode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KONY05/koincode/issues"
+  },
+  "keywords": [
+    "ai",
+    "cli",
+    "terminal",
+    "coding-agent",
+    "llm",
+    "anthropic",
+    "openai",
+    "code-assistant",
+    "tui",
+    "bun",
+    "open-source"
+  ],
   "bin": {
-    "koincode": "./bin/koincode"
+    "koincode": "dist/koincode"
   },
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
-    "build": "bun build src/index.tsx --outdir dist --target bun"
+    "build": "bun build bin/koincode.ts --outdir dist --target bun --external playwright --external @sentry/bun --define \"process.env.SENTRY_DSN='$SENTRY_DSN'\" && mv dist/koincode.js dist/koincode && bun build ../server/src/index.ts --outfile dist/server.js --target bun --external playwright --external @sentry/bun --define \"process.env.SENTRY_DSN='$SENTRY_DSN'\""
   },
   "devDependencies": {
     "@koincode/server": "workspace:*",
@@ -24,7 +51,6 @@
     "@opentui/core": "^0.1.97",
     "@opentui/react": "^0.1.97",
     "@sentry/bun": "^10.57.0",
-    "@xenova/transformers": "^2.17.2",
     "ai": "^6.0.184",
     "date-fns": "^4.1.0",
     "diff": "^9.0.0",

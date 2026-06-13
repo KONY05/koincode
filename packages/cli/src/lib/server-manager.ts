@@ -13,7 +13,7 @@ const isDev = process.env.NODE_ENV === "development";
 // In prod (bun link / compiled), point at the installed server entry.
 const SERVER_ENTRY = isDev
   ? path.join(import.meta.dirname, "../../../server/src/index.ts")
-  : path.join(import.meta.dirname, "../../server/src/index.ts");
+  : path.join(import.meta.dirname, "server.js");
 
 function getServerPort(): number {
   const config = readGlobalConfig();
