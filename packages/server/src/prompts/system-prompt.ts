@@ -40,6 +40,10 @@ export function buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers
   parts.push(getCodingGuidelinesSection());
   parts.push(getOperationalSection());
 
+  if (mode === Mode.BUILD) {
+    parts.push(getBrowserControlSection());
+  }
+
   if (skillsManifest && skillsManifest.length > 0) {
     parts.push(getSkillsSection(skillsManifest));
   }
@@ -262,6 +266,25 @@ Edge cases, warnings, or caveats.
 - Prefer \`bunx\` for JS/TS one-off commands
 - Write structured output (JSON) to stdout; diagnostics to stderr
 - Skills are plain markdown files and can also be edited directly in any text editor`;
+}
+
+function getBrowserControlSection(): string {
+  return `# Browser Control
+
+You have browser tools available in BUILD mode: \`serverStart\`, \`browserNavigate\`, \`browserScreenshot\`, \`browserClick\`, \`browserType\`, \`browserGetConsoleLogs\`, and \`browserClose\`.
+
+Use this only when you want to perform test/use case testing on your code or when the user ask you to do so.
+
+## Autonomous testing workflow
+
+1. Start the server: \`serverStart({ command: "bun run dev", port: 3000 })\` — waits until the port accepts connections, then returns.
+2. Navigate: \`browserNavigate({ url: "http://localhost:3000" })\`
+3. Observe: \`browserScreenshot({})\` — returns the page as an image (vision models) and extracted page text (all models).
+4. Fix and iterate: edit code, screenshot again, repeat until the app looks and behaves correctly.
+5. Catch JS errors: \`browserGetConsoleLogs({ types: ["error"] })\` for issues not visible on screen.
+6. Always close: \`browserClose({})\` when testing is complete.
+
+Never leave a browser session open between unrelated tasks. \`serverStart\` works for any TCP server, not just web apps.`;
 }
 
 function getCompactSummarySection(): string {

@@ -4,6 +4,7 @@ export {
   findSupportedChatModel,
   isLocalModelId,
   getContextWindow,
+  isVisionModel,
   type ModelPricing,
   type SupportedProvider,
   type SupportedChatModel,

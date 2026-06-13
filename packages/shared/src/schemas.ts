@@ -53,6 +53,7 @@ export const toolInputSchemas = {
       .optional()
       .describe("Short description of the command"),
     timeout: z.number().optional().describe("Timeout in milliseconds"),
+    run_in_background: z.boolean().default(false).describe("Spawn detached without waiting for exit. Returns immediately with the process PID."),
   }),
   createTodos: z.object({
     todos: z
@@ -153,6 +154,30 @@ export const toolInputSchemas = {
       .describe(
         "Where to save: 'project' for .koincode/skills/, 'global' for ~/.koincode/skills/",
       ),
+  }),
+  browserNavigate: z.object({
+    url: z.string().describe("URL to navigate to"),
+    waitUntil: z.enum(["load", "domcontentloaded", "networkidle"]).default("load").describe("When to consider navigation complete"),
+  }),
+  browserScreenshot: z.object({
+    fullPage: z.boolean().default(false).describe("Capture full scrollable page vs viewport only"),
+  }),
+  browserClick: z.object({
+    selector: z.string().describe("CSS selector of element to click"),
+  }),
+  browserType: z.object({
+    selector: z.string().describe("CSS selector of input to type into"),
+    text: z.string().describe("Text to type"),
+    clearFirst: z.boolean().default(true).describe("Clear existing value before typing"),
+  }),
+  browserGetConsoleLogs: z.object({
+    types: z.array(z.enum(["log", "info", "warn", "error"])).default(["warn", "error"]).describe("Log types to return"),
+  }),
+  browserClose: z.object({}),
+  serverStart: z.object({
+    command: z.string().describe("Shell command to start the server (e.g. 'bun run dev')"),
+    port: z.number().int().describe("Port to poll until the server accepts TCP connections"),
+    timeout: z.number().int().default(30).describe("Seconds to wait before giving up"),
   }),
   manageHook: z.object({
     action: z
@@ -312,6 +337,37 @@ export const buildToolContracts = {
     description:
       "Create or update a skill. Writes SKILL.md to the correct scope directory (.koincode/skills/ for project, ~/.koincode/skills/ for global). Only touches SKILL.md — never overwrites scripts/, references/, or assets/. Returns whether the skill was created or updated.",
     inputSchema: toolInputSchemas.writeSkill,
+  }),
+  serverStart: tool({
+    description:
+      "Start a server process in the background and wait until the given port accepts TCP connections. Use this before navigating to a locally running app. Works for any TCP server, not just web apps.",
+    inputSchema: toolInputSchemas.serverStart,
+  }),
+  browserNavigate: tool({
+    description: "Navigate the browser to a URL and wait for the page to load.",
+    inputSchema: toolInputSchemas.browserNavigate,
+  }),
+  browserScreenshot: tool({
+    description:
+      "Take a screenshot of the current browser page. Returns an image for vision-capable models and page text for all models. Use after navigating or making changes to verify the visual result.",
+    inputSchema: toolInputSchemas.browserScreenshot,
+  }),
+  browserClick: tool({
+    description: "Click an element on the current browser page by CSS selector.",
+    inputSchema: toolInputSchemas.browserClick,
+  }),
+  browserType: tool({
+    description: "Type text into an input element on the current browser page by CSS selector.",
+    inputSchema: toolInputSchemas.browserType,
+  }),
+  browserGetConsoleLogs: tool({
+    description:
+      "Return browser console logs captured since the last call (then clears the buffer). Use to catch JS errors not visible on screen.",
+    inputSchema: toolInputSchemas.browserGetConsoleLogs,
+  }),
+  browserClose: tool({
+    description: "Close the browser session. Always call this when testing is complete.",
+    inputSchema: toolInputSchemas.browserClose,
   }),
 } as const;
 

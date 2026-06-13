@@ -47,6 +47,16 @@ export function getPermissionInfo(
       const { command } = input as { command: string };
       return getShellPermissionInfo(command, extraSensitivePatterns);
     }
+    case "serverStart": {
+      const { command, port } = input as { command: string; port: number };
+      return {
+        requiresApproval: true,
+        key: "shell:bin:serverStart" as const,
+        label: "Start server",
+        description: `${command} (waiting for port ${port})`,
+        tier: "normal",
+      };
+    }
     case "writeFile":
     case "editFile": {
       const { path } = input as { path: string };

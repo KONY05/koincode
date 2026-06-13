@@ -374,7 +374,15 @@ function SessionChat({
           />
         );
       })}
-      {error && <ErrorMessage message={error.message} />}
+      {error && (
+        <ErrorMessage
+          message={
+            typeof error.message === "string" && error.message
+              ? error.message
+              : "An error occurred"
+          }
+        />
+      )}
     </SessionShell>
     </SessionActionsProvider>
   );

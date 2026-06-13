@@ -291,6 +291,7 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
           tc.toolName,
           tc.input,
           currentMode,
+          model,
         );
         toolResults.push({
           type: "tool-result",
