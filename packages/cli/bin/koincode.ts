@@ -6,12 +6,11 @@ import { updateGlobalConfig } from "../src/utils/configs/global-config";
 const args = process.argv.slice(2);
 const portEqArg = args.find((a) => a.startsWith("--port="));
 const portIndex = args.indexOf("--port");
+const nextArg = args[portIndex + 1];
 const portValue = portEqArg
   ? portEqArg.slice("--port=".length)
-  : portIndex !== -1 &&
-      args[portIndex + 1] &&
-      !args[portIndex + 1].startsWith("--")
-    ? args[portIndex + 1]
+  : portIndex !== -1 && nextArg && !nextArg.startsWith("--")
+    ? nextArg
     : undefined;
 
 if (portValue) {
