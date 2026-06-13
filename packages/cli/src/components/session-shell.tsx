@@ -3,7 +3,7 @@ import {
   TextAttributes,
   type ScrollBoxRenderable,
 } from "@opentui/core";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import React from "react";
 
 import { InputBar } from "./input-bar";
@@ -17,7 +17,6 @@ import type {
 } from "./widget/mode-switch-widget";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
 import type { PendingUserQuestion, ContextUsage, QueuedMessage } from "../hooks/use-chat";
-import { useKeyboardLayer } from "../providers/keyboard-layer";
 
 type Props = {
   children?: ReactNode;
@@ -61,27 +60,13 @@ export function SessionShell({
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
   const scrollRef = useRef<ScrollBoxRenderable>(null);
   const prevChildrenCountRef = useRef(0);
-  const { push, pop } = useKeyboardLayer();
-
   const [queueFocusedIndex, setQueueFocusedIndex] = useState<number | null>(null);
 
-  // Clamp to valid bounds during render; stale state after auto-drain is fine
-  // because QueuePanel is hidden when queue is empty and enterQueueFocus resets it.
-  // So when queue.length === 0, effectiveFocusedIndex is always null regardless of what stale value is sitting in queueFocusedIndex. The QueuePanel never sees the stale index.
-  // null = not in queue focus mode. A number = focused on that index.
-  const effectiveFocusedIndex: number | null =
-    queueFocusedIndex === null || queue.length === 0
-      ? null
-      : Math.min(queueFocusedIndex, queue.length - 1);
-
-  // Pop the keyboard layer when auto-drain empties the queue while focused.
-  // setState is intentionally absent — effectiveFocusedIndex handles the null
-  // case during render; the stale state value is reset by enterQueueFocus later.
+  // Clear queue focus when the queue empties.
   useEffect(() => {
-    if (queueFocusedIndex !== null && queue.length === 0) {
-      pop("queue");
+    if (queue.length === 0) {
+      setTimeout(() => setQueueFocusedIndex(null), 0);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queue.length]);
 
   // Auto-scroll to bottom only when a new message is added
@@ -89,7 +74,6 @@ export function SessionShell({
     const currentCount = React.Children.count(children);
     const prevCount = prevChildrenCountRef.current;
 
-    // Only scroll if the number of children increased (new message added)
     if (currentCount > prevCount) {
       const scrollbox = scrollRef.current;
       if (scrollbox) {
@@ -99,31 +83,6 @@ export function SessionShell({
 
     prevChildrenCountRef.current = currentCount;
   }, [children]);
-
-
-  const exitQueueFocus = useCallback(() => {
-    setQueueFocusedIndex(null);
-    pop("queue");
-  }, [pop]);
-
-  const enterQueueFocus = useCallback(() => {
-    if (queue.length === 0) return;
-    setQueueFocusedIndex(queue.length - 1); // focus bottom item (nearest input)
-    push("queue", () => {
-      setQueueFocusedIndex(null);
-      return true;
-    });
-  }, [queue.length, push]);
-
-  const handleRemoveFromQueue = useCallback((index: number) => {
-    onRemoveFromQueue?.(index);
-    const newLength = queue.length - 1;
-    if (newLength === 0) {
-      exitQueueFocus();
-    } else {
-      setQueueFocusedIndex(Math.min(index, newLength - 1));
-    }
-  }, [queue.length, onRemoveFromQueue, exitQueueFocus]);
 
   const queueLength = queue.length;
 
@@ -164,27 +123,23 @@ export function SessionShell({
             onResponse={onUserQuestionResponse}
           />
         ) : (
-          <>
-            {queueLength > 0 && (
-              <QueuePanel
-                queue={queue}
-                focusedIndex={effectiveFocusedIndex}
-                onFocusChange={setQueueFocusedIndex}
-                onRemove={handleRemoveFromQueue}
-                exitQueueFocus={exitQueueFocus}
-              />
+          <box flexDirection="column" width="100%">
+            {queue.length > 0 && (
+              <QueuePanel queue={queue} focusedIndex={queueFocusedIndex} />
             )}
             <InputBar
               onSubmit={onSubmit}
               onForceNext={onForceNext}
-              onEnterQueueFocus={queueLength > 0 ? enterQueueFocus : undefined}
               contextUsage={contextUsage}
               mcpServerCount={mcpServerCount}
               disabled={inputDisabled}
               streaming={streaming}
-              queueLength={queueLength}
+              queue={queue}
+              onRemoveFromQueue={onRemoveFromQueue}
+              queueFocusedIndex={queueFocusedIndex}
+              onQueueFocusedIndexChange={setQueueFocusedIndex}
             />
-          </>
+          </box>
         )}
       </box>
       <box

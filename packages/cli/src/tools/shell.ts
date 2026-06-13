@@ -26,7 +26,7 @@ function findBlockedPattern(command: string): string | null {
 }
 
 export async function runShellCommand(input: unknown) {
-  const { command, timeout = DEFAULT_TIMEOUT } = toolInputSchemas.shell.parse(input);
+  const { command, timeout = DEFAULT_TIMEOUT, run_in_background } = toolInputSchemas.shell.parse(input);
 
   const blocked = findBlockedPattern(command);
   if (blocked) {
@@ -34,10 +34,20 @@ export async function runShellCommand(input: unknown) {
   }
 
   const shell = process.platform === "win32" ? "cmd.exe" : (process.env.SHELL ?? "/bin/sh");
-  
+
   const shellArgs = process.platform === "win32"
     ? [shell, "/c", command]
     : [shell, "-c", command];
+
+  if (run_in_background) {
+    const proc = Bun.spawn(shellArgs, {
+      cwd: resolveInsideCwd(".").resolved,
+      stdout: "ignore",
+      stderr: "ignore",
+      env: { ...process.env },
+    });
+    return { pid: proc.pid, message: `Process started in background (PID ${proc.pid})` };
+  }
 
   const proc = Bun.spawn(shellArgs, {
     cwd: resolveInsideCwd(".").resolved,

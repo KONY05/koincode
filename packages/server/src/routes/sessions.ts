@@ -75,6 +75,7 @@ const app = new Hono()
         id: true,
         title: true,
         updatedAt: true,
+        cwd: true,
       },
     });
 

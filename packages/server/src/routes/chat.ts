@@ -298,7 +298,13 @@ const app = new Hono().post("/", submitValidator, async (c) => {
       })();
     },
     onError(error) {
-      return error instanceof Error ? error.message : String(error);
+      if (error instanceof Error) return error.message;
+      if (typeof error === "object" && error !== null) {
+        const obj = error as Record<string, unknown>;
+        if (typeof obj.message === "string") return obj.message;
+        try { return JSON.stringify(obj); } catch { /* */ }
+      }
+      return "An error occurred";
     },
     consumeSseStream({ stream }) {
       // Drain the tee'd SSE stream server-side so the pipe chain never backs up

@@ -35,6 +35,7 @@ import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
 import { useSessionActions } from "../providers/session-actions";
 import { Mode } from "@koincode/shared";
+import type { QueuedMessage } from "../hooks/use-chat";
 
 const MAX_VISIBLE_MENTIONS = 8;
 const CURRENT_DIRECTORY = process.cwd();
@@ -336,15 +337,17 @@ export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
 type Props = {
   onSubmit: (text: string) => void;
   onForceNext?: () => void;
-  onEnterQueueFocus?: () => void;
   contextUsage?: ContextUsage | null;
   mcpServerCount?: number;
   disabled?: boolean;
   streaming?: boolean;
-  queueLength?: number;
+  queue?: QueuedMessage[];
+  onRemoveFromQueue?: (index: number) => void;
+  queueFocusedIndex?: number | null;
+  onQueueFocusedIndexChange?: (index: number | null) => void;
 };
 
-export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsage, mcpServerCount, disabled = false, streaming = false, queueLength = 0 }: Props) {
+export function InputBar({ onSubmit, onForceNext, contextUsage, mcpServerCount, disabled = false, streaming = false, queue = [], onRemoveFromQueue, queueFocusedIndex = null, onQueueFocusedIndexChange }: Props) {
   const { mode, model, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
@@ -369,6 +372,24 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
   const dialog = useDialog();
   const { colors } = useTheme();
   const { isTopLayer, push, pop, setResponder } = useKeyboardLayer();
+
+  const setQueueFocusedIndex = useCallback((index: number | null) => {
+    onQueueFocusedIndexChange?.(index);
+  }, [onQueueFocusedIndexChange]);
+
+  const exitQueueFocus = useCallback(() => {
+    onQueueFocusedIndexChange?.(null);
+    pop("queue");
+  }, [onQueueFocusedIndexChange, pop]);
+
+  const enterQueueFocus = useCallback(() => {
+    if (queue.length === 0) return;
+    onQueueFocusedIndexChange?.(queue.length - 1);
+    push("queue", () => {
+      onQueueFocusedIndexChange?.(null);
+      return true;
+    });
+  }, [queue.length, onQueueFocusedIndexChange, push]);
 
   const [activeMention, setActiveMention] = useState<MentionMatch | null>(null);
   const [mentionCandidates, setMentionCandidates] = useState<
@@ -605,7 +626,7 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
 
     // Force-next: Enter on empty input while streaming with items queued.
     const textarea = textareaRef.current;
-    if (streaming && queueLength > 0 && (!textarea || textarea.plainText.trim().length === 0)) {
+    if (streaming && queue.length > 0 && (!textarea || textarea.plainText.trim().length === 0)) {
       onForceNext?.();
       return;
     }
@@ -653,6 +674,7 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
   useKeyboard((key) => {
     if (effectiveDisabled || streaming) return;
     if (!isTopLayer("base")) return;
+    if (queueFocusedIndex !== null) return;
     if (key.name === "tab") {
       key.preventDefault();
       toggleMode();
@@ -660,8 +682,57 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
   });
 
   useKeyboard((key) => {
-    if (effectiveDisabled || streaming) return;
+    if (effectiveDisabled) return;
+
+    // Queue navigation: allow when the "queue" layer is on top.
+    if (queueFocusedIndex !== null && isTopLayer("queue")) {
+      if (key.name === "up") {
+        key.preventDefault();
+        setQueueFocusedIndex(queueFocusedIndex > 0 ? queueFocusedIndex - 1 : queueFocusedIndex);
+      } else if (key.name === "down") {
+        key.preventDefault();
+        if (queueFocusedIndex >= queue.length - 1) {
+          exitQueueFocus();
+        } else {
+          setQueueFocusedIndex(queueFocusedIndex + 1);
+        }
+      } else if (key.name === "backspace" || key.name === "delete") {
+        key.preventDefault();
+        const idx = queueFocusedIndex;
+        onRemoveFromQueue?.(idx);
+        const newLen = queue.length - 1;
+        if (newLen === 0) {
+          exitQueueFocus();
+        } else {
+          setQueueFocusedIndex(Math.min(idx, newLen - 1));
+        }
+      } else if (key.name === "return" || key.name === "enter") {
+        key.preventDefault();
+        onForceNext?.();
+      } else if (key.name === "escape") {
+        key.preventDefault();
+        exitQueueFocus();
+      }
+      return;
+    }
+
     if (!isTopLayer("base")) return;
+
+    // Pressing up from an empty input enters queue focus (works during streaming too).
+    if (key.name === "up" && queue.length > 0) {
+      const ta = textareaRef.current;
+      if (ta) {
+        const text = ta.plainText;
+        const cursorOnFirstLine = !text.slice(0, ta.cursorOffset).includes("\n");
+        if (cursorOnFirstLine && text.length === 0) {
+          key.preventDefault();
+          enterQueueFocus();
+          return;
+        }
+      }
+    }
+
+    if (streaming) return;
     if (showCommandMenu || showMentionMenu) return;
 
     const textarea = textareaRef.current;
@@ -673,13 +744,6 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
         .slice(0, textarea.cursorOffset)
         .includes("\n");
       if (!cursorOnFirstLine) return;
-
-      // Empty input + queue present → enter queue focus instead of history nav.
-      if (text.length === 0 && queueLength > 0 && onEnterQueueFocus) {
-        key.preventDefault();
-        onEnterQueueFocus();
-        return;
-      }
 
       const history = historyRef.current;
       if (history.length === 0) return;
@@ -859,7 +923,7 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
   });
 
   return (
-    <box width="100%" alignItems="center">
+    <box flexDirection="column" width="100%" zIndex={1}>
       <box
         border={["left"]}
         borderColor={
@@ -925,13 +989,14 @@ export function InputBar({ onSubmit, onForceNext, onEnterQueueFocus, contextUsag
             ref={textareaRef}
             focused={
               !effectiveDisabled &&
+              queueFocusedIndex === null &&
               (isTopLayer("base") ||
                 isTopLayer("command") ||
                 isTopLayer("mention"))
             }
             keyBindings={TEXTAREA_KEY_BINDINGS}
             onContentChange={handleTextareaContentChange}
-            placeholder={getInputBarPlaceholder(disabled, streaming, queueLength, voiceInput, voiceState)}
+            placeholder={getInputBarPlaceholder(disabled, streaming, queue.length, voiceInput, voiceState)}
           />
           <StatusBar contextUsage={contextUsage} mcpServerCount={mcpServerCount} />
         </box>

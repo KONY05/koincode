@@ -18,6 +18,15 @@ import { runManageHook } from "./manage-hook";
 import { runReadSkill } from "./read-skill";
 import { runWriteSkill } from "./write-skill";
 import { runMcpTool, runManageMcp } from "./mcp";
+import {
+  runBrowserNavigate,
+  runBrowserScreenshot,
+  runBrowserClick,
+  runBrowserType,
+  runBrowserGetConsoleLogs,
+  runBrowserClose,
+  runServerStart,
+} from "./browser";
 import { runHooks } from "../utils/hooks";
 
 const PLAN_TOOLS = new Set(Object.keys(readOnlyToolContracts));
@@ -26,6 +35,7 @@ export async function executeLocalTool(
   toolName: string,
   input: unknown,
   mode: ModeType,
+  modelId?: string,
 ) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.has(toolName)) {
     throw new Error(`Tool ${toolName} is not available in PLAN mode`);
@@ -89,9 +99,31 @@ export async function executeLocalTool(
       case "manageMcp":
         toolOutput = await runManageMcp();
         break;
+      case "serverStart":
+        toolOutput = await runServerStart(input);
+        break;
+      case "browserNavigate":
+        toolOutput = await runBrowserNavigate(input);
+        break;
+      case "browserScreenshot":
+        toolOutput = await runBrowserScreenshot(input, modelId);
+        break;
+      case "browserClick":
+        toolOutput = await runBrowserClick(input);
+        break;
+      case "browserType":
+        toolOutput = await runBrowserType(input);
+        break;
+      case "browserGetConsoleLogs":
+        toolOutput = runBrowserGetConsoleLogs(input);
+        break;
+      case "browserClose":
+        toolOutput = await runBrowserClose(input);
+        break;
       // These are fully handled in use-chat.ts before reaching here; these paths should never run.
       // case "askUser":
       // case "switchMode":
+      // case "spawnAgent":
       default:
         if (toolName.includes("__")) {
           toolOutput = await runMcpTool(toolName, input);

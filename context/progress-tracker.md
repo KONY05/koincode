@@ -33,6 +33,8 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Recently Completed (Phase 2 — continued)
 
+- **Browser control integration** — Autonomous browser testing loop implemented. Background shell execution: `shell` tool gains `run_in_background` flag (spawns detached, returns PID immediately). `serverStart` tool starts a server in background and polls the port with `Bun.connect` until ready — avoids the `>/dev/null` write-redirection false positive in the permission classifier. Seven browser tools in `packages/cli/src/tools/browser/`: `browserNavigate`, `browserScreenshot`, `browserClick`, `browserType`, `browserGetConsoleLogs`, `browserClose`, plus `serverStart`. Playwright session held in module-level state (lazy init on first navigate, torn down on `browserClose`). Screenshots compressed to JPEG 85% and returned as multimodal content (`[{type:"image",...},{type:"text",...}]`) for vision models; text-only fallback for non-vision models via `isVisionModel()`. `vision: boolean` added to all models in the registry. `executeLocalTool` gains optional `modelId` param threaded from `use-chat.ts` and `spawn-agent.ts`. `serverStart` gets its own permission entry (`shell:bin:serverStart`, label "Start server"). Browser control section added to BUILD mode system prompt. Spec: `context/feature-specs/24-browser-control-integration.md`.
+
 - **MCP support (Phase 1 + 2)** — Full implementation complete. Phase 1: server connects to MCP servers at startup via `mcp-manager.ts`, merges their tools (namespaced `serverName__toolName`) into every chat request. Phase 2: per-session approval gate before first MCP tool call; `manageMcp` read-only tool for the agent to inspect server status; `GET /mcp/servers` + `POST /mcp/call` routes; MCP server count shown in the status bar (`› N mcp`). See `context/feature-specs/23-mcp-support-integration.md`.
 
 
@@ -73,6 +75,13 @@ These were scoped out and should be revisited:
 
 - **Compression prompt** — Implement context window compression. When conversation length approaches the model's limit, summarize completed work into a structured continuation prompt (original goal, completed actions, current state, remaining tasks, next step, key context) and replace the history. Prevents context overflow mid-task.
 - **Hooks tool call extension** — Right now the executeHook method in `packages/shared/src/index.ts` only work with `command` type to execute hooks, we will later extend it to handle other hook types: `http`, `mcpTool`, `prompt`, and `agent`.
+
+- **Browser control: screenshot inline preview** — Render the screenshot image inline in the terminal UI so the user can see what the agent sees. Requires an image rendering primitive in OpenTUI or a terminal graphics protocol implementation. See `context/feature-specs/24-browser-control-integration.md`.
+- **Browser control: headed mode toggle** — Run the browser in headed (visible window) mode for debugging. Not needed for autonomous operation.
+- **Browser control: multi-tab support** — Single page per browser session for now.
+- **Browser control: mobile viewport emulation** — Set device viewport dimensions to simulate mobile.
+- **Browser control: Firefox/WebKit** — Chromium only for the initial implementation.
+- **Browser control: recording/replaying test scripts** — Save browser interactions as reusable test scripts.
 
 ## Open Questions
 

@@ -3,9 +3,11 @@ import { TextAttributes } from "@opentui/core";
 import { format } from "date-fns";
 import { useNavigate, useLocation } from "react-router";
 import { useKeyboard } from "@opentui/react";
+
 import { useDialog } from "../../providers/dialog";
 import { useToast } from "../../providers/toast";
 import { useKeyboardLayer } from "../../providers/keyboard-layer";
+import { useTheme } from "../../providers/theme";
 import { apiClient } from "../../lib/api-client";
 import { getErrorMessage } from "../../lib/http-errors";
 import { DialogSearchList } from "../dialog-search-list";
@@ -13,18 +15,29 @@ import type { InferResponseType } from "hono/client";
 import { getGitBranch } from "../../utils/helper";
 
 type Session = InferResponseType<(typeof apiClient.sessions)["$get"], 200>[number];
+type Tab = "project" | "all";
 
 const UNDO_DURATION_MS = 5000;
 
+function shortCwd(cwd: string | null | undefined): string {
+  if (!cwd) return "";
+  return cwd.split("/").filter(Boolean).pop() ?? cwd;
+}
+
 export const SessionsDialogContent = () => {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>("project");
+  const [projectSessions, setProjectSessions] = useState<Session[]>([]);
+  const [allSessions, setAllSessions] = useState<Session[]>([]);
+  const [projectLoading, setProjectLoading] = useState(true);
+  const [allLoading, setAllLoading] = useState(false);
+  const fetchedAllRef = useRef(false);
 
   const sessionsRef = useRef<Session[]>([]);
   const highlightedRef = useRef<Session | null>(null);
   const pendingDeleteRef = useRef<{
     session: Session;
     index: number;
+    tab: Tab;
     timerId: ReturnType<typeof setTimeout>;
   } | null>(null);
 
@@ -33,15 +46,19 @@ export const SessionsDialogContent = () => {
   const location = useLocation();
   const { show } = useToast();
   const { isTopLayer } = useKeyboardLayer();
-
-  useEffect(() => {
-    sessionsRef.current = sessions;
-  }, [sessions]);
+  const { colors } = useTheme();
 
   const activeSessionId = location.pathname.startsWith("/sessions/")
     ? location.pathname.split("/sessions/")[1]
     : null;
 
+  const activeSessions = activeTab === "project" ? projectSessions : allSessions;
+
+  useEffect(() => {
+    sessionsRef.current = activeSessions;
+  }, [activeSessions]);
+
+  // Fetch project sessions on mount
   useEffect(() => {
     let ignore = false;
 
@@ -61,9 +78,9 @@ export const SessionsDialogContent = () => {
         const data = await res.json();
 
         if (!ignore) {
-          setSessions(data);
+          setProjectSessions(data);
           highlightedRef.current = data[0] ?? null;
-          setLoading(false);
+          setProjectLoading(false);
         }
       } catch (error) {
         if (!ignore) {
@@ -77,11 +94,43 @@ export const SessionsDialogContent = () => {
     };
 
     fetchSessions();
-
-    return () => {
-      ignore = true;
-    };
+    return () => { ignore = true; };
   }, [close, show]);
+
+  // Fetch all sessions when "all" tab is first opened
+  useEffect(() => {
+    if (activeTab !== "all" || fetchedAllRef.current) return;
+    fetchedAllRef.current = true;
+    let ignore = false;
+
+    const fetchAll = async () => {
+      setAllLoading(true);
+      try {
+        const res = await apiClient.sessions.$get({ query: {} });
+
+        if (!res.ok) throw new Error(await getErrorMessage(res));
+
+        const data = await res.json();
+        
+        if (!ignore) {
+          setAllSessions(data);
+          highlightedRef.current = data[0] ?? null;
+          setAllLoading(false);
+        }
+      } catch (error) {
+        if (!ignore) {
+          show({
+            variant: "error",
+            message: error instanceof Error ? error.message : "Failed to fetch sessions",
+          });
+          setAllLoading(false);
+        }
+      }
+    };
+
+    fetchAll();
+    return () => { ignore = true; };
+  }, [activeTab, show]);
 
   const commitDelete = useCallback(
     async (sessionId: string) => {
@@ -102,7 +151,6 @@ export const SessionsDialogContent = () => {
     [show],
   );
 
-  // Commit any in-flight pending delete when the dialog unmounts
   useEffect(() => {
     return () => {
       if (pendingDeleteRef.current) {
@@ -115,6 +163,11 @@ export const SessionsDialogContent = () => {
 
   useKeyboard((key) => {
     if (!isTopLayer("dialog")) return;
+
+    if (key.name === "tab") {
+      setActiveTab((t) => (t === "project" ? "all" : "project"));
+      highlightedRef.current = null;
+    }
 
     if (key.ctrl && key.name === "d") {
       const target = highlightedRef.current;
@@ -136,21 +189,36 @@ export const SessionsDialogContent = () => {
         void commitDelete(target.id);
       }, UNDO_DURATION_MS);
 
-      pendingDeleteRef.current = { session: target, index, timerId };
-      setSessions((prev) => prev.filter((s) => s.id !== target.id));
+      const tab = activeTab;
+      pendingDeleteRef.current = { session: target, index, tab, timerId };
+
+      if (tab === "project") {
+        setProjectSessions((prev) => prev.filter((s) => s.id !== target.id));
+      } else {
+        setAllSessions((prev) => prev.filter((s) => s.id !== target.id));
+      }
       show({ variant: "info", message: "Session deleted — Ctrl+U to undo", duration: UNDO_DURATION_MS });
     }
 
     if (key.ctrl && key.name === "u" && pendingDeleteRef.current) {
       key.preventDefault();
-      const { session, index, timerId } = pendingDeleteRef.current;
+      const { session, index, tab, timerId } = pendingDeleteRef.current;
       clearTimeout(timerId);
       pendingDeleteRef.current = null;
-      setSessions((prev) => {
-        const restored = [...prev];
-        restored.splice(index, 0, session);
-        return restored;
-      });
+
+      if (tab === "project") {
+        setProjectSessions((prev) => {
+          const restored = [...prev];
+          restored.splice(index, 0, session);
+          return restored;
+        });
+      } else {
+        setAllSessions((prev) => {
+          const restored = [...prev];
+          restored.splice(index, 0, session);
+          return restored;
+        });
+      }
       show({ variant: "success", message: "Session restored" });
     }
   });
@@ -167,38 +235,71 @@ export const SessionsDialogContent = () => {
     highlightedRef.current = session;
   }, []);
 
-  if (loading) {
-    return (
-      <box flexDirection="column">
-        <text attributes={TextAttributes.DIM}>Loading sessions...</text>
-      </box>
-    );
-  }
+  const isLoading = activeTab === "project" ? projectLoading : allLoading;
 
   return (
-    <DialogSearchList
-      items={sessions}
-      onSelect={handleSelect}
-      onHighlight={handleHighlight}
-      filterFn={(s, query) => s.title.toLowerCase().includes(query.toLowerCase())}
-      renderItem={(session, isSelected) => (
-        <>
-          <text selectable={false} fg={isSelected ? "black" : "white"}>
-            {session.title}
-          </text>
-          <box flexGrow={1} />
-          <text
-            selectable={false}
-            fg={isSelected ? "black" : undefined}
-            attributes={TextAttributes.DIM}
-          >
-            {format(new Date(session.updatedAt), "hh:mm a")}
-          </text>
-        </>
+    <box flexDirection="column" gap={1}>
+      <box flexDirection="row" gap={3} paddingX={1}>
+        <text
+          selectable={false}
+          fg={activeTab === "project" ? colors.primary : colors.dimSeparator}
+          attributes={activeTab === "project" ? TextAttributes.BOLD : TextAttributes.DIM}
+        >
+          {activeTab === "project" ? "▶ " : "  "}Project
+        </text>
+        <text
+          selectable={false}
+          fg={activeTab === "all" ? colors.primary : colors.dimSeparator}
+          attributes={activeTab === "all" ? TextAttributes.BOLD : TextAttributes.DIM}
+        >
+          {activeTab === "all" ? "▶ " : "  "}All
+        </text>
+      </box>
+
+      {isLoading ? (
+        <box flexDirection="column" paddingX={1}>
+          <text selectable={false} attributes={TextAttributes.DIM}>Loading sessions...</text>
+        </box>
+      ) : (
+        <DialogSearchList
+          key={activeTab}
+          items={activeSessions}
+          onSelect={handleSelect}
+          onHighlight={handleHighlight}
+          filterFn={(s, query) => s.title.toLowerCase().includes(query.toLowerCase())}
+          renderItem={(session, isSelected) => (
+            <>
+              <text selectable={false} fg={isSelected ? "black" : "white"}>
+                {session.title}
+              </text>
+              <box flexGrow={1} />
+              {activeTab === "all" && session.cwd && (
+                <text
+                  selectable={false}
+                  fg={isSelected ? "black" : colors.dimSeparator}
+                  attributes={TextAttributes.DIM}
+                >
+                  {shortCwd(session.cwd)}{"  "}
+                </text>
+              )}
+              <text
+                selectable={false}
+                fg={isSelected ? "black" : undefined}
+                attributes={TextAttributes.DIM}
+              >
+                {format(new Date(session.updatedAt), "hh:mm a")}
+              </text>
+            </>
+          )}
+          getKey={(s) => s.id}
+          placeholder="Search sessions"
+          emptyText="No matching sessions"
+        />
       )}
-      getKey={(s) => s.id}
-      placeholder="Search sessions"
-      emptyText="No matching sessions"
-    />
+
+      <text selectable={false} fg={colors.dimSeparator} attributes={TextAttributes.DIM}>
+        Tab · switch tabs
+      </text>
+    </box>
   );
 };

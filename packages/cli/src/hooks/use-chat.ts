@@ -462,12 +462,16 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
         }
 
         const toolInput = toolCall.input;
+        const currentModel = String(
+          chat.messages.findLast((m) => m.metadata?.model)?.metadata?.model ?? "",
+        );
 
         try {
           const output = await executeLocalTool(
             toolCall.toolName,
             toolInput,
             currentModeRef.current,
+            currentModel,
           );
           chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
