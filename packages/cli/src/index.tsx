@@ -1,3 +1,4 @@
+import { Sentry } from "./lib/sentry";
 import { createCliRenderer } from "@opentui/core";
 import { initTreeSitter } from "./utils/tree-sitter";
 import { createRoot } from "@opentui/react";
@@ -74,5 +75,12 @@ function shutdown(code = 0) {
 
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
+process.on("uncaughtException", (error) => {
+  Sentry.captureException(error);
+  shutdown(1);
+});
+process.on("unhandledRejection", (reason) => {
+  Sentry.captureException(reason instanceof Error ? reason : new Error(String(reason)));
+});
 
 createRoot(renderer).render(<App />);
