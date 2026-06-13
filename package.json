@@ -4,15 +4,19 @@
   "type": "module",
   "workspaces": ["packages/*"],
   "scripts": {
-    "dev:cli": "NODE_ENV=development bun run --watch packages/cli/bin/koincode",
+    "dev:cli": "NODE_ENV=development bun run --watch packages/cli/bin/koincode.ts",
     "dev:server": "PORT=37420 bun run --hot packages/server/src/index.ts",
-    "build:cli": "bun run --filter @koincode/cli build",
+    "build:cli": "bun run --filter koincode build",
     "link:cli": "bun run build:cli && cd packages/cli && bun link",
     "db:migrate": "bun run --cwd packages/database db:migrate",
     "db:studio": "bun run --cwd packages/database db:studio",
     "typecheck": "bun run --cwd packages/shared tsc --noEmit && bun run --cwd packages/cli tsc --noEmit && bun run --cwd packages/server tsc --noEmit",
     "lint": "eslint packages/",
-    "lint:fix": "eslint packages/ --fix"
+    "lint:fix": "eslint packages/ --fix",
+    "version:patch": "npm version patch --prefix packages/cli",
+    "version:minor": "npm version minor --prefix packages/cli",
+    "version:major": "npm version major --prefix packages/cli",
+    "publish:cli": "bun run build:cli && cd packages/cli && npm publish --access public"
   },
   "dependencies": {
     "dotenv": "^17.4.2"
