@@ -8,6 +8,7 @@ import { usePromptConfig } from "../providers/prompt-config";
 import { useTheme } from "../providers/theme";
 import { SessionActionsProvider } from "../providers/session-actions";
 import { CWD, getGitBranch } from "../utils/helper";
+import { version } from "../../package.json";
 
 
 const GIT_BRANCH = getGitBranch();
@@ -57,9 +58,12 @@ export function Home() {
             <text attributes={TextAttributes.DIM}>agents</text>
           </box>
         </box>
-        <box position="absolute" bottom={1} left={0} width="100%" paddingX={1}>
+        <box position="absolute" bottom={1} left={0} width="100%" paddingX={1} flexDirection="row" justifyContent="space-between">
           <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
             {CWD}{GIT_BRANCH ? `:${GIT_BRANCH}` : ""}
+          </text>
+          <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+            v{version}
           </text>
         </box>
       </box>
