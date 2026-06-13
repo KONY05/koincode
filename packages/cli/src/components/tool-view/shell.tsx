@@ -67,8 +67,10 @@ export default function ShellView({
 
   const result =
     output && typeof output === "object"
-      ? (output as { stdout?: string; stderr?: string; exitCode?: number })
+      ? (output as { stdout?: string; stderr?: string; exitCode?: number; pid?: number })
       : null;
+
+  const isBackground = !pending && result !== null && typeof result.pid === "number" && typeof result.exitCode !== "number";
 
   const stdoutLines = result?.stdout?.split("\n").filter(Boolean) ?? [];
   const stderrLines = result?.stderr?.split("\n").filter(Boolean) ?? [];
@@ -88,10 +90,17 @@ export default function ShellView({
         <box flexDirection="row" gap={1}>
           <text fg={colors.info}>❯</text>
           <text>{command}</text>
+          {isBackground && (
+            <text attributes={TextAttributes.DIM} fg={colors.info}>
+              pid {result!.pid} {" "}
+            </text>
+          )}
         </box>
         <box>
           {pending ? (
             <Spinner activeColor={colors.info} />
+          ) : isBackground ? (
+            <Spinner activeColor={colors.info} showLabel={false} />
           ) : done && failed ? (
             <text fg={colors.error}>✗ {result!.exitCode}</text>
           ) : done ? (
