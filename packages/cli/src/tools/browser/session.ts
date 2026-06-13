@@ -1,4 +1,5 @@
 import { chromium, type Browser, type Page } from "playwright";
+import { readGlobalConfig } from "../../utils/configs/global-config";
 
 let browser: Browser | null = null;
 let page: Page | null = null;
@@ -8,7 +9,8 @@ const consoleLogs: ConsoleLogEntry[] = [];
 
 export async function getPage(): Promise<Page> {
   if (!browser) {
-    browser = await chromium.launch({ headless: false });
+    const headless = readGlobalConfig().browserHeadless ?? false;
+    browser = await chromium.launch({ headless });
   }
   if (!page || page.isClosed()) {
     page = await browser.newPage();

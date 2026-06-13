@@ -1,3 +1,5 @@
+import { sentry } from "@sentry/hono/bun";
+import * as Sentry from "@sentry/bun";
 import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
@@ -43,6 +45,10 @@ process.on("SIGTERM", async () => {
 
 const app = new Hono();
 
+if (process.env.NODE_ENV === "production" && process.env.SENTRY_DSN) {
+  app.use(sentry(app, { dsn: process.env.SENTRY_DSN, tracesSampleRate: 1.0 }));
+}
+
 let lastRequestAt = Date.now();
 
 app.use("*", async (c, next) => {
@@ -55,6 +61,7 @@ app.onError((error, c) => {
     return c.json({ error: error.message || "Request failed" }, error.status);
   }
 
+  Sentry.captureException(error);
   logger.error("Unhandled server error", error);
   return c.json({ error: "Internal server error" }, 500);
 });

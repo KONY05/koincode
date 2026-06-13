@@ -1,0 +1,1 @@
+since i want to ship the app to prod i was thinking we might as well just add error tracking, with sentry, i don't know if we can also use it for product analytics as well

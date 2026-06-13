@@ -111,4 +111,5 @@ export type KoincodeGlobalConfig = {
   voiceInput?: boolean;
   whisperBackend?: "auto" | "openai" | "openrouter";
   mcpServers?: Record<string, McpServerConfig>;
+  browserHeadless?: boolean;
 };
