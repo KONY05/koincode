@@ -73,11 +73,8 @@ These were scoped out and should be revisited:
 
 - **`koincode install <skill>`** — Wrap npm install to pull skills published as npm packages (naming convention: `@koincode-skills/<name>`). The install command would fetch the package and extract its files into `~/.koincode/skills/<name>/`. Also consider a GitHub shorthand (`koincode install github:user/my-skill`). No custom registry needed — npm is the registry. Requires `koincode install` CLI subcommand.
 
-- **Compression prompt** — Implement context window compression. When conversation length approaches the model's limit, summarize completed work into a structured continuation prompt (original goal, completed actions, current state, remaining tasks, next step, key context) and replace the history. Prevents context overflow mid-task.
-- **Hooks tool call extension** — Right now the executeHook method in `packages/shared/src/index.ts` only work with `command` type to execute hooks, we will later extend it to handle other hook types: `http`, `mcpTool`, `prompt`, and `agent`.
-
-- **Browser control: screenshot inline preview** — Render the screenshot image inline in the terminal UI so the user can see what the agent sees. Requires an image rendering primitive in OpenTUI or a terminal graphics protocol implementation. See `context/feature-specs/24-browser-control-integration.md`.
-- **Browser control: headed mode toggle** — Run the browser in headed (visible window) mode for debugging. Not needed for autonomous operation.
+- **Hooks tool call extension** — `executeHook` in `packages/shared/src/index.ts` handles `command` and `mcpTool` hook types. Still to implement: `http`, `prompt`, and `agent`.
+- **Browser control: headed mode toggle** ✅ Done — `headless` flag implemented; browser can be run in headed (visible window) mode for debugging.
 - **Browser control: multi-tab support** — Single page per browser session for now.
 - **Browser control: mobile viewport emulation** — Set device viewport dimensions to simulate mobile.
 - **Browser control: Firefox/WebKit** — Chromium only for the initial implementation.
