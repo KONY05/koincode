@@ -1,9 +1,8 @@
 import * as Sentry from "@sentry/bun";
+import { SENTRY_DSN } from "@koincode/shared";
 
-const dsn = process.env.SENTRY_DSN;
-
-if (process.env.NODE_ENV === "production" && dsn) {
-  Sentry.init({ dsn });
+if (process.env.NODE_ENV === "production" && SENTRY_DSN) {
+  Sentry.init({ dsn: SENTRY_DSN });
 }
 
 export { Sentry };

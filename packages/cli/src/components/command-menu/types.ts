@@ -5,6 +5,7 @@ import type { ContextUsage } from "../../hooks/use-chat";
 
 export type CommandContext = {
   exit: () => void;
+  destroyRenderer: () => void;
   toast: ToastContextValue;
   dialog: DialogContextValue;
   navigate: (path: string) => void;

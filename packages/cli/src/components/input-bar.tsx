@@ -532,6 +532,7 @@ export function InputBar({ onSubmit, onForceNext, contextUsage, mcpServerCount, 
             renderer.destroy();
             process.exit(0);
           },
+          destroyRenderer: () => renderer.destroy(),
           toast,
           dialog,
           navigate,

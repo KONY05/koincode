@@ -1,6 +1,6 @@
 {
   "name": "koincode",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "module": "src/index.tsx",
   "main": "dist/koincode",
   "type": "module",
@@ -35,7 +35,7 @@
   },
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
-    "build": "bun build bin/koincode.ts --outdir dist --target bun --external playwright --external @sentry/bun --external @opentui/core --external @opentui/react --external react --external react-router --define \"process.env.SENTRY_DSN='$SENTRY_DSN'\" && mv dist/koincode.js dist/koincode && bun build ../server/src/index.ts --outfile dist/server.js --target bun --external playwright --external @sentry/bun --external @libsql/client --define \"process.env.SENTRY_DSN='$SENTRY_DSN'\" && cp -r ../database/prisma/migrations dist/migrations"
+    "build": "bun build bin/koincode.ts --outdir dist --target bun --external playwright --external @sentry/bun --external @opentui/core --external @opentui/react --external react --external react-router && mv dist/koincode.js dist/koincode && bun build ../server/src/index.ts --outfile dist/server.js --target bun --external playwright --external @sentry/bun --external @libsql/client && cp -r ../database/prisma/migrations dist/migrations"
   },
   "devDependencies": {
     "@ai-sdk/react": "^3.0.186",

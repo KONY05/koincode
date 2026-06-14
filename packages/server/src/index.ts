@@ -1,5 +1,6 @@
 import { sentry } from "@sentry/hono/bun";
 import * as Sentry from "@sentry/bun";
+import { SENTRY_DSN } from "@koincode/shared";
 import fs from "fs";
 import path from "path";
 import { Hono } from "hono";
@@ -42,8 +43,8 @@ process.on("SIGTERM", async () => {
 
 const app = new Hono();
 
-if (process.env.NODE_ENV === "production" && process.env.SENTRY_DSN) {
-  app.use(sentry(app, { dsn: process.env.SENTRY_DSN, tracesSampleRate: 1.0 }));
+if (process.env.NODE_ENV === "production" && SENTRY_DSN) {
+  app.use(sentry(app, { dsn: SENTRY_DSN, tracesSampleRate: 1.0 }));
   Sentry.captureException(new Error("Sentry test — koincode prod"));
   await Sentry.flush(2000);
 }
