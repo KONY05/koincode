@@ -21,8 +21,13 @@ const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 // prod: dist/migrations/  dev: packages/database/prisma/migrations/
 const MIGRATIONS_PROD = path.join(import.meta.dirname, "migrations");
-const MIGRATIONS_DEV = path.join(import.meta.dirname, "../../database/prisma/migrations");
-const MIGRATIONS_DIR = fs.existsSync(MIGRATIONS_PROD) ? MIGRATIONS_PROD : MIGRATIONS_DEV;
+const MIGRATIONS_DEV = path.join(
+  import.meta.dirname,
+  "../../database/prisma/migrations",
+);
+const MIGRATIONS_DIR = fs.existsSync(MIGRATIONS_PROD)
+  ? MIGRATIONS_PROD
+  : MIGRATIONS_DEV;
 
 try {
   await runMigrations(MIGRATIONS_DIR);
@@ -33,7 +38,10 @@ try {
 
 // Non-fatal — server starts even if MCP connections fail
 initializeMcp().catch((err) => {
-  logger.error("MCP initialization error:", err instanceof Error ? err.message : err);
+  logger.error(
+    "MCP initialization error:",
+    err instanceof Error ? err.message : err,
+  );
 });
 
 process.on("SIGTERM", async () => {
@@ -44,7 +52,14 @@ process.on("SIGTERM", async () => {
 const app = new Hono();
 
 if (process.env.NODE_ENV === "production" && SENTRY_DSN) {
-  app.use(sentry(app, { dsn: SENTRY_DSN, tracesSampleRate: 1.0 }));
+  app.use(
+    sentry(app, {
+      dsn: SENTRY_DSN,
+      tracesSampleRate: 1.0,
+      enableLogs: true,
+      sendDefaultPii: true,
+    }),
+  );
   Sentry.captureException(new Error("Sentry test — koincode prod"));
   await Sentry.flush(2000);
 }

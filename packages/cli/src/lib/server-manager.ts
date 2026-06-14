@@ -7,7 +7,10 @@ import { readGlobalConfig } from "../utils/configs/global-config";
 
 const LOG_FILE = `${GLOBAL_CONFIG_DIR}/server.log`;
 
-const SERVER_ENTRY_PROD = path.join(import.meta.dirname, "server.js");
+// Bun.main is the actual runtime path of the running binary (follows symlinks).
+// import.meta.dirname resolves to the source directory at build time, not dist/.
+const RUNTIME_DIR = path.dirname(Bun.main);
+const SERVER_ENTRY_PROD = path.join(RUNTIME_DIR, "server.js");
 const SERVER_ENTRY_DEV = path.join(import.meta.dirname, "../../../server/src/index.ts");
 
 // Use the bundled server.js if it exists (prod), otherwise fall back to source (dev).
