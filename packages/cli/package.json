@@ -35,7 +35,7 @@
   },
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
-    "build": "bun build bin/koincode.ts --outdir dist --target bun --external playwright --external @sentry/bun --define \"process.env.SENTRY_DSN='$SENTRY_DSN'\" && mv dist/koincode.js dist/koincode && bun build ../server/src/index.ts --outfile dist/server.js --target bun --external playwright --external @sentry/bun --define \"process.env.SENTRY_DSN='$SENTRY_DSN'\""
+    "build": "bun build bin/koincode.ts --outdir dist --target bun --external playwright --external @sentry/bun --define \"process.env.SENTRY_DSN='$SENTRY_DSN'\" && mv dist/koincode.js dist/koincode && bun build ../server/src/index.ts --outfile dist/server.js --target bun --external playwright --external @sentry/bun --external @libsql/client --define \"process.env.SENTRY_DSN='$SENTRY_DSN'\""
   },
   "devDependencies": {
     "@ai-sdk/react": "^3.0.186",
@@ -60,6 +60,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@libsql/client": "^0.14.0",
     "@sentry/bun": "^10.57.0",
     "playwright": "^1.49.1"
   }
