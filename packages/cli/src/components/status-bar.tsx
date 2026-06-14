@@ -1,6 +1,7 @@
 import { TextAttributes } from "@opentui/core";
 import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
+import { useUpdateCheck } from "../hooks/use-update-check";
 import { Mode } from "@koincode/shared";
 import type { ContextUsage } from "../hooks/use-chat";
 
@@ -20,6 +21,7 @@ type Props = {
 export function StatusBar({ contextUsage, mcpServerCount }: Props) {
   const { mode, model, voiceInput } = usePromptConfig();
   const { colors } = useTheme();
+  const hasUpdate = useUpdateCheck();
 
   const showRing = contextUsage !== null && contextUsage !== undefined && contextUsage.percent >= RING_THRESHOLD;
   const ringColor = contextUsage && contextUsage.percent >= 95 ? "red" : "yellow";
@@ -49,6 +51,13 @@ export function StatusBar({ contextUsage, mcpServerCount }: Props) {
             <text attributes={TextAttributes.DIM} fg={colors.info}>
               {mcpServerCount} mcp
             </text>
+          </>
+        )}
+
+        {hasUpdate && (
+          <>
+            <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
+            <text fg={colors.primary}>update available · /update</text>
           </>
         )}
       </box>

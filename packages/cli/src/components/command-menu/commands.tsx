@@ -12,6 +12,7 @@ import type { Command } from "./types";
 import { loadSkillsManifest } from "../../lib/skills";
 import { restartServer } from "../../lib/server-manager";
 import { readGlobalConfig, updateGlobalConfig } from "../../utils/configs/global-config";
+import { checkForUpdate, runUpdate, currentVersion } from "../../lib/update";
 
 export const COMMANDS: Command[] = [
   {
@@ -172,6 +173,33 @@ export const COMMANDS: Command[] = [
         ctx.toast.show({ message: "Server restarted", variant: "success" });
       } catch {
         ctx.toast.show({ message: "Failed to restart server", variant: "error" });
+      }
+    },
+  },
+  {
+    name: "update",
+    description: "Check for updates and install the latest version",
+    value: "/update",
+    action: async (ctx) => {
+      ctx.toast.show({ message: "Checking for updates...", variant: "info" });
+      try {
+        const newVersion = await checkForUpdate();
+        if (!newVersion) {
+          ctx.toast.show({
+            message: `Already on the latest version (v${currentVersion})`,
+            variant: "info",
+          });
+          return;
+        }
+        ctx.toast.show({
+          message: `New version v${newVersion} found. Installing...`,
+          variant: "info",
+        });
+        // Brief pause so the user sees the toast before the TUI tears down
+        await new Promise<void>((r) => setTimeout(r, 800));
+        runUpdate(ctx.destroyRenderer, newVersion);
+      } catch {
+        ctx.toast.show({ message: "Could not check for updates", variant: "error" });
       }
     },
   },
