@@ -2,12 +2,10 @@ import { useEffect, useState } from "react";
 
 import { version } from "../../package.json";
 
-type UpdateStatus = "idle" | "updating" | "done";
-
 let updateChecked = false;
 
 export function useAutoUpdate() {
-  const [status, setStatus] = useState<UpdateStatus>("idle");
+  const [hasUpdate, setHasUpdate] = useState(false);
 
   useEffect(() => {
     if (updateChecked) return;
@@ -24,18 +22,12 @@ export function useAutoUpdate() {
           typeof data.version === "string" &&
           data.version !== version
         ) {
-          setStatus("updating");
-          const proc = Bun.spawn(["npm", "install", "-g", "koincode"], {
-            stdout: "ignore",
-            stderr: "ignore",
-          });
-          await proc.exited;
-          setStatus("done");
+          setHasUpdate(true);
         }
       } catch {}
     }
     check();
   }, []);
 
-  return status;
+  return hasUpdate;
 }
