@@ -9,7 +9,7 @@ import { useTheme } from "../providers/theme";
 import { SessionActionsProvider } from "../providers/session-actions";
 import { CWD, getGitBranch } from "../utils/helper";
 import { version } from "../../package.json";
-
+import { useAutoUpdate } from "../hooks/use-auto-update";
 
 const GIT_BRANCH = getGitBranch();
 
@@ -17,6 +17,7 @@ export function Home() {
   const navigate = useNavigate();
   const { mode, model } = usePromptConfig();
   const { colors } = useTheme();
+  const updateStatus = useAutoUpdate();
 
   const handleSubmit = useCallback(
     (text: string) => {
@@ -62,9 +63,10 @@ export function Home() {
           <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
             {CWD}{GIT_BRANCH ? `:${GIT_BRANCH}` : ""}
           </text>
-          <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
-            v{version}
-          </text>
+          <box flexDirection="row" gap={1}>
+            <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>v{version}</text>
+            {updateStatus === "updating" && <text fg={colors.primary}>updating...</text>}
+          </box>
         </box>
       </box>
     </SessionActionsProvider>
