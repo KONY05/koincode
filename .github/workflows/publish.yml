@@ -26,10 +26,11 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Inject Sentry DSN
+        run: echo "export const SENTRY_DSN = '${{ secrets.SENTRY_DSN }}';" > packages/shared/src/sentry-dsn.ts
+
       - name: Build
         run: bun run build:cli
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       - name: Publish to npm
         run: npm publish --access public

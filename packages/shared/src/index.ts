@@ -43,6 +43,8 @@ export {
 
 export { parseMcpToolName, isMcpTool } from "./mcp";
 
+export { SENTRY_DSN } from "./sentry-dsn";
+
 export type {
   KoincodeGlobalConfig,
   ApiKeys,

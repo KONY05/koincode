@@ -101,7 +101,6 @@ function spawnServer(port: number) {
       ...process.env,
       PORT: String(port),
       NODE_ENV: isDev ? "development" : "production",
-      SENTRY_DSN: process.env.SENTRY_DSN,
       // Config file keys take precedence over shell env vars
       ...(config.apiKeys?.anthropic && {
         ANTHROPIC_API_KEY: config.apiKeys.anthropic,
