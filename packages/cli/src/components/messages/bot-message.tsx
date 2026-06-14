@@ -248,6 +248,7 @@ export function BotMessage({
             }
 
             if (part.type === "reasoning") {
+              if (!part.text) return null;
               return (
                 <box
                   key={`reasoning-${j}`}

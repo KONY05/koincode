@@ -17,7 +17,7 @@ export function Home() {
   const navigate = useNavigate();
   const { mode, model } = usePromptConfig();
   const { colors } = useTheme();
-  const updateStatus = useAutoUpdate();
+  const hasUpdate = useAutoUpdate();
 
   const handleSubmit = useCallback(
     (text: string) => {
@@ -65,7 +65,7 @@ export function Home() {
           </text>
           <box flexDirection="row" gap={1}>
             <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>v{version}</text>
-            {updateStatus === "updating" && <text fg={colors.primary}>updating...</text>}
+            {hasUpdate && <text fg={colors.primary}>new version available!</text>}
           </box>
         </box>
       </box>
