@@ -1,15 +1,14 @@
 import { sentry } from "@sentry/hono/bun";
 import * as Sentry from "@sentry/bun";
-import { execSync } from "child_process";
-import path from "path";
 import fs from "fs";
+import path from "path";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import { logger } from "./lib/helpers";
 import { initializeMcp, shutdownMcp } from "./lib/mcp-manager";
-import { GLOBAL_CONFIG_DIR, DB_PATH, SERVER_PORT } from "@koincode/shared";
-// import type { KoincodeConfig } from "@koincode/shared";
+import { SERVER_PORT } from "@koincode/shared";
+import { runMigrations } from "./lib/migrations";
 
 import sessions from "./routes/sessions";
 import chat from "./routes/chat";
@@ -19,15 +18,13 @@ import mcp from "./routes/mcp";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
-// Ensure config dir exists and run pending migrations before accepting requests
-const DATABASE_PKG = path.join(import.meta.dirname, "../../database");
+// prod: dist/migrations/  dev: packages/database/prisma/migrations/
+const MIGRATIONS_PROD = path.join(import.meta.dirname, "migrations");
+const MIGRATIONS_DEV = path.join(import.meta.dirname, "../../database/prisma/migrations");
+const MIGRATIONS_DIR = fs.existsSync(MIGRATIONS_PROD) ? MIGRATIONS_PROD : MIGRATIONS_DEV;
+
 try {
-  fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
-  execSync("bunx prisma migrate deploy", {
-    cwd: DATABASE_PKG,
-    env: { ...process.env, DATABASE_URL: `file:${DB_PATH}` },
-    stdio: "pipe",
-  });
+  await runMigrations(MIGRATIONS_DIR);
 } catch (e) {
   logger.error("Startup failed:", e instanceof Error ? e.message : e);
   process.exit(1);
