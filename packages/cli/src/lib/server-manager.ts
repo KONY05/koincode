@@ -7,13 +7,12 @@ import { readGlobalConfig } from "../utils/configs/global-config";
 
 const LOG_FILE = `${GLOBAL_CONFIG_DIR}/server.log`;
 
-const isDev = process.env.NODE_ENV === "development";
+const SERVER_ENTRY_PROD = path.join(import.meta.dirname, "server.js");
+const SERVER_ENTRY_DEV = path.join(import.meta.dirname, "../../../server/src/index.ts");
 
-// In dev, point at the source file with hot-reload.
-// In prod (bun link / compiled), point at the installed server entry.
-const SERVER_ENTRY = isDev
-  ? path.join(import.meta.dirname, "../../../server/src/index.ts")
-  : path.join(import.meta.dirname, "server.js");
+// Use the bundled server.js if it exists (prod), otherwise fall back to source (dev).
+const SERVER_ENTRY = fs.existsSync(SERVER_ENTRY_PROD) ? SERVER_ENTRY_PROD : SERVER_ENTRY_DEV;
+const isDev = SERVER_ENTRY === SERVER_ENTRY_DEV;
 
 function getServerPort(): number {
   const config = readGlobalConfig();
@@ -101,7 +100,7 @@ function spawnServer(port: number) {
     env: {
       ...process.env,
       PORT: String(port),
-      NODE_ENV: process.env.NODE_ENV ?? "production",
+      NODE_ENV: isDev ? "development" : "production",
       SENTRY_DSN: process.env.SENTRY_DSN,
       // Config file keys take precedence over shell env vars
       ...(config.apiKeys?.anthropic && {
