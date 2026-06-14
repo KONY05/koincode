@@ -420,6 +420,12 @@ export function Session() {
   }, [location.state]);
 
   useEffect(() => {
+    if (!session?.title) return;
+    process.stdout.write(`\x1b]0;${session.title} — koincode\x07`);
+    return () => { process.stdout.write(`\x1b]0;koincode\x07`); };
+  }, [session?.title]);
+
+  useEffect(() => {
     if (!id) return;
 
     let ignore = false;
