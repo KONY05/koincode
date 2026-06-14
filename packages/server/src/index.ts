@@ -44,6 +44,8 @@ const app = new Hono();
 
 if (process.env.NODE_ENV === "production" && process.env.SENTRY_DSN) {
   app.use(sentry(app, { dsn: process.env.SENTRY_DSN, tracesSampleRate: 1.0 }));
+  Sentry.captureException(new Error("Sentry test — koincode prod"));
+  await Sentry.flush(2000);
 }
 
 let lastRequestAt = Date.now();
