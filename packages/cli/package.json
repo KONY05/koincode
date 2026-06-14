@@ -1,6 +1,6 @@
 {
   "name": "koincode",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "module": "src/index.tsx",
   "main": "dist/koincode",
   "type": "module",
@@ -35,7 +35,7 @@
   },
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
-    "build": "bun build bin/koincode.ts --outdir dist --target bun --external playwright --external @sentry/bun --external @opentui/core --external @opentui/react --external react --external react-router --define \"process.env.NODE_ENV='production'\" && mv dist/koincode.js dist/koincode && bun build ../server/src/index.ts --outfile dist/server.js --target bun --external playwright --external @sentry/bun --external @sentry/hono --external @libsql/client --define \"process.env.NODE_ENV='production'\" && cp -r ../database/prisma/migrations dist/migrations"
+    "build": "bun build bin/koincode.ts --outdir dist --target bun --external playwright --external @sentry/bun --external @opentui/core --external @opentui/react --external react --external react-router --define \"process.env.NODE_ENV='production'\" && mv dist/koincode.js dist/koincode && bun build ../server/src/index.ts --outfile dist/server.js --target bun --external playwright --external @sentry/bun --external @libsql/client --define \"process.env.NODE_ENV='production'\" && cp -r ../database/prisma/migrations dist/migrations"
   },
   "devDependencies": {
     "@ai-sdk/react": "^3.0.186",
@@ -64,7 +64,6 @@
     "@opentui/core": "^0.1.97",
     "@opentui/react": "^0.1.97",
     "@sentry/bun": "^10.57.0",
-    "@sentry/hono": "^10.57.0",
     "playwright": "^1.49.1",
     "react": "^19.2.4",
     "react-router": "^7.14.0"
