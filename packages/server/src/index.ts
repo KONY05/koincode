@@ -53,12 +53,11 @@ const app = new Hono();
 if (process.env.NODE_ENV === "production" && SENTRY_DSN) {
   Sentry.init({
     dsn: SENTRY_DSN,
-    tracesSampleRate: 1.0,
+    skipOpenTelemetrySetup: true,
+    defaultIntegrations: false,
     enableLogs: true,
     sendDefaultPii: true,
   });
-  Sentry.captureException(new Error("Sentry test — koincode prod"));
-  await Sentry.flush(2000);
 }
 
 let lastRequestAt = Date.now();
