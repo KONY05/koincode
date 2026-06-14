@@ -9,7 +9,7 @@ import { useTheme } from "../providers/theme";
 import { SessionActionsProvider } from "../providers/session-actions";
 import { CWD, getGitBranch } from "../utils/helper";
 import { version } from "../../package.json";
-import { useAutoUpdate } from "../hooks/use-auto-update";
+import { useUpdateCheck } from "../hooks/use-update-check";
 
 const GIT_BRANCH = getGitBranch();
 
@@ -17,7 +17,7 @@ export function Home() {
   const navigate = useNavigate();
   const { mode, model } = usePromptConfig();
   const { colors } = useTheme();
-  const hasUpdate = useAutoUpdate();
+  const hasUpdate = useUpdateCheck();
 
   const handleSubmit = useCallback(
     (text: string) => {

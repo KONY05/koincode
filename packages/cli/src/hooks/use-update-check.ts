@@ -4,7 +4,7 @@ import { version } from "../../package.json";
 
 let updateChecked = false;
 
-export function useAutoUpdate() {
+export function useUpdateCheck() {
   const [hasUpdate, setHasUpdate] = useState(false);
 
   useEffect(() => {
