@@ -230,9 +230,11 @@ export function BotMessage({
     );
   };
 
-  const groups = groupConsecutiveParts(parts).filter(
-    (group) => !group.parts.every(shouldHidePart),
-  );
+  const groups = groupConsecutiveParts(parts).filter((group) => {
+    if (group.parts.every(shouldHidePart)) return false;
+    if (group.type === "reasoning" && group.parts.every((p) => p.type === "reasoning" && !p.text.trim())) return false;
+    return true;
+  });
 
   const modeColor =
     currentMode === Mode.PLAN ? colors.planMode : colors.primary;
@@ -248,7 +250,7 @@ export function BotMessage({
             }
 
             if (part.type === "reasoning") {
-              if (!part.text) return null;
+              if (!part.text.trim()) return null;
               return (
                 <box
                   key={`reasoning-${j}`}
@@ -262,7 +264,7 @@ export function BotMessage({
                   paddingX={2}
                 >
                   <text attributes={TextAttributes.DIM}>
-                    <em fg={colors.thinking}>Thinking:</em> {part.text}
+                    <em fg={colors.thinking}>Thinking:</em> {part.text.trim()}
                   </text>
                 </box>
               );
