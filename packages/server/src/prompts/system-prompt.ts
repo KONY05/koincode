@@ -26,9 +26,10 @@ type SystemPromptParams = {
   userMemory?: string;
   skillsManifest?: SkillManifestEntry[];
   mcpServers?: McpServerStatus[];
+  ideActiveFile?: string | null;
 };
 
-export function buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers }: SystemPromptParams): string {
+export function buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers, ideActiveFile }: SystemPromptParams): string {
   const parts: string[] = [];
 
   parts.push(getIdentitySection());
@@ -46,6 +47,13 @@ export function buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers
 
   if (skillsManifest && skillsManifest.length > 0) {
     parts.push(getSkillsSection(skillsManifest));
+  }
+
+  if (ideActiveFile) {
+    parts.push(
+      `# IDE Context\nThe user currently has **${ideActiveFile}** open in their editor. ` +
+      `This is likely the file they want to work on — treat it as the starting point and read it before responding if you haven't already.`
+    );
   }
 
   if (userMemory) {

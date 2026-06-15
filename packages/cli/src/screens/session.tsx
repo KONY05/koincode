@@ -90,13 +90,11 @@ function countMessagesBeforeLastBoundary(rawMessages: unknown[]): number {
 function SessionChat({
   session,
   initialState,
-  mcpServerCount,
   onDeleteLastMessage,
   onHandoff,
 }: {
   session: SessionData;
   initialState: z.infer<typeof initialStateSchema> | null;
-  mcpServerCount?: number;
   onDeleteLastMessage?: () => void;
   onHandoff: () => Promise<void>;
 }) {
@@ -334,7 +332,6 @@ function SessionChat({
       onSubmit={(text) => submit({ userText: text, mode, model })}
       onForceNext={interrupt}
       contextUsage={contextUsage}
-      mcpServerCount={mcpServerCount}
       streaming={
         status === "submitted" || status === "streaming" || isSubagentRunning || isCompacting || isHandingOff
       }
@@ -395,24 +392,6 @@ export function Session() {
   const toast = useToast();
 
   const [session, setSession] = useState<SessionData | null>(null);
-  const [mcpServerCount, setMcpServerCount] = useState(0);
-
-  useEffect(() => {
-    const fetchMcpStatus = async () => {
-      try {
-        const res = await apiClient.mcp.servers.$get();
-
-        if (!res.ok) return;
-
-        const servers = await res.json();
-
-        setMcpServerCount(servers.filter((s) => s.status === "connected").length);
-      } catch {
-        // non-fatal — status bar just won't show the count
-      }
-    };
-    void fetchMcpStatus();
-  }, []);
 
   const initialState = useMemo(() => {
     const parsed = initialStateSchema.safeParse(location.state);
@@ -517,7 +496,6 @@ export function Session() {
       key={session.id}
       session={session}
       initialState={initialState}
-      mcpServerCount={mcpServerCount}
       onDeleteLastMessage={handleDeleteLastMessage}
       onHandoff={handleHandoff}
     />

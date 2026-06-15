@@ -18,6 +18,7 @@ import {
 import { apiClient } from "../lib/api-client";
 import { executeLocalTool } from "../tools";
 import { loadSkillsManifest } from "../lib/skills";
+import { getIdeContextForRequest } from "./use-ide-context";
 import { runSpawnAgent } from "../tools/spawn-agent";
 import { getPermissionInfo } from "../utils/permissions";
 import {
@@ -158,6 +159,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
               description: s.description,
               scope: s.scope,
             })),
+            ideActiveFile: getIdeContextForRequest(),
           },
         };
       },

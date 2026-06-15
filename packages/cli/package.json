@@ -1,6 +1,6 @@
 {
   "name": "koincode",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "module": "src/index.tsx",
   "main": "dist/koincode",
   "type": "module",
@@ -35,7 +35,7 @@
   },
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
-    "build": "bun build bin/koincode.ts --outdir dist --target bun --external playwright --external @sentry/bun --external @opentui/core --external @opentui/react --external react --external react-router --define \"process.env.NODE_ENV='production'\" && mv dist/koincode.js dist/koincode && bun build ../server/src/index.ts --outfile dist/server.js --target bun --external playwright --external @sentry/bun --external @libsql/client --define \"process.env.NODE_ENV='production'\" && cp -r ../database/prisma/migrations dist/migrations"
+    "build": "bun build bin/koincode.ts --outdir dist --target bun --external playwright --external @sentry/bun --external @opentui/core --external @opentui/react --external react --external react-router --define \"process.env.NODE_ENV='production'\" && mv dist/koincode.js dist/koincode && bun build ../server/src/index.ts --outfile dist/server.js --target bun --external playwright --external @sentry/bun --external @libsql/client --define \"process.env.NODE_ENV='production'\" && cp -r ../database/prisma/migrations dist/migrations && bun build ../vscode-extension/src/extension.ts --outfile dist/vscode-extension/out/extension.js --target node --format cjs --external vscode && cp ../vscode-extension/package.json dist/vscode-extension/package.json"
   },
   "devDependencies": {
     "@ai-sdk/react": "^3.0.186",

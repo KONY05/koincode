@@ -23,7 +23,6 @@ type Props = {
   onSubmit: (text: string) => void;
   onForceNext?: () => void;
   contextUsage?: ContextUsage | null;
-  mcpServerCount?: number;
   inputDisabled?: boolean;
   streaming?: boolean;
   loadingAction?: string;
@@ -43,7 +42,6 @@ export function SessionShell({
   onSubmit,
   onForceNext,
   contextUsage,
-  mcpServerCount,
   inputDisabled = false,
   streaming = false,
   loadingAction,
@@ -131,7 +129,6 @@ export function SessionShell({
               onSubmit={onSubmit}
               onForceNext={onForceNext}
               contextUsage={contextUsage}
-              mcpServerCount={mcpServerCount}
               disabled={inputDisabled}
               streaming={streaming}
               queue={queue}

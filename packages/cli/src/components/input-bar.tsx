@@ -338,7 +338,6 @@ type Props = {
   onSubmit: (text: string) => void;
   onForceNext?: () => void;
   contextUsage?: ContextUsage | null;
-  mcpServerCount?: number;
   disabled?: boolean;
   streaming?: boolean;
   queue?: QueuedMessage[];
@@ -347,7 +346,7 @@ type Props = {
   onQueueFocusedIndexChange?: (index: number | null) => void;
 };
 
-export function InputBar({ onSubmit, onForceNext, contextUsage, mcpServerCount, disabled = false, streaming = false, queue = [], onRemoveFromQueue, queueFocusedIndex = null, onQueueFocusedIndexChange }: Props) {
+export function InputBar({ onSubmit, onForceNext, contextUsage, disabled = false, streaming = false, queue = [], onRemoveFromQueue, queueFocusedIndex = null, onQueueFocusedIndexChange }: Props) {
   const { mode, model, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
@@ -999,7 +998,7 @@ export function InputBar({ onSubmit, onForceNext, contextUsage, mcpServerCount, 
             onContentChange={handleTextareaContentChange}
             placeholder={getInputBarPlaceholder(disabled, streaming, queue.length, voiceInput, voiceState)}
           />
-          <StatusBar contextUsage={contextUsage} mcpServerCount={mcpServerCount} />
+          <StatusBar contextUsage={contextUsage} />
         </box>
       </box>
     </box>
