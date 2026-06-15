@@ -8,6 +8,7 @@ import { Home } from "./screens/home";
 import { NewSession } from "./screens/new-session";
 import { Session } from "./screens/session";
 import { updateGlobalConfig } from "./utils/configs/global-config";
+import { ensureIdeExtension } from "./lib/ide-extension";
 import type { ApiKeys } from "@koincode/shared";
 
 // Handle key-saving flags before starting the TUI
@@ -38,6 +39,7 @@ for (const { flag, apiKey } of KEY_FLAGS) {
   }
 }
 
+ensureIdeExtension();
 await initTreeSitter();
 
 const router = createMemoryRouter([

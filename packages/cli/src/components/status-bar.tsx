@@ -1,9 +1,13 @@
+import { useState, useEffect } from "react";
 import { TextAttributes } from "@opentui/core";
+
 import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
 import { useUpdateCheck } from "../hooks/use-update-check";
+import { useIdeContext } from "../hooks/use-ide-context";
 import { Mode } from "@koincode/shared";
 import type { ContextUsage } from "../hooks/use-chat";
+import { apiClient } from "../lib/api-client";
 
 const RING_SEGMENTS = 10;
 const RING_THRESHOLD = 80; // from what context percent to show the ring
@@ -13,15 +17,36 @@ function buildRing(percent: number): string {
   return "●".repeat(filled) + "○".repeat(RING_SEGMENTS - filled);
 }
 
+function useMcpServerCount(): number {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await apiClient.mcp.servers.$get();
+        if (!res.ok) return;
+        const servers = await res.json();
+        setCount(servers.filter((s) => s.status === "connected").length);
+      } catch {
+        // non-fatal
+      }
+    };
+    void fetch();
+  }, []);
+
+  return count;
+}
+
 type Props = {
   contextUsage?: ContextUsage | null;
-  mcpServerCount?: number;
 };
 
-export function StatusBar({ contextUsage, mcpServerCount }: Props) {
+export function StatusBar({ contextUsage }: Props) {
   const { mode, model, voiceInput } = usePromptConfig();
   const { colors } = useTheme();
   const hasUpdate = useUpdateCheck();
+  const { activeFile, fileContextEnabled, toggleFileContext } = useIdeContext();
+  const mcpServerCount = useMcpServerCount();
 
   const showRing = contextUsage !== null && contextUsage !== undefined && contextUsage.percent >= RING_THRESHOLD;
   const ringColor = contextUsage && contextUsage.percent >= 95 ? "red" : "yellow";
@@ -45,7 +70,7 @@ export function StatusBar({ contextUsage, mcpServerCount }: Props) {
           </>
         )}
 
-        {mcpServerCount != null && mcpServerCount > 0 && (
+        {mcpServerCount > 0 && (
           <>
             <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
             <text attributes={TextAttributes.DIM} fg={colors.info}>
@@ -62,11 +87,23 @@ export function StatusBar({ contextUsage, mcpServerCount }: Props) {
         )}
       </box>
 
-      {showRing && (
-        <text fg={ringColor}>
-          {buildRing(contextUsage!.percent)} {contextUsage!.percent}%
-        </text>
-      )}
+      <box flexDirection="row" gap={2}>
+        {showRing && (
+          <text fg={ringColor}>
+            {buildRing(contextUsage!.percent)} {contextUsage!.percent}%
+          </text>
+        )}
+        {activeFile && (
+          <text
+            attributes={fileContextEnabled
+              ? TextAttributes.DIM
+              : TextAttributes.DIM | TextAttributes.STRIKETHROUGH}
+            onMouseDown={toggleFileContext}
+          >
+            In {activeFile}
+          </text>
+        )}
+      </box>
     </box>
   );
 }
