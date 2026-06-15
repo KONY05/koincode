@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import {
   DEFAULT_CHAT_MODEL_ID,
+  SUPPORTED_CHAT_MODELS,
   findSupportedChatModel,
   isLocalModelId,
   Mode,
@@ -33,10 +34,28 @@ type PromptConfigProviderProps = {
   children: ReactNode;
 };
 
+function firstModelForProvider(provider: "anthropic" | "openai" | "google"): string {
+  return SUPPORTED_CHAT_MODELS.find((m) => m.provider === provider)!.id;
+}
+
 function resolveInitialModel(): string {
-  const saved = readGlobalConfig().defaultModel;
+  const config = readGlobalConfig();
+
+  const saved = config.defaultModel;
   if (saved && (findSupportedChatModel(saved) || isLocalModelId(saved)))
     return saved;
+
+  const keys = config.apiKeys ?? {};
+  const hasAnthropicKey = !!(process.env.ANTHROPIC_API_KEY || keys.anthropic);
+  const hasOpenAIKey = !!(process.env.OPENAI_API_KEY || keys.openai);
+  const hasGoogleKey = !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || keys.gemini);
+  const hasOpenRouterKey = !!(process.env.OPENROUTER_API_KEY || keys.openrouter);
+
+  if (hasAnthropicKey) return firstModelForProvider("anthropic");
+  if (hasOpenAIKey) return firstModelForProvider("openai");
+  if (hasGoogleKey) return firstModelForProvider("google");
+  if (hasOpenRouterKey) return "openrouter/owl-alpha";
+
   return DEFAULT_CHAT_MODEL_ID;
 }
 
