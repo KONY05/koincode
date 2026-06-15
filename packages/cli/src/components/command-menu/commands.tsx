@@ -13,6 +13,7 @@ import { loadSkillsManifest } from "../../lib/skills";
 import { restartServer } from "../../lib/server-manager";
 import { readGlobalConfig, updateGlobalConfig } from "../../utils/configs/global-config";
 import { checkForUpdate, runUpdate, currentVersion } from "../../lib/update";
+import { resolveUsageTarget, openUrl } from "../../lib/usage";
 
 export const COMMANDS: Command[] = [
   {
@@ -174,6 +175,25 @@ export const COMMANDS: Command[] = [
       } catch {
         ctx.toast.show({ message: "Failed to restart server", variant: "error" });
       }
+    },
+  },
+  {
+    name: "usage",
+    description: "Open API usage dashboard for your current provider",
+    value: "/usage",
+    action: (ctx) => {
+      const result = resolveUsageTarget(ctx.model);
+      if (result.type === "local") {
+        ctx.toast.show({ message: "Local model — no usage page to open", variant: "info" });
+        return;
+      }
+      if (result.type === "no-keys") {
+        ctx.toast.show({ message: "No API keys configured. Run /setup to add keys.", variant: "error" });
+        return;
+      }
+      const suffix = result.via === "openrouter" ? " (via OpenRouter)" : "";
+      ctx.toast.show({ message: `Opening usage dashboard${suffix}...`, variant: "info" });
+      openUrl(result.url);
     },
   },
   {

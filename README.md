@@ -32,6 +32,14 @@
 - **Multi-provider** - OpenRouter, Anthropic, OpenAI, or Gemini keys
 - **Persistent sessions** - Local SQLite database stores your conversation history
 
+## Requirements
+
+- [Bun](https://bun.sh) v1.0 or later
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
 ## Getting Started
 
 ```bash
