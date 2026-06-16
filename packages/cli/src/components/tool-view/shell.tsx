@@ -97,9 +97,7 @@ export default function ShellView({
           )}
         </box>
         <box>
-          {pending ? (
-            <Spinner activeColor={colors.info} />
-          ) : isBackground ? (
+          {pending || isBackground ? (
             <Spinner activeColor={colors.info} showLabel={false} />
           ) : done && failed ? (
             <text fg={colors.error}>✗ {result!.exitCode}</text>
