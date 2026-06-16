@@ -12,7 +12,7 @@ import type { Command } from "./types";
 import { loadSkillsManifest } from "../../lib/skills";
 import { restartServer } from "../../lib/server-manager";
 import { readGlobalConfig, updateGlobalConfig } from "../../utils/configs/global-config";
-import { checkForUpdate, runUpdate, currentVersion } from "../../lib/update";
+import { checkForUpdate, runUpdate, currentVersion } from "../../lib/update-cli";
 import { resolveUsageTarget, openUrl } from "../../lib/usage";
 
 export const COMMANDS: Command[] = [

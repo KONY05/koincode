@@ -50,8 +50,7 @@ export const toolInputSchemas = {
     command: z.string().describe("Shell command to run"),
     description: z
       .string()
-      .optional()
-      .describe("Short description of the command"),
+      .describe("Short human-readable description of what this command does"),
     timeout: z.number().optional().describe("Timeout in milliseconds"),
     run_in_background: z.boolean().default(false).describe("Spawn detached without waiting for exit. Returns immediately with the process PID."),
   }),
