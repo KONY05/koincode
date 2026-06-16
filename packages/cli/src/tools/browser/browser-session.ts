@@ -3,22 +3,39 @@ import { readGlobalConfig } from "../../utils/configs/global-config";
 
 let browser: Browser | null = null;
 let page: Page | null = null;
+let currentSessionId: string | null = null;
 
 type ConsoleLogEntry = { type: string; text: string; timestamp: number };
 const consoleLogs: ConsoleLogEntry[] = [];
 
-export async function getPage(): Promise<Page> {
+async function openFreshPage(): Promise<Page> {
+  if (page && !page.isClosed()) {
+    await page.close().catch(() => {});
+  }
+  page = await browser!.newPage();
+  consoleLogs.length = 0;
+  page.on("console", (msg) => {
+    consoleLogs.push({ type: msg.type(), text: msg.text(), timestamp: Date.now() });
+  });
+  return page;
+}
+
+export async function getPage(sessionId?: string): Promise<Page> {
   if (!browser) {
     const headless = readGlobalConfig().browserHeadless ?? false;
     browser = await chromium.launch({ headless });
   }
-  if (!page || page.isClosed()) {
-    page = await browser.newPage();
-    consoleLogs.length = 0;
-    page.on("console", (msg) => {
-      consoleLogs.push({ type: msg.type(), text: msg.text(), timestamp: Date.now() });
-    });
+
+  // New session: close current page and open a fresh one so sessions don't share state.
+  if (sessionId && sessionId !== currentSessionId) {
+    currentSessionId = sessionId;
+    return openFreshPage();
   }
+
+  if (!page || page.isClosed()) {
+    return openFreshPage();
+  }
+
   return page;
 }
 

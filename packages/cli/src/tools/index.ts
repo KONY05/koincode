@@ -36,6 +36,7 @@ export async function executeLocalTool(
   input: unknown,
   mode: ModeType,
   modelId?: string,
+  sessionId?: string,
 ) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.has(toolName)) {
     throw new Error(`Tool ${toolName} is not available in PLAN mode`);
@@ -103,16 +104,16 @@ export async function executeLocalTool(
         toolOutput = await runServerStart(input);
         break;
       case "browserNavigate":
-        toolOutput = await runBrowserNavigate(input);
+        toolOutput = await runBrowserNavigate(input, sessionId);
         break;
       case "browserScreenshot":
-        toolOutput = await runBrowserScreenshot(input, modelId);
+        toolOutput = await runBrowserScreenshot(input, modelId, sessionId);
         break;
       case "browserClick":
-        toolOutput = await runBrowserClick(input);
+        toolOutput = await runBrowserClick(input, sessionId);
         break;
       case "browserType":
-        toolOutput = await runBrowserType(input);
+        toolOutput = await runBrowserType(input, sessionId);
         break;
       case "browserGetConsoleLogs":
         toolOutput = runBrowserGetConsoleLogs(input);

@@ -1,4 +1,4 @@
-import { closeBrowser } from "./session";
+import { closeBrowser } from "./browser-session";
 
 export async function runBrowserClose(_input: unknown) {
   await closeBrowser();
