@@ -11,39 +11,25 @@ function clipLine(line: string): string {
   return line.length > MAX_LINE_LEN ? line.slice(0, MAX_LINE_LEN) + "…" : line;
 }
 
-function OutputBlock({
-  lines,
-  overflow,
-  borderColor,
+function LabeledLine({
+  label,
+  text,
   fg,
   colors,
 }: {
-  lines: string[];
-  overflow: number;
-  borderColor: string;
+  label: string;
+  text: string;
   fg?: string;
   colors: ThemeColors;
 }) {
-  if (lines.length === 0) return null;
   return (
-    <box
-      width="100%"
-      border={["left"]}
-      borderColor={borderColor}
-      customBorderChars={{ ...EmptyBorder, vertical: "│" }}
-      paddingLeft={1}
-      marginTop={1}
-    >
-      {lines.map((line, i) => (
-        <text key={i} attributes={TextAttributes.DIM} fg={fg}>
-          {clipLine(line)}
-        </text>
-      ))}
-      {overflow > 0 && (
-        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
-          … {overflow} more {overflow === 1 ? "line" : "lines"}
-        </text>
-      )}
+    <box flexDirection="row" gap={1}>
+      <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+        {label}
+      </text>
+      <text attributes={TextAttributes.DIM} fg={fg}>
+        {text}
+      </text>
     </box>
   );
 }
@@ -62,15 +48,27 @@ export default function ShellView({
   colors: ThemeColors;
 }) {
   if (!input || typeof input !== "object") return null;
-  const { command } = input as { command?: string };
+  const { command, description } = input as {
+    command?: string;
+    description?: string;
+  };
   if (typeof command !== "string") return null;
 
   const result =
     output && typeof output === "object"
-      ? (output as { stdout?: string; stderr?: string; exitCode?: number; pid?: number })
+      ? (output as {
+          stdout?: string;
+          stderr?: string;
+          exitCode?: number;
+          pid?: number;
+        })
       : null;
 
-  const isBackground = !pending && result !== null && typeof result.pid === "number" && typeof result.exitCode !== "number";
+  const isBackground =
+    !pending &&
+    result !== null &&
+    typeof result.pid === "number" &&
+    typeof result.exitCode !== "number";
 
   const stdoutLines = result?.stdout?.split("\n").filter(Boolean) ?? [];
   const stderrLines = result?.stderr?.split("\n").filter(Boolean) ?? [];
@@ -88,19 +86,22 @@ export default function ShellView({
     <box width="100%">
       <box flexDirection="row" justifyContent="space-between" width="100%">
         <box flexDirection="row" gap={1}>
-          <text fg={colors.info}>❯</text>
-          <text>{command}</text>
-          {isBackground && (
-            <text attributes={TextAttributes.DIM} fg={colors.info}>
-              pid {result!.pid} {" "}
-            </text>
+          <text fg={colors.info}>Shell</text>
+          {description && (
+            <>
+              <text fg={colors.dimSeparator}>›</text>
+              <text>{description}</text>
+            </>
           )}
         </box>
         <box>
           {pending ? (
-            <Spinner activeColor={colors.info} />
+            <Spinner activeColor={colors.info} text="pending" />
           ) : isBackground ? (
-            <Spinner activeColor={colors.info} text="Running in background" />
+            <Spinner
+              activeColor={colors.info}
+              text={`pid ${result!.pid} `}
+            />
           ) : done && failed ? (
             <text fg={colors.error}>✗ {result!.exitCode}</text>
           ) : done ? (
@@ -109,20 +110,47 @@ export default function ShellView({
         </box>
       </box>
 
-      <OutputBlock
-        lines={stdoutVisible}
-        overflow={stdoutOverflow}
+      <box
+        width="100%"
+        border={["left"]}
         borderColor={colors.dimSeparator}
-        colors={colors}
-      />
+        customBorderChars={{ ...EmptyBorder, vertical: "│" }}
+        paddingLeft={1}
+        marginTop={1}
+      >
+        <LabeledLine label="IN " text={command} colors={colors} />
 
-      <OutputBlock
-        lines={stderrVisible}
-        overflow={stderrOverflow}
-        borderColor={colors.error}
-        fg={colors.error}
-        colors={colors}
-      />
+        {stdoutVisible.map((line, i) => (
+          <LabeledLine
+            key={i}
+            label="OUT"
+            text={clipLine(line)}
+            colors={colors}
+          />
+        ))}
+        {stdoutOverflow > 0 && (
+          <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+            {"    "}… {stdoutOverflow} more{" "}
+            {stdoutOverflow === 1 ? "line" : "lines"}
+          </text>
+        )}
+
+        {stderrVisible.map((line, i) => (
+          <LabeledLine
+            key={`e${i}`}
+            label="ERR"
+            text={clipLine(line)}
+            fg={colors.error}
+            colors={colors}
+          />
+        ))}
+        {stderrOverflow > 0 && (
+          <text attributes={TextAttributes.DIM} fg={colors.error}>
+            {"    "}… {stderrOverflow} more{" "}
+            {stderrOverflow === 1 ? "line" : "lines"}
+          </text>
+        )}
+      </box>
 
       {!!error && (
         <text fg={colors.error} paddingLeft={2}>

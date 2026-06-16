@@ -16,7 +16,13 @@ import type {
   ModeSwitchResponse,
 } from "./widget/mode-switch-widget";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
-import type { PendingUserQuestion, ContextUsage, QueuedMessage } from "../hooks/use-chat";
+import type {
+  PendingUserQuestion,
+  ContextUsage,
+  QueuedMessage,
+} from "../hooks/use-chat";
+import { CWD, getGitBranch } from "../utils/helper";
+import { useTheme } from "../providers/theme";
 
 type Props = {
   children?: ReactNode;
@@ -36,6 +42,8 @@ type Props = {
   pendingModeSwitch?: PendingModeSwitch | null;
   onModeSwitchResponse?: (response: ModeSwitchResponse) => void;
 };
+
+const GIT_BRANCH = getGitBranch();
 
 export function SessionShell({
   children,
@@ -58,7 +66,10 @@ export function SessionShell({
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
   const scrollRef = useRef<ScrollBoxRenderable>(null);
   const prevChildrenCountRef = useRef(0);
-  const [queueFocusedIndex, setQueueFocusedIndex] = useState<number | null>(null);
+  const [queueFocusedIndex, setQueueFocusedIndex] = useState<number | null>(
+    null,
+  );
+  const { colors } = useTheme();
 
   // Clear queue focus when the queue empties.
   useEffect(() => {
@@ -144,39 +155,48 @@ export function SessionShell({
         flexDirection="row"
         justifyContent="space-between"
         width="100%"
-        height={1}
         gap={2}
         paddingLeft={1}
       >
         <box flexDirection="row" alignItems="center" gap={2}>
           {streaming && interruptible ? (
             queueLength > 0 ? (
-              <text>{queueLength} queued · enter to skip · esc to interrupt</text>
+              <text>
+                {queueLength} queued · enter to skip · esc to interrupt
+              </text>
             ) : (
               <text>esc to interrupt</text>
             )
           ) : streaming ? (
-            <text attributes={TextAttributes.DIM}>{loadingAction ?? "working…"}</text>
+            <text attributes={TextAttributes.DIM}>
+              {loadingAction ?? "working…"}
+            </text>
           ) : null}
         </box>
 
-        <box flexDirection="row" gap={2} flexShrink={0} marginLeft="auto">
-          <box flexDirection="row" gap={1}>
-            <text>opt+enter</text>
-            <text attributes={TextAttributes.DIM}>newline</text>
+        <box flexDirection="column" gap={0} flexShrink={0} alignItems="flex-end">
+          <box flexDirection="row" gap={2} flexShrink={0}>
+            <box flexDirection="row" gap={1}>
+              <text>opt+enter</text>
+              <text attributes={TextAttributes.DIM}>newline</text>
+            </box>
+            <box flexDirection="row" gap={1}>
+              <text>ctrl+c</text>
+              <text attributes={TextAttributes.DIM}>copy</text>
+            </box>
+            <box flexDirection="row" gap={1}>
+              <text>ctrl+z</text>
+              <text attributes={TextAttributes.DIM}>undo</text>
+            </box>
+            <box flexDirection="row" gap={1}>
+              <text>tab</text>
+              <text attributes={TextAttributes.DIM}>agents</text>
+            </box>
           </box>
-          <box flexDirection="row" gap={1}>
-            <text>ctrl+c</text>
-            <text attributes={TextAttributes.DIM}>copy</text>
-          </box>
-          <box flexDirection="row" gap={1}>
-            <text>ctrl+z</text>
-            <text attributes={TextAttributes.DIM}>undo</text>
-          </box>
-          <box flexDirection="row" gap={1}>
-            <text>tab</text>
-            <text attributes={TextAttributes.DIM}>agents</text>
-          </box>
+          <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+            {CWD}
+            {GIT_BRANCH ? `:${GIT_BRANCH}` : ""}
+          </text>
         </box>
       </box>
     </box>

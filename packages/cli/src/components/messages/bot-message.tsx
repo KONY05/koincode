@@ -70,7 +70,13 @@ function renderToolContent({
   treeSitterClient,
 }: RenderToolContentProps) {
   if (!input) {
-    return null;
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>{formatToolName(toolName)}:</em>
+        {pending ? " …" : ""}
+        {errorText ? ` ${errorText}` : ""}
+      </text>
+    );
   }
 
   if (toolName === "shell") {

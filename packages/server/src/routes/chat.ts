@@ -227,35 +227,54 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     onFinish(event) {
       // Don't await - run in background to avoid blocking the response
       void (async () => {
-        if (event.finishReason === "error") return;
-
-        if (!event.isAborted && hasPendingToolCalls(event.responseMessage))
+        // Non-aborted, non-error turns with pending tool calls will be saved by
+        // the pre-save on the next request (which includes the completed tool results).
+        if (!event.isAborted && event.finishReason !== "error" && hasPendingToolCalls(event.responseMessage))
           return;
 
         try {
-          // When aborted mid-tool-call, strip any tool parts that never received a
-          // result so the stored message passes validateUIMessages on the next request.
-          const responseMessage = event.isAborted
+          const isInterrupted = event.isAborted || event.finishReason === "error";
+
+          // When the turn was interrupted (client abort or LLM API error), preserve
+          // tool calls in history so they remain visible when the user returns and
+          // so the LLM knows what was attempted. Drop parts whose input was still
+          // streaming (incomplete data), and mark any still-pending calls as
+          // output-error so validateUIMessages accepts them on the next request.
+          const responseMessage = isInterrupted
             ? {
                 ...event.responseMessage,
-                parts: event.responseMessage.parts.filter((part) => {
-                  if (
-                    part.type === "dynamic-tool" ||
-                    part.type.startsWith("tool-")
-                  ) {
-                    const state = (part as { state?: string }).state;
-                    return (
-                      state === "output-available" || state === "output-error"
-                    );
-                  }
-                  return true;
-                }),
+                parts: event.responseMessage.parts
+                  .filter((part) => {
+                    if (
+                      part.type === "dynamic-tool" ||
+                      part.type.startsWith("tool-")
+                    ) {
+                      const state = (part as { state?: string }).state;
+                      return state !== "input-streaming";
+                    }
+                    return true;
+                  })
+                  .map((part) => {
+                    if (
+                      part.type === "dynamic-tool" ||
+                      part.type.startsWith("tool-")
+                    ) {
+                      const state = (part as { state?: string }).state;
+                      if (state !== "output-available" && state !== "output-error") {
+                        return { ...part, state: "output-error", errorText: "interrupted" };
+                      }
+                    }
+                    return part;
+                  }),
                 metadata: {
                   ...event.responseMessage.metadata,
                   interrupted: true,
                 },
               }
             : event.responseMessage;
+
+          // Nothing useful to save — skip to avoid persisting empty placeholder rows.
+          if (!responseMessage.id || responseMessage.parts.length === 0) return;
 
           await db.$transaction(async (tx) => {
             // Guard against duplicate saves: the pre-save on the next request can

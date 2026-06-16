@@ -3,16 +3,19 @@ import "opentui-spinner/react";
 
 type Props = {
   activeColor: string;
+  showLabel?: boolean;
   text?: string;
 };
 
-export function Spinner({ activeColor, text }: Props) {
+export function Spinner({ activeColor, showLabel = true, text }: Props) {
   return (
     <box flexDirection="row" alignItems="center" gap={1}>
       <spinner name="star" color={activeColor} />
-      <text attributes={TextAttributes.DIM}>
-        <em>{text ? text : "koincoding"}</em>...
-      </text>
+      {showLabel && (
+        <text attributes={TextAttributes.DIM}>
+          <em>{text ? text : "koincoding"}</em>...
+        </text>
+      )}
     </box>
   );
 }
