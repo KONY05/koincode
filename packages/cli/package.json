@@ -1,6 +1,6 @@
 {
   "name": "koincode",
-  "version": "1.5.4",
+  "version": "1.6.0",
   "module": "src/index.tsx",
   "main": "dist/koincode",
   "type": "module",
