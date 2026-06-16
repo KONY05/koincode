@@ -21,6 +21,8 @@ export type TodoItem = z.infer<typeof todoItemSchema>;
 export const toolInputSchemas = {
   readFile: z.object({
     path: z.string().describe("Relative path to the file to read"),
+    offset: z.number().int().min(0).optional().describe("Character offset to start reading from (for paginating large files)"),
+    limit: z.number().int().min(1).optional().describe("Maximum number of characters to read"),
   }),
   listDirectory: z.object({
     path: z.string().default(".").describe("Relative directory path to list"),
@@ -229,7 +231,7 @@ export const toolInputSchemas = {
 
 export const readOnlyToolContracts = {
   readFile: tool({
-    description: "Read a file from the current project directory.",
+    description: "Read a file from the current project directory. For large files that get truncated, call again with an offset to read the next chunk.",
     inputSchema: toolInputSchemas.readFile,
   }),
   listDirectory: tool({

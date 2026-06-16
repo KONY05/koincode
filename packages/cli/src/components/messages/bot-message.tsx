@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import prettyMs from "pretty-ms";
 import { getTreeSitterClient, TextAttributes } from "@opentui/core";
 
@@ -127,7 +127,10 @@ function renderToolContent({
   }
 
   if (toolName === "spawnAgent") {
-    const { name, description } = input as { name?: string; description?: string };
+    const { name, description } = input as {
+      name?: string;
+      description?: string;
+    };
     return (
       <text attributes={TextAttributes.DIM}>
         <em fg={colors.info}>Subagent:</em> {name ?? ""} — {description ?? ""}
@@ -137,9 +140,74 @@ function renderToolContent({
     );
   }
 
+  if (toolName === "glob") {
+    const files =
+      !pending && output != null ? (output as { files: string[] }).files : null;
+
+    const truncated =
+      !pending && output != null
+        ? (output as { truncated?: boolean }).truncated
+        : false;
+
+    const { pattern, path } = (input ?? {}) as {
+      pattern?: string;
+      path?: string;
+    };
+
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>Glob:</em> {pattern ?? ""}
+        {path ? ` ${path}` : ""}
+        {pending
+          ? " …"
+          : files != null
+            ? ` — ${files.length}${truncated ? "+" : ""} file${files.length !== 1 ? "s" : ""}`
+            : ""}
+        {errorText ? ` ${errorText}` : ""}
+      </text>
+    );
+  }
+
+  if (toolName === "grep") {
+    const matches =
+      !pending && output != null
+        ? (output as { matches: unknown[] }).matches
+        : null;
+
+    const truncated =
+      !pending && output != null
+        ? (output as { truncated?: boolean }).truncated
+        : false;
+
+    const { pattern, path, include } = (input ?? {}) as {
+      pattern?: string;
+      path?: string;
+      include?: string;
+    };
+
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>Grep:</em> {pattern ?? ""}
+        {path ? ` ${path}` : ""}
+        {include ? ` (${include})` : ""}
+        {pending
+          ? " …"
+          : matches != null
+            ? ` — ${matches.length}${truncated ? "+" : ""} match${matches.length !== 1 ? "es" : ""}`
+            : ""}
+        {errorText ? ` ${errorText}` : ""}
+      </text>
+    );
+  }
+
   if (toolName === "manageMcp") {
     return (
-      <ManageMcpView pending={pending} output={output} error={errorText} colors={colors} />
+      <ManageMcpView
+        pending={pending}
+        output={output}
+        error={errorText}
+        colors={colors}
+      />
     );
   }
 
@@ -203,6 +271,17 @@ export function BotMessage({
   const { colors } = useTheme();
   const { mode: currentMode } = usePromptConfig();
 
+  const [openThinking, setOpenThinking] = useState<Set<string>>(new Set());
+
+  const toggleThinking = useCallback((key: string) => {
+    setOpenThinking((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
   const syntaxStyle = useMemo(
     () => createMarkdownSyntaxStyle(colors),
     [colors],
@@ -238,7 +317,11 @@ export function BotMessage({
 
   const groups = groupConsecutiveParts(parts).filter((group) => {
     if (group.parts.every(shouldHidePart)) return false;
-    if (group.type === "reasoning" && group.parts.every((p) => p.type === "reasoning" && !p.text.trim())) return false;
+    if (
+      group.type === "reasoning" &&
+      group.parts.every((p) => p.type === "reasoning" && !p.text.trim())
+    )
+      return false;
     return true;
   });
 
@@ -256,22 +339,46 @@ export function BotMessage({
             }
 
             if (part.type === "reasoning") {
-              if (!part.text.trim()) return null;
+              const trimmed = part.text.trim();
+
+              if (!trimmed) return null;
+
+              const key = `reasoning-${j}`;
+
+              const isExpanded = streaming || openThinking.has(key);
+              
               return (
                 <box
-                  key={`reasoning-${j}`}
+                  key={key}
                   border={["left"]}
                   borderColor={colors.thinkingBorder}
-                  customBorderChars={{
-                    ...EmptyBorder,
-                    vertical: "│",
-                  }}
+                  customBorderChars={{ ...EmptyBorder, vertical: "│" }}
                   width="100%"
                   paddingX={2}
                 >
-                  <text attributes={TextAttributes.DIM}>
-                    <em fg={colors.thinking}>Thinking:</em> {part.text.trim()}
-                  </text>
+                  <box
+                    flexDirection="row"
+                    gap={1}
+                    height={1}
+                    onMouseDown={() => !streaming && toggleThinking(key)}
+                  >
+                    <text attributes={TextAttributes.DIM}>
+                      {streaming ? (
+                        <em fg={colors.thinking}>Thinking...</em>
+                      ) : (
+                        <em fg={colors.thinking}>Thought about it</em>
+                      )}
+                    </text>
+                    <text
+                      attributes={TextAttributes.DIM}
+                      fg={colors.dimSeparator}
+                    >
+                      {isExpanded ? "▾" : "▸"}
+                    </text>
+                  </box>
+                  {isExpanded && (
+                    <text attributes={TextAttributes.DIM}>{trimmed}</text>
+                  )}
                 </box>
               );
             }

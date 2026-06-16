@@ -9,6 +9,7 @@ import { NewSession } from "./screens/new-session";
 import { Session } from "./screens/session";
 import { updateGlobalConfig } from "./utils/configs/global-config";
 import { ensureIdeExtension } from "./lib/ide-extension";
+import { closeBrowser } from "./tools/browser/browser-session";
 import type { ApiKeys } from "@koincode/shared";
 
 // Handle key-saving flags before starting the TUI
@@ -72,7 +73,7 @@ const renderer = await createCliRenderer({
 
 function shutdown(code = 0) {
   renderer.destroy();
-  process.exit(code);
+  void closeBrowser().finally(() => process.exit(code));
 }
 
 process.on("SIGINT", () => shutdown(0));
@@ -82,7 +83,9 @@ process.on("uncaughtException", (error) => {
   shutdown(1);
 });
 process.on("unhandledRejection", (reason) => {
-  Sentry.captureException(reason instanceof Error ? reason : new Error(String(reason)));
+  Sentry.captureException(
+    reason instanceof Error ? reason : new Error(String(reason)),
+  );
 });
 
 createRoot(renderer).render(<App />);

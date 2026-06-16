@@ -474,6 +474,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
             toolInput,
             currentModeRef.current,
             currentModel,
+            sessionId,
           );
           chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,

@@ -6,10 +6,13 @@ import { MAX_MATCHES, resolveInsideCwd } from "./utils";
 export async function runGrep(input: unknown) {
   const { pattern, path, include } = toolInputSchemas.grep.parse(input);
   const { cwd, resolved } = resolveInsideCwd(path);
+
   const args = ["-rn", "--color=never", "--exclude-dir=node_modules", "--exclude-dir=.git", "-E"];
+  
   if (include) args.push(`--include=${include}`);
   args.push(pattern, resolved);
 
+  
   const proc = Bun.spawn(["grep", ...args], { cwd, stdout: "pipe", stderr: "pipe" });
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
