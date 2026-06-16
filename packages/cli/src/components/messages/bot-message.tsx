@@ -137,6 +137,38 @@ function renderToolContent({
     );
   }
 
+  if (toolName === "glob") {
+    const files = !pending && output != null ? (output as { files: string[] }).files : null;
+
+    const truncated = !pending && output != null ? (output as { truncated?: boolean }).truncated : false;
+
+    const { pattern, path } = (input ?? {}) as { pattern?: string; path?: string };
+
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>Glob:</em> {pattern ?? ""}{path ? ` ${path}` : ""}
+        {pending ? " …" : files != null ? ` — ${files.length}${truncated ? "+" : ""} file${files.length !== 1 ? "s" : ""}` : ""}
+        {errorText ? ` ${errorText}` : ""}
+      </text>
+    );
+  }
+
+  if (toolName === "grep") {
+    const matches = !pending && output != null ? (output as { matches: unknown[] }).matches : null;
+
+    const truncated = !pending && output != null ? (output as { truncated?: boolean }).truncated : false;
+
+    const { pattern, path, include } = (input ?? {}) as { pattern?: string; path?: string; include?: string };
+    
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>Grep:</em> {pattern ?? ""}{path ? ` ${path}` : ""}{include ? ` (${include})` : ""}
+        {pending ? " …" : matches != null ? ` — ${matches.length}${truncated ? "+" : ""} match${matches.length !== 1 ? "es" : ""}` : ""}
+        {errorText ? ` ${errorText}` : ""}
+      </text>
+    );
+  }
+
   if (toolName === "manageMcp") {
     return (
       <ManageMcpView pending={pending} output={output} error={errorText} colors={colors} />
