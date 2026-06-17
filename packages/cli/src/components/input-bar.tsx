@@ -2,8 +2,6 @@ import { readdir } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 
 import { TextAttributes } from "@opentui/core";
-import type { PasteEvent } from "@opentui/core";
-import { decodePasteBytes } from "@opentui/core";
 import type { TextareaRenderable, ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useRenderer } from "@opentui/react";
 import type { KeyBinding } from "@opentui/core";
@@ -15,13 +13,14 @@ import {
   useEffect,
   type RefObject,
 } from "react";
-
 import { checkRecorderAvailable, startRecording } from "../lib/voice-recorder";
 // warmRecorder and isRecorderReady imported when voice is re-enabled
 import type { RecorderHandle } from "../lib/voice-recorder";
 import { transcribe } from "../lib/whisper";
 import { readGlobalConfig } from "../utils/configs/global-config";
 import type { ContextUsage } from "../hooks/use-chat";
+import { usePasteHandler } from "../hooks/use-paste-handler";
+import { useImageAttachment } from "../hooks/use-image-attachment";
 
 import { EmptyBorder } from "./border";
 import { StatusBar } from "./status-bar";
@@ -39,10 +38,6 @@ import type { QueuedMessage } from "../hooks/use-chat";
 
 const MAX_VISIBLE_MENTIONS = 8;
 const CURRENT_DIRECTORY = process.cwd();
-const PASTE_THRESHOLD_LINES = 5;
-const PASTE_THRESHOLD_CHARS = 200;
-// Matches placeholders inserted for long pastes, e.g. [paste:p1: 12 lines]
-const PASTE_PLACEHOLDER_RE = /\[paste:(p\d+): [^\]]+\]/g;
 const MAX_FALLBACK_MENTION_CANDIDATES = 32;
 const MENTION_QUERY_CHARACTER = /[A-Za-z0-9._/-]/;
 const RECURSIVE_MENTION_IGNORED_DIRECTORIES = new Set(["node_modules"]);
@@ -346,11 +341,20 @@ type Props = {
   onQueueFocusedIndexChange?: (index: number | null) => void;
 };
 
-export function InputBar({ onSubmit, onForceNext, contextUsage, disabled = false, streaming = false, queue = [], onRemoveFromQueue, queueFocusedIndex = null, onQueueFocusedIndexChange }: Props) {
+export function InputBar({
+  onSubmit,
+  onForceNext,
+  contextUsage,
+  disabled = false,
+  streaming = false,
+  queue = [],
+  onRemoveFromQueue,
+  queueFocusedIndex = null,
+  onQueueFocusedIndexChange }: Props) {
   const { mode, model, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
-  const onSubmitRef = useRef<() => void>(() => {});
+  const onSubmitRef = useRef<() => void>(() => { });
   const activeMentionRef = useRef<MentionMatch | null>(null);
   const mentionScrollRef = useRef<ScrollBoxRenderable>(null);
   const historyRef = useRef<string[]>([]);
@@ -358,10 +362,11 @@ export function InputBar({ onSubmit, onForceNext, contextUsage, disabled = false
   const undoStackRef = useRef<string[]>([]);
   const prevTextRef = useRef("");
   const skipUndoRef = useRef(false);
-  const pasteCounterRef = useRef(0);
-  const pasteContentRef = useRef<Map<string, string>>(new Map());
   const recorderRef = useRef<RecorderHandle | null>(null);
   const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribing">("idle");
+
+  const { expandPastes, clearPastes } = usePasteHandler({ textareaRef });
+  const { detectAndReplaceImagePaths, hasImageTags, checkVisionModel } = useImageAttachment({ textareaRef, skipUndoRef });
 
   const effectiveDisabled = disabled;
 
@@ -459,13 +464,11 @@ export function InputBar({ onSubmit, onForceNext, contextUsage, disabled = false
     const text = textarea.plainText;
     handleContentChange(text);
     syncMentionMenu(text, textarea.cursorOffset);
-  }, [handleContentChange, syncMentionMenu]);
 
-  const expandPastes = useCallback((raw: string): string => {
-    return raw.replace(PASTE_PLACEHOLDER_RE, (_, id: string) => {
-      return pasteContentRef.current.get(id) ?? "";
-    });
-  }, []);
+    if (!skipUndoRef.current) {
+      detectAndReplaceImagePaths(text);
+    }
+  }, [handleContentChange, syncMentionMenu, detectAndReplaceImagePaths]);
 
   const handleSubmit = useCallback(() => {
     if (effectiveDisabled && !streaming) return;
@@ -476,8 +479,13 @@ export function InputBar({ onSubmit, onForceNext, contextUsage, disabled = false
     const raw = textarea.plainText.trim();
     if (raw.length === 0) return;
 
+    if (hasImageTags(raw) && !checkVisionModel(model)) {
+      return;
+    }
+
     const text = expandPastes(raw);
-    pasteContentRef.current.clear();
+
+    clearPastes();
 
     historyRef.current = [
       text,
@@ -491,7 +499,7 @@ export function InputBar({ onSubmit, onForceNext, contextUsage, disabled = false
     skipUndoRef.current = true;
     textarea.setText("");
     skipUndoRef.current = false;
-  }, [effectiveDisabled, streaming, onSubmit, expandPastes]);
+  }, [effectiveDisabled, streaming, onSubmit, expandPastes, clearPastes, hasImageTags, checkVisionModel, model]);
 
   const handleMentionExecute = useCallback(
     (index: number) => {
@@ -829,41 +837,6 @@ export function InputBar({ onSubmit, onForceNext, contextUsage, disabled = false
 
     return () => setResponder("base", null);
   }, [effectiveDisabled, streaming, renderer, setResponder]);
-
-  // Intercept long pastes: store full content and insert a short placeholder instead.
-  useEffect(() => {
-    const internalKeyInput = renderer._internalKeyInput;
-
-    const handlePaste = (event: PasteEvent) => {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      const text = decodePasteBytes(event.bytes);
-      const lines = text.split("\n");
-      const isLong =
-        lines.length > PASTE_THRESHOLD_LINES ||
-        text.length > PASTE_THRESHOLD_CHARS;
-
-      if (!isLong) return;
-
-      event.preventDefault();
-
-      const id = `p${++pasteCounterRef.current}`;
-      pasteContentRef.current.set(id, text);
-
-      const label =
-        lines.length > PASTE_THRESHOLD_LINES
-          ? `${lines.length} lines`
-          : `${text.length} chars`;
-
-      textarea.insertText(`[paste:${id}: ${label}]`);
-    };
-
-    internalKeyInput.on("paste", handlePaste);
-    return () => {
-      internalKeyInput.off("paste", handlePaste);
-    };
-  }, [renderer]);
 
   // Voice warmup disabled — see TODO in commands.tsx. Re-enable body when voice is re-introduced.
   // useEffect(() => {

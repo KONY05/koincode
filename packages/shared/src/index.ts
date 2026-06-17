@@ -28,6 +28,7 @@ export {
 export {
   type ChatMessageMetadata,
   BOUNDARY_ROLES,
+  IMAGE_PLACEHOLDER_RE,
 } from "./chat";
 
 export {

@@ -18,6 +18,7 @@ import { db } from "@koincode/database/client";
 import {
   getToolContracts,
   modeSchema,
+  IMAGE_PLACEHOLDER_RE,
   type ChatMessageMetadata,
   type ToolContracts,
 } from "@koincode/shared";
@@ -25,6 +26,7 @@ import { logger, getLastBoundaryIndex } from "../lib/helpers";
 import { getMcpTools, getMcpServerStatus } from "../lib/mcp-manager";
 import { buildSystemPrompt } from "../prompts/system-prompt";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
+import { getStoredImages, clearStoredImages } from "./images";
 
 type KoincodeUIMessage = UIMessage<
   ChatMessageMetadata,
@@ -78,10 +80,6 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 
 const app = new Hono().post("/", submitValidator, async (c) => {
   const { id, messages, mode, model, skillsManifest, ideActiveFile } = c.req.valid("json");
-
-  // logger.info(
-  //   `Received chat request for session ${id} with ${messages.length} messages`,
-  // );
 
   const session = await db.session.findUnique({
     where: { id },
@@ -197,6 +195,46 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   const modelMessages = await convertToModelMessages(nextMessages, {
     tools,
   });
+
+  IMAGE_PLACEHOLDER_RE.lastIndex = 0;
+  const imageIds: string[] = [];
+  for (let i = modelMessages.length - 1; i >= 0; i--) {
+    if (modelMessages[i]!.role !== "user") continue;
+
+    const msg = modelMessages[i]!;
+    
+    const text = typeof msg.content === "string"
+      ? msg.content
+      : (msg.content as Array<{ type: string; text?: string }>)
+          .filter((p) => p.type === "text")
+          .map((p) => p.text ?? "")
+          .join(" ");
+
+    let tagMatch: RegExpExecArray | null;
+    while ((tagMatch = IMAGE_PLACEHOLDER_RE.exec(text)) !== null) {
+      imageIds.push(tagMatch[1]!);
+    }
+    if (imageIds.length === 0) break;
+
+    const stored = getStoredImages(imageIds);
+    if (stored.length > 0) {
+      const existingContent = typeof msg.content === "string"
+        ? [{ type: "text" as const, text: msg.content }]
+        : (msg.content as Array<{ type: string; [key: string]: unknown }>);
+
+      const imageParts = stored.map((img) => ({
+        type: "file" as const,
+        data: img.base64,
+        mediaType: img.mimeType,
+        filename: img.filename,
+      }));
+
+      (msg as { content: unknown }).content = [...imageParts, ...existingContent];
+      clearStoredImages(imageIds);
+    }
+    break;
+  }
+
   const result = streamText({
     model: resolvedModel.model,
     system: buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers: mcpStatus, ideActiveFile: ideActiveFile ?? null }),

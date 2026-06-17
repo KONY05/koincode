@@ -4,6 +4,7 @@ import path from "path";
 
 import { PID_FILE } from "@koincode/shared";
 import { version as currentVersion } from "../../package.json";
+import { Sentry } from "./sentry";
 
 export { currentVersion };
 
@@ -86,6 +87,7 @@ export function runUpdate(destroyRenderer: () => void, newVersion: string): void
   });
 
   child.on("error", (err: NodeJS.ErrnoException) => {
+    Sentry.captureException(err);
     process.stdout.write(`\nFailed to run ${cmd}: ${err.message}\n\n`);
     process.exit(1);
   });
