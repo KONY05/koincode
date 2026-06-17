@@ -9,6 +9,7 @@ import { useToast } from "../providers/toast";
 import { apiClient } from "../lib/api-client";
 import { getErrorMessage } from "../lib/http-errors";
 import { getGitBranch } from "../utils/helper";
+import { trackSessionCreated } from "../lib/analytics";
 
 const newSessionStateSchema = z.object({
   message: z.string(),
@@ -59,6 +60,7 @@ export function NewSession() {
           throw new Error(await getErrorMessage(res));
         }
         const session = await res.json();
+        trackSessionCreated({ model: state.model, mode: state.mode });
         navigate(`/sessions/${session.id}`, { state, replace: true });
       } catch (error) {
         if (ignore) return;

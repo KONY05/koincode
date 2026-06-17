@@ -112,4 +112,5 @@ export type KoincodeGlobalConfig = {
   whisperBackend?: "auto" | "openai" | "openrouter";
   mcpServers?: Record<string, McpServerConfig>;
   browserHeadless?: boolean;
+  telemetry?: boolean;
 };

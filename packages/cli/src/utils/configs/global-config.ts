@@ -92,6 +92,10 @@ export function updateGlobalConfig(
     }
   }
 
+  if (updates.telemetry !== undefined) {
+    next.telemetry = updates.telemetry;
+  }
+
   writeGlobalConfig(next);
   return next;
 }

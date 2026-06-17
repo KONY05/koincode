@@ -33,6 +33,12 @@ import type {
   ModeSwitchResponse,
 } from "../components/widget/mode-switch-widget";
 import { runHooks } from "../utils/hooks";
+import {
+  trackMessageSent,
+  trackToolExecuted,
+  trackModeSwitched,
+  trackFeatureUsed,
+} from "../lib/analytics";
 
 export type PendingUserQuestion = {
   question: string;
@@ -184,6 +190,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
           const model = metadata?.model ?? "openrouter/owl-alpha";
 
           setIsSubagentRunning(true);
+          trackFeatureUsed({ feature: "subagent" });
           try {
             const result = await runSpawnAgent({
               name,
@@ -265,8 +272,10 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
 
           // BUILD → PLAN or auto config → switch silently.
           if (target === Mode.PLAN || autoModeSwitchRef.current === "auto") {
+            const from = currentModeRef.current;
             setModeRef.current(target);
             currentModeRef.current = target;
+            trackModeSwitched({ from, to: target });
             setSystemEvents((prev) => [
               ...prev,
               {
@@ -319,8 +328,10 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
             setAutoModeSwitchRef.current("auto");
           }
 
+          const fromMode = currentModeRef.current;
           setModeRef.current(target);
           currentModeRef.current = target;
+          trackModeSwitched({ from: fromMode, to: target });
           setSystemEvents((prev) => [
             ...prev,
             {
@@ -476,12 +487,14 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
             currentModel,
             sessionId,
           );
+          trackToolExecuted({ tool: toolCall.toolName, mode: currentModeRef.current, success: true });
           chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
             toolCallId: toolCall.toolCallId,
             output,
           });
         } catch (error) {
+          trackToolExecuted({ tool: toolCall.toolName, mode: currentModeRef.current, success: false });
           chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
             toolCallId: toolCall.toolCallId,
@@ -583,7 +596,9 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
       mode: ModeType;
       model: string;
     }) => {
-      if (chat.status === "submitted" || chat.status === "streaming") {
+      const queued = chat.status === "submitted" || chat.status === "streaming";
+      trackMessageSent({ model: params.model, mode: params.mode, queued });
+      if (queued) {
         setMessageQueue((prev) => [...prev, params]);
         return;
       }

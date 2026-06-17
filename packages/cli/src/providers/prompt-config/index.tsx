@@ -13,6 +13,7 @@ import {
   readGlobalConfig,
   updateGlobalConfig,
 } from "../../utils/configs/global-config";
+import { trackModelChanged } from "../../lib/analytics";
 
 type PromptConfigContextValue = {
   mode: ModeType;
@@ -77,6 +78,7 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   const setModel = useCallback((m: string) => {
     setModelState(m);
     updateGlobalConfig({ defaultModel: m });
+    trackModelChanged({ model: m });
   }, []);
 
   const setAutoModeSwitch = useCallback((v: "confirm" | "auto") => {
