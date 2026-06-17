@@ -12,3 +12,5 @@ export type ChatMessageMetadata = {
 };
 
 export const BOUNDARY_ROLES = new Set(["clear_boundary", "compact_boundary"]);
+
+export const IMAGE_PLACEHOLDER_RE = /\[#image:(i\d+)\]/g;

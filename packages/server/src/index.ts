@@ -15,6 +15,7 @@ import chat from "./routes/chat";
 import memory from "./routes/memory";
 import localModels from "./routes/local-models";
 import mcp from "./routes/mcp";
+import images from "./routes/images";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -83,7 +84,8 @@ const routes = app
   .route("/chat", chat)
   .route("/memory", memory)
   .route("/local-models", localModels)
-  .route("/mcp", mcp);
+  .route("/mcp", mcp)
+  .route("/images", images);
 
 export type AppType = typeof routes;
 
