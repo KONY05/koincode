@@ -1,8 +1,10 @@
-import { Sentry } from "./lib/sentry";
 import { createCliRenderer } from "@opentui/core";
-import { initTreeSitter } from "./utils/tree-sitter";
 import { createRoot } from "@opentui/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
+
+import { Sentry } from "./lib/sentry";
+import { trackAppStarted } from "./lib/analytics";
+import { initTreeSitter } from "./utils/tree-sitter";
 import { RootLayout } from "./layouts/root-layout";
 import { Home } from "./screens/home";
 import { NewSession } from "./screens/new-session";
@@ -41,6 +43,7 @@ for (const { flag, apiKey } of KEY_FLAGS) {
 }
 
 ensureIdeExtension();
+trackAppStarted();
 await initTreeSitter();
 
 const router = createMemoryRouter([
