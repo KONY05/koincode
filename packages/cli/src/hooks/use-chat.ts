@@ -70,6 +70,11 @@ export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
 export type QueuedMessage = { userText: string; mode: ModeType; model: string };
 
+// Module-level store invisible to React's strict-mode ref tracking.
+// Used by the transport (created inside useMemo) to read the current mode
+// after a mid-turn switchMode without accessing a useRef during render.
+const _activeModes = new Map<string, ModeType>();
+
 export function useChat(sessionId: string, initialMessages: Message[], initialSystemEvents: SystemEvent[] = []) {
   const { mode, setMode, autoModeSwitch, setAutoModeSwitch } =
     usePromptConfig();
@@ -95,6 +100,8 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
 
   // MCP servers approved for the lifetime of this session (server name → approved).
   const approvedMcpServersRef = useRef<Set<string>>(new Set());
+  // Permission keys approved for this session only (e.g. outside-project directory access).
+  const sessionApprovedKeysRef = useRef<Set<string>>(new Set());
 
   const resolveApprovalRef = useRef<((r: ApprovalResponse) => void) | null>(
     null,
@@ -109,21 +116,23 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
   // Shared mutex — serializes approvals, askUser, and mode switch widgets so only one shows at a time.
   const interactionMutexRef = useRef<Promise<void>>(Promise.resolve());
 
-  // Tracks the effective mode synchronously across tool calls within a streaming turn.
-  const currentModeRef = useRef<ModeType>(mode);
+  _activeModes.set(sessionId, mode);
   const autoModeSwitchRef = useRef(autoModeSwitch);
   const setModeRef = useRef(setMode);
   const setAutoModeSwitchRef = useRef(setAutoModeSwitch);
 
   useEffect(() => {
-    currentModeRef.current = mode;
-  }, [mode]);
+    return () => { _activeModes.delete(sessionId); };
+  }, [sessionId]);
+
   useEffect(() => {
     autoModeSwitchRef.current = autoModeSwitch;
   }, [autoModeSwitch]);
+
   useEffect(() => {
     setModeRef.current = setMode;
   }, [setMode]);
+  
   useEffect(() => {
     setAutoModeSwitchRef.current = setAutoModeSwitch;
   }, [setAutoModeSwitch]);
@@ -158,7 +167,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
           body: {
             id: sessionId,
             messages: requestMessages,
-            mode: message.metadata?.mode ?? metadata?.mode,
+            mode: _activeModes.get(sessionId) ?? mode,
             model: message.metadata?.model ?? metadata?.model,
             skillsManifest: loadSkillsManifest().map((s) => ({
               name: s.name,
@@ -170,6 +179,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
         };
       },
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `mode` excluded: recreating transport mid-stream drops the connection; _activeModes map is the primary source
   }, [sessionId]);
 
   const chat = useAiChat<Message>({
@@ -261,7 +271,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
           );
 
           // Same-mode guard — no-op.
-          if (currentModeRef.current === target) {
+          if (_activeModes.get(sessionId) === target) {
             chat.addToolOutput({
               tool: "switchMode" as keyof ChatTools,
               toolCallId: toolCall.toolCallId,
@@ -272,9 +282,9 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
 
           // BUILD → PLAN or auto config → switch silently.
           if (target === Mode.PLAN || autoModeSwitchRef.current === "auto") {
-            const from = currentModeRef.current;
+            const from = _activeModes.get(sessionId)!;
             setModeRef.current(target);
-            currentModeRef.current = target;
+            _activeModes.set(sessionId, target);
             trackModeSwitched({ from, to: target });
             setSystemEvents((prev) => [
               ...prev,
@@ -328,9 +338,9 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
             setAutoModeSwitchRef.current("auto");
           }
 
-          const fromMode = currentModeRef.current;
+          const fromMode = _activeModes.get(sessionId)!;
           setModeRef.current(target);
-          currentModeRef.current = target;
+          _activeModes.set(sessionId, target);
           trackModeSwitched({ from: fromMode, to: target });
           setSystemEvents((prev) => [
             ...prev,
@@ -368,7 +378,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
                         label: `MCP: ${serverName}`,
                         description: toolCall.toolName.split("__")[1] ?? toolCall.toolName,
                         tier: "normal",
-                        isMcp: true,
+                        sessionOnly: true,
                       });
                     }),
                 )
@@ -404,13 +414,15 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
           extraPatterns,
         );
 
-        // checks if tool requires approval and is not permitted for this project
-        if (permInfo.requiresApproval && !isPermittedForProject(permInfo.key)) {
+        // checks if tool requires approval and is not permitted for this project or session
+        const isSessionApproved = permInfo.requiresApproval && sessionApprovedKeysRef.current.has(permInfo.key);
+        if (permInfo.requiresApproval && !isSessionApproved && !isPermittedForProject(permInfo.key)) {
           const approval: PendingApproval = {
             key: permInfo.key,
             label: permInfo.label,
             description: permInfo.description,
             tier: permInfo.tier,
+            sessionOnly: permInfo.sessionOnly,
           };
 
           // NOTE: .then is used here (not async/await) because the mutex read-and-update
@@ -448,7 +460,9 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
             return;
           }
 
-          if (response.type === "allow-for-project") {
+          if (response.type === "allow-for-session") {
+            sessionApprovedKeysRef.current.add(permInfo.key);
+          } else if (response.type === "allow-for-project") {
             allowForProject(permInfo.key);
           }
         }
@@ -483,18 +497,18 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
           const output = await executeLocalTool(
             toolCall.toolName,
             toolInput,
-            currentModeRef.current,
+            _activeModes.get(sessionId)!,
             currentModel,
             sessionId,
           );
-          trackToolExecuted({ tool: toolCall.toolName, mode: currentModeRef.current, success: true });
+          trackToolExecuted({ tool: toolCall.toolName, mode: _activeModes.get(sessionId)!, success: true });
           chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
             toolCallId: toolCall.toolCallId,
             output,
           });
         } catch (error) {
-          trackToolExecuted({ tool: toolCall.toolName, mode: currentModeRef.current, success: false });
+          trackToolExecuted({ tool: toolCall.toolName, mode: _activeModes.get(sessionId)!, success: false });
           chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
             toolCallId: toolCall.toolCallId,

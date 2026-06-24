@@ -1,5 +1,5 @@
 import { toolInputSchemas } from "@koincode/shared";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT, resolveInsideCwd, truncate } from "./utils";
+import { DEFAULT_TIMEOUT, MAX_OUTPUT, resolveFromCwd, truncate } from "./utils";
 
 const BLOCKED_COMMANDS = [
   "rm -rf /",
@@ -41,7 +41,7 @@ export async function runShellCommand(input: unknown) {
 
   if (run_in_background) {
     const proc = Bun.spawn(shellArgs, {
-      cwd: resolveInsideCwd(".").resolved,
+      cwd: resolveFromCwd(".").resolved,
       stdout: "ignore",
       stderr: "ignore",
       env: { ...process.env },
@@ -50,7 +50,7 @@ export async function runShellCommand(input: unknown) {
   }
 
   const proc = Bun.spawn(shellArgs, {
-    cwd: resolveInsideCwd(".").resolved,
+    cwd: resolveFromCwd(".").resolved,
     stdout: "pipe",
     stderr: "pipe",
     env: { ...process.env, TERM: "dumb" },

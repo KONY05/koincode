@@ -1,11 +1,11 @@
 import { readdir, stat } from "fs/promises";
 import { join, relative } from "path";
 import { toolInputSchemas } from "@koincode/shared";
-import { resolveInsideCwd } from "./utils";
+import { resolveFromCwd } from "./utils";
 
 export async function runListDirectory(input: unknown) {
   const { path } = toolInputSchemas.listDirectory.parse(input);
-  const { cwd, resolved } = resolveInsideCwd(path);
+  const { cwd, resolved } = resolveFromCwd(path);
   const entries = await readdir(resolved);
   const results: { name: string; type: "file" | "directory" }[] = [];
 

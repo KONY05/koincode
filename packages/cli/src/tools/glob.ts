@@ -1,10 +1,10 @@
 import { relative, resolve } from "path";
 import { toolInputSchemas } from "@koincode/shared";
-import { MAX_RESULTS, resolveInsideCwd } from "./utils";
+import { MAX_RESULTS, resolveFromCwd } from "./utils";
 
 export async function runGlob(input: unknown) {
   const { pattern, path } = toolInputSchemas.glob.parse(input);
-  const { cwd, resolved } = resolveInsideCwd(path);
+  const { cwd, resolved } = resolveFromCwd(path);
   const glob = new Bun.Glob(pattern);
   const files: string[] = [];
   let truncated = false;

@@ -1,4 +1,5 @@
-import { isSensitivePath } from "./file";
+import { dirname, resolve } from "path";
+import { isOutsideProject, isSensitivePath } from "./file";
 import getShellPermissionInfo from "./shell";
 
 export type PermissionTier = "normal" | "destructive";
@@ -13,6 +14,7 @@ export type PermissionKey =
   | "shell:subshell"
   | "shell:interpreter"
   | "file:sensitive"
+  | `file:outside:${string}`
   | `shell:bin:${string}`
   | `mcp:${string}`;
 
@@ -22,7 +24,7 @@ export type PendingApproval = {
   description: string;
   tier: PermissionTier;
   /** When true, the widget shows "Allow for session" instead of "Allow for project". */
-  isMcp?: boolean;
+  sessionOnly?: boolean;
 };
 
 export type ApprovalResponse =
@@ -67,6 +69,32 @@ export function getPermissionInfo(
           label: "Write to sensitive file",
           description: path,
           tier: "destructive",
+        };
+      }
+      if (isOutsideProject(path)) {
+        const targetDir = dirname(resolve(path));
+        return {
+          requiresApproval: true,
+          key: `file:outside:${targetDir}` as const,
+          label: "Write outside project",
+          description: path,
+          tier: "normal",
+          sessionOnly: true,
+        };
+      }
+      return { requiresApproval: false };
+    }
+    case "readFile": {
+      const { path } = input as { path: string };
+      if (isOutsideProject(path)) {
+        const targetDir = dirname(resolve(path));
+        return {
+          requiresApproval: true,
+          key: `file:outside:${targetDir}` as const,
+          label: "Read outside project",
+          description: path,
+          tier: "normal",
+          sessionOnly: true,
         };
       }
       return { requiresApproval: false };
