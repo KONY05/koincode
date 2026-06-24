@@ -3,7 +3,7 @@ import { relative } from "path";
 import { createPatch } from "diff";
 
 import { toolInputSchemas } from "@koincode/shared";
-import { resolveInsideCwd } from "./utils";
+import { resolveFromCwd } from "./utils";
 
 const normalize = (s: string) => s.replace(/\r\n/g, "\n").trimEnd();
 
@@ -15,7 +15,7 @@ export async function runEditFile(input: unknown) {
   const path = parsed.path;
   const oldString = unescape(parsed.oldString);
   const newString = unescape(parsed.newString);
-  const { cwd, resolved } = resolveInsideCwd(path);
+  const { cwd, resolved } = resolveFromCwd(path);
   const content = await readFile(resolved, "utf-8");
 
   // Try exact match first

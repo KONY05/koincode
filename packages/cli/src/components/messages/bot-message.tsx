@@ -126,6 +126,17 @@ function renderToolContent({
     );
   }
 
+  if (toolName === "switchMode") {
+    const { target, reason } = input as { target: string; reason?: string };
+    const modeColor = target === "BUILD" ? colors.primary : colors.planMode;
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={modeColor}>→ {target}</em>
+        {reason ? ` — ${reason}` : ""}
+      </text>
+    );
+  }
+
   if (toolName === "spawnAgent") {
     const { name, description } = input as {
       name?: string;

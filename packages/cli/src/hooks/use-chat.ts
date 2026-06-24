@@ -100,6 +100,8 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
 
   // MCP servers approved for the lifetime of this session (server name → approved).
   const approvedMcpServersRef = useRef<Set<string>>(new Set());
+  // Permission keys approved for this session only (e.g. outside-project directory access).
+  const sessionApprovedKeysRef = useRef<Set<string>>(new Set());
 
   const resolveApprovalRef = useRef<((r: ApprovalResponse) => void) | null>(
     null,
@@ -376,7 +378,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
                         label: `MCP: ${serverName}`,
                         description: toolCall.toolName.split("__")[1] ?? toolCall.toolName,
                         tier: "normal",
-                        isMcp: true,
+                        sessionOnly: true,
                       });
                     }),
                 )
@@ -412,13 +414,15 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
           extraPatterns,
         );
 
-        // checks if tool requires approval and is not permitted for this project
-        if (permInfo.requiresApproval && !isPermittedForProject(permInfo.key)) {
+        // checks if tool requires approval and is not permitted for this project or session
+        const isSessionApproved = permInfo.requiresApproval && sessionApprovedKeysRef.current.has(permInfo.key);
+        if (permInfo.requiresApproval && !isSessionApproved && !isPermittedForProject(permInfo.key)) {
           const approval: PendingApproval = {
             key: permInfo.key,
             label: permInfo.label,
             description: permInfo.description,
             tier: permInfo.tier,
+            sessionOnly: permInfo.sessionOnly,
           };
 
           // NOTE: .then is used here (not async/await) because the mutex read-and-update
@@ -456,7 +460,9 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
             return;
           }
 
-          if (response.type === "allow-for-project") {
+          if (response.type === "allow-for-session") {
+            sessionApprovedKeysRef.current.add(permInfo.key);
+          } else if (response.type === "allow-for-project") {
             allowForProject(permInfo.key);
           }
         }

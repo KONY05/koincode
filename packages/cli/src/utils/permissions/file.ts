@@ -1,4 +1,4 @@
-import { isAbsolute, relative, resolve } from "path";
+import { basename, isAbsolute, relative, resolve } from "path";
 
 // Single source of truth for sensitive files
 export const SENSITIVE_BASE_NAMES = [
@@ -31,13 +31,27 @@ export function matchesGlob(filePath: string, pattern: string): boolean {
     return false;
   }
 }
+export function isOutsideProject(filePath: string): boolean {
+  const cwd = process.cwd();
+  const resolved = resolve(cwd, filePath);
+  const rel = relative(cwd, resolved);
+  return rel.startsWith("..") || isAbsolute(rel);
+}
+
 export function isSensitivePath(filePath: string, extraPatterns: string[]): boolean {
   const cwd = process.cwd();
   const resolved = resolve(cwd, filePath);
   const rel = relative(cwd, resolved);
 
-  if (rel.startsWith("..") || isAbsolute(rel)) return true;
-
   const allPatterns = [...DEFAULT_SENSITIVE_PATTERNS, ...extraPatterns];
-  return allPatterns.some((p) => matchesGlob(rel, p));
+  if (allPatterns.some((p) => matchesGlob(rel, p))) return true;
+
+  // For outside-project paths, globs like `**/.env` won't match the `../` prefix.
+  // Check the filename directly against the base sensitive names.
+  if (isOutsideProject(filePath)) {
+    const name = basename(resolved);
+    return SENSITIVE_BASE_NAMES.some((s) => name === s || name.startsWith(`${s}.`));
+  }
+
+  return false;
 }

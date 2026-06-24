@@ -1,11 +1,11 @@
 import { relative } from "path";
 
 import { toolInputSchemas } from "@koincode/shared";
-import { MAX_MATCHES, resolveInsideCwd } from "./utils";
+import { MAX_MATCHES, resolveFromCwd } from "./utils";
 
 export async function runGrep(input: unknown) {
   const { pattern, path, include } = toolInputSchemas.grep.parse(input);
-  const { cwd, resolved } = resolveInsideCwd(path);
+  const { cwd, resolved } = resolveFromCwd(path);
 
   const args = ["-rn", "--color=never", "--exclude-dir=node_modules", "--exclude-dir=.git", "-E"];
   

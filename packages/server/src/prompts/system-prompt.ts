@@ -43,6 +43,7 @@ export function buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers
 
   if (mode === Mode.BUILD) {
     parts.push(getBrowserControlSection());
+    parts.push(getVisualizationSection());
   }
 
   if (skillsManifest && skillsManifest.length > 0) {
@@ -293,6 +294,12 @@ Use this only when you want to perform test/use case testing on your code or whe
 6. Always close: \`browserClose({})\` when testing is complete.
 
 Never leave a browser session open between unrelated tasks. \`serverStart\` works for any TCP server, not just web apps.`;
+}
+
+function getVisualizationSection(): string {
+  return `# Data Visualization
+
+When asked to visualize or chart data, create a self-contained HTML file that uses Chart.js or Plotly loaded from CDN. Embed the data directly in the script — no external fetches. Save the file, then open it using the \`shell\` tool with the \`open\` command (macOS), \`xdg-open\` (Linux), or \`start\` (Windows). Do NOT use \`browserNavigate\` for this — that launches a headless Playwright browser meant for automated testing, not for showing charts to the user. The system \`open\` command opens the user's real default browser. Always describe the chart in text too.`;
 }
 
 function getCompactSummarySection(): string {

@@ -38,7 +38,7 @@ export function ApprovalWidget({ approval, onResponse }: Props) {
   const { push, pop, isTopLayer } = useKeyboardLayer();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const OPTIONS = approval.isMcp ? MCP_OPTIONS : STANDARD_OPTIONS;
+  const OPTIONS = approval.sessionOnly ? MCP_OPTIONS : STANDARD_OPTIONS;
   const borderColor =
     approval.tier === "destructive" ? colors.error : colors.primary;
   const icon = approval.tier === "destructive" ? "!" : "?";
