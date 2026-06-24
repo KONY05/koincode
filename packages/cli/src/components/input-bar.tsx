@@ -42,6 +42,10 @@ const MAX_FALLBACK_MENTION_CANDIDATES = 32;
 const MENTION_QUERY_CHARACTER = /[A-Za-z0-9._/-]/;
 const RECURSIVE_MENTION_IGNORED_DIRECTORIES = new Set(["node_modules"]);
 
+// Persist across unmount/remount so state survives widget overlays
+const persistentHistory: string[] = [];
+let persistentDraft = "";
+
 type MentionMatch = {
   start: number;
   end: number;
@@ -357,10 +361,10 @@ export function InputBar({
   const onSubmitRef = useRef<() => void>(() => { });
   const activeMentionRef = useRef<MentionMatch | null>(null);
   const mentionScrollRef = useRef<ScrollBoxRenderable>(null);
-  const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
   const undoStackRef = useRef<string[]>([]);
   const prevTextRef = useRef("");
+  /** This is a guard flag that prevents the undo stack from recording programmatic text changes. Without it, operations like setting history text, restoring a draft, or clearing after submit would each push an entry onto the undo stack — so ctrl+z would undo your history navigation or undo a submit clear.  */
   const skipUndoRef = useRef(false);
   const recorderRef = useRef<RecorderHandle | null>(null);
   const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribing">("idle");
@@ -487,10 +491,9 @@ export function InputBar({
 
     clearPastes();
 
-    historyRef.current = [
-      text,
-      ...historyRef.current.filter((h) => h !== text),
-    ];
+    const filtered = persistentHistory.filter((h) => h !== text);
+    persistentHistory.length = 0;
+    persistentHistory.push(text, ...filtered);
     historyIndexRef.current = -1;
     undoStackRef.current = [];
     prevTextRef.current = "";
@@ -604,12 +607,26 @@ export function InputBar({
   }, [activeMention]);
 
   // Wire up textarea submit handler once so it always reads the latest state.
+  // Also restore any draft text that was saved before unmount.
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
+    if (persistentDraft) {
+      skipUndoRef.current = true;
+      textarea.setText(persistentDraft);
+      textarea.cursorOffset = persistentDraft.length;
+      skipUndoRef.current = false;
+      prevTextRef.current = persistentDraft;
+      persistentDraft = "";
+    }
+
     textarea.onSubmit = () => {
       onSubmitRef.current();
+    };
+
+    return () => {
+      persistentDraft = textarea.plainText;
     };
   }, []);
 
@@ -740,7 +757,6 @@ export function InputBar({
       }
     }
 
-    if (streaming) return;
     if (showCommandMenu || showMentionMenu) return;
 
     const textarea = textareaRef.current;
@@ -753,19 +769,18 @@ export function InputBar({
         .includes("\n");
       if (!cursorOnFirstLine) return;
 
-      const history = historyRef.current;
-      if (history.length === 0) return;
+      if (persistentHistory.length === 0) return;
 
       key.preventDefault();
       const nextIndex = Math.min(
         historyIndexRef.current + 1,
-        history.length - 1,
+        persistentHistory.length - 1,
       );
       historyIndexRef.current = nextIndex;
       skipUndoRef.current = true;
-      textarea.setText(history[nextIndex]!);
+      textarea.setText(persistentHistory[nextIndex]!);
       skipUndoRef.current = false;
-      textarea.cursorOffset = history[nextIndex]!.length;
+      textarea.cursorOffset = persistentHistory[nextIndex]!.length;
     } else if (key.name === "down") {
       if (historyIndexRef.current === -1) return;
 
@@ -783,8 +798,8 @@ export function InputBar({
       if (nextIndex < 0) {
         textarea.setText("");
       } else {
-        textarea.setText(historyRef.current[nextIndex]!);
-        textarea.cursorOffset = historyRef.current[nextIndex]!.length;
+        textarea.setText(persistentHistory[nextIndex]!);
+        textarea.cursorOffset = persistentHistory[nextIndex]!.length;
       }
       skipUndoRef.current = false;
     } else if ((key.ctrl || key["super"]) && key.name === "z") {
