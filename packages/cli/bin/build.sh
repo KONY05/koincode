@@ -9,13 +9,23 @@ if [ -f "$ENV_FILE" ]; then
   set +a
 fi
 
+REQUIRED_VARS=(MIXPANEL_TOKEN)
+MISSING=()
+for var in "${REQUIRED_VARS[@]}"; do
+  if [ -z "${!var:-}" ]; then
+    MISSING+=("$var")
+  fi
+done
+if [ ${#MISSING[@]} -gt 0 ]; then
+  echo "ERROR: Missing required environment variables: ${MISSING[*]}" >&2
+  echo "Add them to .env (local) or GitHub Actions secrets (CI)." >&2
+  exit 1
+fi
+
 DEFINE_FLAGS=(
   --define "process.env.NODE_ENV='production'"
+  --define "process.env.MIXPANEL_TOKEN='$MIXPANEL_TOKEN'"
 )
-
-if [ -n "${MIXPANEL_TOKEN:-}" ]; then
-  DEFINE_FLAGS+=(--define "process.env.MIXPANEL_TOKEN='$MIXPANEL_TOKEN'")
-fi
 
 # CLI
 bun build bin/koincode.ts --outdir dist --target bun \

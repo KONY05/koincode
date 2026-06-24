@@ -179,19 +179,19 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
   },
   {
-    id: "nex-agi/nex-n2-pro:free",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-    contextWindow: 262_144,
-    vision: true,
-  },
-  {
     id: "nvidia/nemotron-3-ultra-550b-a55b:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 1_000_000,
     vision: false,
   },
+  // {
+  //   id: "nex-agi/nex-n2-pro:free",
+  //   provider: "openrouter",
+  //   pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
+  //   contextWindow: 262_144,
+  //   vision: true,
+  // },
 ] as const satisfies readonly SupportedChatModelDefinition[];
 
 export type SupportedChatModel = (typeof SUPPORTED_CHAT_MODELS)[number];
