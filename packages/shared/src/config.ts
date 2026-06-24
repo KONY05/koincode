@@ -113,4 +113,5 @@ export type KoincodeGlobalConfig = {
   mcpServers?: Record<string, McpServerConfig>;
   browserHeadless?: boolean;
   telemetry?: boolean;
+  analyticsId?: string;
 };

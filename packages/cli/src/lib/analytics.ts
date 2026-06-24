@@ -2,7 +2,7 @@ import Mixpanel from "mixpanel";
 import os from "os";
 import crypto from "crypto";
 
-import { readGlobalConfig } from "../utils/configs/global-config";
+import { readGlobalConfig, writeGlobalConfig } from "../utils/configs/global-config";
 import { findSupportedChatModel, isLocalModelId } from "@koincode/shared";
 import { version } from "../../package.json";
 
@@ -11,9 +11,13 @@ const MIXPANEL_TOKEN = process.env.MIXPANEL_TOKEN ?? "";
 let mp: Mixpanel.Mixpanel | null = null;
 let distinctId: string = "";
 
-function getDistinctId(): string {
-  const raw = `${os.hostname()}:${os.userInfo().username}`;
-  return crypto.createHash("sha256").update(raw).digest("hex").slice(0, 16);
+function getOrCreateAnalyticsId(): string {
+  const config = readGlobalConfig();
+  if (config.analyticsId) return config.analyticsId;
+
+  const id = crypto.randomUUID();
+  writeGlobalConfig({ ...config, analyticsId: id });
+  return id;
 }
 
 function isEnabled(): boolean {
@@ -25,7 +29,7 @@ function isEnabled(): boolean {
 function init() {
   if (!isEnabled()) return;
 
-  distinctId = getDistinctId();
+  distinctId = getOrCreateAnalyticsId();
 
   try {
     mp = Mixpanel.init(MIXPANEL_TOKEN, {
