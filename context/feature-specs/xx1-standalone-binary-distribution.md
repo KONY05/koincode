@@ -63,15 +63,26 @@ Browser tools (`browserNavigate`, `browserScreenshot`, `browserClick`, `browserT
 
 2. **Conditional tool registration:** The server only includes browser tool definitions in the system prompt and tool contracts when browser tools are enabled. When disabled, the agent doesn't know they exist and won't try to use them.
 
-3. **Lazy Chromium install:** When a user enables browser tools for the first time:
-   - Check if Chromium already exists at `~/.cache/ms-playwright/` (Playwright's standard location)
-   - If already present (user has Playwright installed for their own projects), skip the download entirely
-   - If missing, prompt: `Browser tools require Chromium (~150MB download). Install now? (y/n)`
-   - On confirm, download the Chromium build directly from Playwright's CDN (the same URLs `npx playwright install` fetches from — platform-specific zips at `https://playwright.azureedge.net/builds/chromium/`). This is a plain HTTP download + unzip — no npm, no Bun, no runtime dependency needed.
-   - Extract to `~/.cache/ms-playwright/` (the standard Playwright browser location) so `playwright-core` finds it automatically
-   - Cache a `browserReady: true` flag in config so this check only happens once
+3. **Browser resolution:** When a user enables browser tools for the first time, resolve a browser in this order (first match wins):
 
-4. **Direct Chromium launch:** Instead of depending on `playwright` as a library (which would need npm/Bun to install), use `playwright-core` bundled into the binary at compile time. `playwright-core` is the library without the browser download step — it discovers Chromium at `~/.cache/ms-playwright/` by default, so no custom path configuration is needed.
+   **a. System Chrome (zero download)**
+   - macOS: check `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
+   - Linux: check `google-chrome` or `google-chrome-stable` on `$PATH`
+   - If found, launch via `playwright-core` with `channel: "chrome"` — no download needed at all
+   - This covers the majority of users since most machines have Chrome installed
+
+   **b. Existing Playwright Chromium (zero download)**
+   - Check `~/.cache/ms-playwright/` (Playwright's standard location)
+   - If present (user has Playwright installed from another project), use it directly
+
+   **c. Download Chromium from CDN (fallback)**
+   - If neither Chrome nor existing Chromium is found, prompt: `No browser detected. Download Chromium (~150MB)? (y/n)`
+   - On confirm, download from Playwright's CDN (`https://playwright.azureedge.net/builds/chromium/` — platform-specific zips). Plain HTTP download + unzip, no package manager needed.
+   - Extract to `~/.cache/ms-playwright/` so `playwright-core` finds it automatically
+
+   Cache the resolved browser path and a `browserReady: true` flag in config so this resolution only happens once.
+
+4. **Direct browser launch:** Bundle `playwright-core` (not `playwright`) into the compiled binary. `playwright-core` is the library without the browser download step — it can launch system Chrome via `channel: "chrome"` or discover Chromium at `~/.cache/ms-playwright/` by default. No custom path configuration needed for either case.
 
 **File changes:**
 - `packages/shared/src/schemas.ts` — Export browser tools separately from the base PLAN/BUILD tool sets
