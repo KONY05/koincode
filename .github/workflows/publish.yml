@@ -44,14 +44,7 @@ jobs:
 
   build-macos:
     needs: check
-    strategy:
-      matrix:
-        include:
-          - target_arch: arm64
-            runner: macos-latest
-          - target_arch: x64
-            runner: macos-13
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -61,16 +54,16 @@ jobs:
 
       - run: bun install
 
-      - name: Build standalone binary
+      - name: Build standalone binaries (arm64 + x64)
         working-directory: packages/cli
         env:
           MIXPANEL_TOKEN: ${{ secrets.MIXPANEL_TOKEN }}
-        run: bun bin/compile.ts --single
+        run: bun bin/compile.ts --os=darwin
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: koincode-darwin-${{ matrix.target_arch }}
+          name: koincode-darwin
           path: packages/cli/dist/koincode-*
 
   build-linux:
