@@ -318,27 +318,7 @@ export const readOnlyToolContracts = {
   }),
 } as const;
 
-export const buildToolContracts = {
-  ...readOnlyToolContracts,
-  writeFile: tool({
-    description:
-      "Create or overwrite a file under the current project directory.",
-    inputSchema: toolInputSchemas.writeFile,
-  }),
-  editFile: tool({
-    description:
-      "Replace exact text in a file under the current project directory.",
-    inputSchema: toolInputSchemas.editFile,
-  }),
-  shell: tool({
-    description: "Run a shell command in the current project directory.",
-    inputSchema: toolInputSchemas.shell,
-  }),
-  writeSkill: tool({
-    description:
-      "Create or update a skill. Writes SKILL.md to the correct scope directory (.koincode/skills/ for project, ~/.koincode/skills/ for global). Only touches SKILL.md — never overwrites scripts/, references/, or assets/. Returns whether the skill was created or updated.",
-    inputSchema: toolInputSchemas.writeSkill,
-  }),
+export const browserToolContracts = {
   serverStart: tool({
     description:
       "Start a server process in the background and wait until the given port accepts TCP connections. Use this before navigating to a locally running app. Works for any TCP server, not just web apps.",
@@ -372,8 +352,37 @@ export const buildToolContracts = {
   }),
 } as const;
 
-export type ToolContracts = typeof buildToolContracts;
+export const buildToolContracts = {
+  ...readOnlyToolContracts,
+  writeFile: tool({
+    description:
+      "Create or overwrite a file under the current project directory.",
+    inputSchema: toolInputSchemas.writeFile,
+  }),
+  editFile: tool({
+    description:
+      "Replace exact text in a file under the current project directory.",
+    inputSchema: toolInputSchemas.editFile,
+  }),
+  shell: tool({
+    description: "Run a shell command in the current project directory.",
+    inputSchema: toolInputSchemas.shell,
+  }),
+  writeSkill: tool({
+    description:
+      "Create or update a skill. Writes SKILL.md to the correct scope directory (.koincode/skills/ for project, ~/.koincode/skills/ for global). Only touches SKILL.md — never overwrites scripts/, references/, or assets/. Returns whether the skill was created or updated.",
+    inputSchema: toolInputSchemas.writeSkill,
+  }),
+} as const;
 
-export function getToolContracts(mode: ModeType) {
-  return mode === Mode.PLAN ? readOnlyToolContracts : buildToolContracts;
+export const buildToolContractsWithBrowser = {
+  ...buildToolContracts,
+  ...browserToolContracts,
+} as const;
+
+export type ToolContracts = typeof buildToolContractsWithBrowser;
+
+export function getToolContracts(mode: ModeType, browserTools?: boolean) {
+  if (mode === Mode.PLAN) return readOnlyToolContracts;
+  return browserTools ? buildToolContractsWithBrowser : buildToolContracts;
 }

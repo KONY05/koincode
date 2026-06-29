@@ -20,6 +20,8 @@ export {
   getToolContracts,
   readOnlyToolContracts,
   buildToolContracts,
+  browserToolContracts,
+  buildToolContractsWithBrowser,
   type ToolContracts,
   type ModeType,
   type TodoItem,
@@ -49,6 +51,7 @@ export { SENTRY_DSN } from "./sentry-dsn";
 
 export type {
   KoincodeGlobalConfig,
+  BrowserConfig,
   ApiKeys,
   LocalModelConfig,
   HookEventType,

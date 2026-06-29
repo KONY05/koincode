@@ -19,6 +19,7 @@ import { apiClient } from "../lib/api-client";
 import { executeLocalTool } from "../tools";
 import { loadSkillsManifest } from "../lib/skills";
 import { getIdeContextForRequest } from "./use-ide-context";
+import { readGlobalConfig } from "../utils/configs/global-config";
 import { runSpawnAgent } from "../tools/spawn-agent";
 import { getPermissionInfo } from "../utils/permissions";
 import {
@@ -169,6 +170,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
             messages: requestMessages,
             mode: _activeModes.get(sessionId) ?? mode,
             model: message.metadata?.model ?? metadata?.model,
+            browserTools: readGlobalConfig().browser?.enabled ?? false,
             skillsManifest: loadSkillsManifest().map((s) => ({
               name: s.name,
               description: s.description,

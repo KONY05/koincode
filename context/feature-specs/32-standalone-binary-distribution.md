@@ -14,15 +14,16 @@ Non-technical users report the setup is too complex: install Bun (an unfamiliar 
 
 `bun build --compile` embeds the Bun runtime into the output binary. The result is a single executable with zero external dependencies.
 
-Target matrix (3 binaries):
+Target matrix (4 binaries):
 
 | Target | Flag | Output |
 |---|---|---|
 | macOS ARM (Apple Silicon) | `--target=bun-darwin-arm64` | `koincode-darwin-arm64` |
 | macOS Intel | `--target=bun-darwin-x64` | `koincode-darwin-x64` |
 | Linux x64 | `--target=bun-linux-x64` | `koincode-linux-x64` |
+| Windows x64 | `--target=bun-windows-x64` | `koincode-windows-x64.exe` |
 
-Windows support is deferred — `bun build --compile` for Windows is experimental and the terminal rendering layer (OpenTUI) hasn't been validated there.
+Note: OpenTUI terminal rendering on Windows is not yet validated — the binary will build and run, but visual output may need adjustment.
 
 ### 2. Update `bin/build.sh`
 
@@ -165,7 +166,7 @@ The server manager then spawns `process.execPath` with `["--server"]` instead of
 
 ## Out of Scope
 
-- Windows binary (deferred until `bun build --compile` Windows support stabilizes and OpenTUI is validated on Windows)
+- ~~Windows binary~~ (added — `bun build --compile` now fully supports Windows; OpenTUI validation on Windows is pending but the binary is shipped)
 - Homebrew tap (add after validating the binary approach — small maintenance cost, high discoverability)
 - Auto-update from binary (the existing `/update` command assumes npm — needs a separate spec for binary self-update)
 - Code signing / notarization for macOS (future — unsigned binaries trigger Gatekeeper warnings, install script clears quarantine flag as a workaround)

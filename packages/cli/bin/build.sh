@@ -27,6 +27,8 @@ DEFINE_FLAGS=(
   --define "process.env.MIXPANEL_TOKEN='$MIXPANEL_TOKEN'"
 )
 
+# ─── JS bundle (npm publish) ────────────────────────────────────────────────
+
 # CLI
 bun build bin/koincode.ts --outdir dist --target bun \
   --external playwright --external @sentry/bun \

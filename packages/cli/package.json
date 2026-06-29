@@ -35,7 +35,9 @@
   },
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
-    "build": "bash bin/build.sh"
+    "build": "bash bin/build.sh",
+    "compile": "bun bin/compile.ts --single",
+    "compile:all": "bun bin/compile.ts"
   },
   "devDependencies": {
     "@ai-sdk/react": "^3.0.186",

@@ -56,6 +56,7 @@ const submitSchema = z.object({
     .min(1),
   mode: modeSchema,
   model: z.string().refine(isSupportedChatModel, "Unsupported model"),
+  browserTools: z.boolean().optional().default(false),
   skillsManifest: z.array(skillManifestEntrySchema).optional().default([]),
   ideActiveFile: z.string().nullable().optional(),
 });
@@ -79,7 +80,7 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 
 
 const app = new Hono().post("/", submitValidator, async (c) => {
-  const { id, messages, mode, model, skillsManifest, ideActiveFile } = c.req.valid("json");
+  const { id, messages, mode, model, browserTools, skillsManifest, ideActiveFile } = c.req.valid("json");
 
   const session = await db.session.findUnique({
     where: { id },
@@ -91,7 +92,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   }
 
   const startTime = Date.now();
-  const tools = { ...getToolContracts(mode), ...getMcpTools() };
+  const tools = { ...getToolContracts(mode, browserTools), ...getMcpTools() };
   const mcpStatus = getMcpServerStatus();
   const resolvedModel = resolveChatModel(model);
   const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
@@ -237,7 +238,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
 
   const result = streamText({
     model: resolvedModel.model,
-    system: buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers: mcpStatus, ideActiveFile: ideActiveFile ?? null }),
+    system: buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus, ideActiveFile: ideActiveFile ?? null }),
     messages: modelMessages,
     tools,
     abortSignal: c.req.raw.signal,

@@ -1,5 +1,6 @@
-import { chromium, type Browser, type Page } from "playwright";
+import type { Browser, Page } from "playwright";
 import { readGlobalConfig } from "../../utils/configs/global-config";
+import { resolveBrowser } from "../../lib/browser-setup";
 
 let browser: Browser | null = null;
 let page: Page | null = null;
@@ -7,6 +8,33 @@ let currentSessionId: string | null = null;
 
 type ConsoleLogEntry = { type: string; text: string; timestamp: number };
 const consoleLogs: ConsoleLogEntry[] = [];
+
+async function launchBrowser(): Promise<Browser> {
+  const resolution = resolveBrowser();
+
+  if (resolution.type === "needs-download") {
+    throw new Error(
+      "No browser found. Enable browser tools first with: koincode --enable-browser-tools\n" +
+      "This will detect your system Chrome or prompt you to download Chromium.",
+    );
+  }
+
+  const headless = readGlobalConfig().browser?.headless ?? false;
+  let pw: typeof import("playwright");
+  try {
+    pw = await import("playwright");
+  } catch {
+    throw new Error(
+      "Playwright is not installed. Install it with: bun add playwright",
+    );
+  }
+
+  if (resolution.channel === "chrome") {
+    return pw.chromium.launch({ headless, channel: "chrome" });
+  }
+
+  return pw.chromium.launch({ headless });
+}
 
 async function openFreshPage(): Promise<Page> {
   if (page && !page.isClosed()) {
@@ -22,11 +50,9 @@ async function openFreshPage(): Promise<Page> {
 
 export async function getPage(sessionId?: string): Promise<Page> {
   if (!browser) {
-    const headless = readGlobalConfig().browserHeadless ?? false;
-    browser = await chromium.launch({ headless });
+    browser = await launchBrowser();
   }
 
-  // New session: close current page and open a fresh one so sessions don't share state.
   if (sessionId && sessionId !== currentSessionId) {
     currentSessionId = sessionId;
     return openFreshPage();
