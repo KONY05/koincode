@@ -7,15 +7,17 @@ import { readGlobalConfig } from "../utils/configs/global-config";
 
 const LOG_FILE = `${GLOBAL_CONFIG_DIR}/server.log`;
 
-// Bun.main is the actual runtime path of the running binary (follows symlinks).
-// import.meta.dirname resolves to the source directory at build time, not dist/.
+// In a compiled binary, process.execPath IS the binary (e.g. /path/to/koincode-darwin-x64).
+// In a regular Bun script, process.execPath is the Bun runtime (e.g. /usr/local/bin/bun).
+const execName = path.basename(process.execPath);
+const isCompiledBinary = execName !== "bun" && execName !== "bun.exe";
+
 const RUNTIME_DIR = path.dirname(Bun.main);
 const SERVER_ENTRY_PROD = path.join(RUNTIME_DIR, "server.js");
 const SERVER_ENTRY_DEV = path.join(import.meta.dirname, "../../../server/src/index.ts");
 
-// Use the bundled server.js if it exists (prod), otherwise fall back to source (dev).
-const SERVER_ENTRY = fs.existsSync(SERVER_ENTRY_PROD) ? SERVER_ENTRY_PROD : SERVER_ENTRY_DEV;
-const isDev = SERVER_ENTRY === SERVER_ENTRY_DEV;
+const isDev = !isCompiledBinary && fs.existsSync(SERVER_ENTRY_DEV) && !fs.existsSync(SERVER_ENTRY_PROD);
+const SERVER_ENTRY = isDev ? SERVER_ENTRY_DEV : SERVER_ENTRY_PROD;
 
 function getServerPort(): number {
   const config = readGlobalConfig();
@@ -94,29 +96,47 @@ function spawnServer(port: number) {
   fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
 
   const logFd = fs.openSync(LOG_FILE, "w");
-  const args = isDev ? ["--hot", SERVER_ENTRY] : [SERVER_ENTRY];
   const config = readGlobalConfig();
 
-  const server = spawn("bun", args, {
-    detached: true,
-    stdio: ["ignore", logFd, logFd],
-    env: {
-      ...process.env,
-      PORT: String(port),
-      NODE_ENV: isDev ? "development" : "production",
-      // Config file keys take precedence over shell env vars
-      ...(config.apiKeys?.anthropic && {
-        ANTHROPIC_API_KEY: config.apiKeys.anthropic,
-      }),
-      ...(config.apiKeys?.openai && { OPENAI_API_KEY: config.apiKeys.openai }),
-      ...(config.apiKeys?.gemini && {
-        GOOGLE_GENERATIVE_AI_API_KEY: config.apiKeys.gemini,
-      }),
-      ...(config.apiKeys?.openrouter && {
-        OPENROUTER_API_KEY: config.apiKeys.openrouter,
-      }),
-    },
-  });
+  const env = {
+    ...process.env,
+    PORT: String(port),
+    NODE_ENV: isDev ? "development" : "production",
+    ...(config.apiKeys?.anthropic && {
+      ANTHROPIC_API_KEY: config.apiKeys.anthropic,
+    }),
+    ...(config.apiKeys?.openai && { OPENAI_API_KEY: config.apiKeys.openai }),
+    ...(config.apiKeys?.gemini && {
+      GOOGLE_GENERATIVE_AI_API_KEY: config.apiKeys.gemini,
+    }),
+    ...(config.apiKeys?.openrouter && {
+      OPENROUTER_API_KEY: config.apiKeys.openrouter,
+    }),
+  };
+
+  let server;
+
+  if (isCompiledBinary) {
+    // Compiled binary: spawn self with --server flag
+    server = spawn(process.execPath, ["--server"], {
+      detached: true,
+      stdio: ["ignore", logFd, logFd],
+      env,
+    });
+  } else if (isDev) {
+    server = spawn("bun", ["--hot", SERVER_ENTRY], {
+      detached: true,
+      stdio: ["ignore", logFd, logFd],
+      env,
+    });
+  } else {
+    // NPM install: run bundled server.js with bun
+    server = spawn("bun", [SERVER_ENTRY], {
+      detached: true,
+      stdio: ["ignore", logFd, logFd],
+      env,
+    });
+  }
 
   fs.closeSync(logFd);
 

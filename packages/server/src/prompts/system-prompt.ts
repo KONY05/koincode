@@ -3,6 +3,7 @@ import type { Tool } from "ai";
 
 import {
   buildToolContracts,
+  buildToolContractsWithBrowser,
   Mode,
   type ModeType,
   readOnlyToolContracts,
@@ -23,26 +24,30 @@ type McpServerStatus = {
 
 type SystemPromptParams = {
   mode: ModeType;
+  browserTools?: boolean;
   userMemory?: string;
   skillsManifest?: SkillManifestEntry[];
   mcpServers?: McpServerStatus[];
   ideActiveFile?: string | null;
 };
 
-export function buildSystemPrompt({ mode, userMemory, skillsManifest, mcpServers, ideActiveFile }: SystemPromptParams): string {
+export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers, ideActiveFile }: SystemPromptParams): string {
   const parts: string[] = [];
 
   parts.push(getIdentitySection());
   parts.push(getEnvironmentSection());
   parts.push(getAgentsMdSection());
   parts.push(getModeSection(mode));
-  parts.push(getToolUsageSection(mode, mcpServers));
+  parts.push(getToolUsageSection(mode, mcpServers, browserTools));
   parts.push(getSecuritySection());
   parts.push(getCodingGuidelinesSection());
   parts.push(getOperationalSection());
 
-  if (mode === Mode.BUILD) {
+  if (mode === Mode.BUILD && browserTools) {
     parts.push(getBrowserControlSection());
+  }
+
+  if (mode === Mode.BUILD) {
     parts.push(getVisualizationSection());
   }
 
@@ -142,13 +147,17 @@ function formatToolList(contracts: Record<string, Tool>): string {
     .join("\n");
 }
 
-function getToolUsageSection(mode: ModeType, mcpServers?: McpServerStatus[]): string {
+function getToolUsageSection(mode: ModeType, mcpServers?: McpServerStatus[], browserTools?: boolean): string {
   const sharedRules = `### Rules
 1. **Be decisive.** Use \`glob\` and \`grep\` to find what's relevant, then read only those files. Don't read every file in the project.
 2. **Never re-read files** you already read in this conversation.
 3. **Batch tool calls.** Call multiple independent tools in parallel when possible (e.g. read 5 files at once, not one at a time).`;
 
-  const contracts = mode === Mode.PLAN ? readOnlyToolContracts : buildToolContracts;
+  const contracts = mode === Mode.PLAN
+    ? readOnlyToolContracts
+    : browserTools
+      ? buildToolContractsWithBrowser
+      : buildToolContracts;
   const toolList = formatToolList(contracts);
   const buildOnlyRule =
     mode === Mode.BUILD

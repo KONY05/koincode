@@ -18,6 +18,9 @@
     "version:patch": "npm version patch --prefix packages/cli",
     "version:minor": "npm version minor --prefix packages/cli",
     "version:major": "npm version major --prefix packages/cli",
+    "release:patch": "npm version patch --prefix packages/cli && git add -A && git commit -m \"release: v$(node -p \"require('./packages/cli/package.json').version\")\" && git tag v$(node -p \"require('./packages/cli/package.json').version\") && git push && git push --tags",
+    "release:minor": "npm version minor --prefix packages/cli && git add -A && git commit -m \"release: v$(node -p \"require('./packages/cli/package.json').version\")\" && git tag v$(node -p \"require('./packages/cli/package.json').version\") && git push && git push --tags",
+    "release:major": "npm version major --prefix packages/cli && git add -A && git commit -m \"release: v$(node -p \"require('./packages/cli/package.json').version\")\" && git tag v$(node -p \"require('./packages/cli/package.json').version\") && git push && git push --tags",
     "publish:cli": "bun run build:cli && cd packages/cli && npm publish --access public"
   },
   "dependencies": {
@@ -25,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@opentui/core-linux-x64": "^0.4.2",
     "eslint": "^10.4.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.6.0",

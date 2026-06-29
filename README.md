@@ -32,15 +32,58 @@
 - **Multi-provider** - OpenRouter, Anthropic, OpenAI, or Gemini keys
 - **Persistent sessions** - Local SQLite database stores your conversation history
 
-## Requirements
+## Install
 
-- [Bun](https://bun.sh) v1.0 or later
+One command, no dependencies:
 
 ```bash
-curl -fsSL https://bun.sh/install | bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/KONY05/koincode/main/install.sh | sh
 ```
 
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/KONY05/koincode/main/install.ps1 | iex
+```
+
+Or download directly from [GitHub Releases](https://github.com/KONY05/koincode/releases/latest).
+
+<details>
+<summary>Alternative: install via npm</summary>
+
+```bash
+curl -fsSL https://bun.sh/install | bash && source ~/.bashrc && bun i -g koincode
+```
+</details>
+
 ## Getting Started
+
+```bash
+koincode --setup        # Configure your API keys
+koincode                # Start coding
+```
+
+On first run, use `/setup` to add your API keys (OpenRouter, Anthropic, OpenAI, or Gemini).
+
+### Optional: Browser tools
+
+Browser tools (automated testing via Playwright) are opt-in:
+
+```bash
+koincode --enable-browser-tools   # Detects Chrome or prompts to download Chromium
+```
+
+Or use `/enable-browser-tools` from the command menu inside a session.
+
+### Custom port
+
+```bash
+koincode --port 3000
+```
+
+The server defaults to port 37420 if not specified.
+
+## Building from source
 
 ```bash
 git clone https://github.com/KONY05/koincode.git
@@ -49,16 +92,6 @@ bun install
 bun run dev:cli
 ```
 
-On first run, use the `/setup` command to configure your API keys (OpenRouter, Anthropic, OpenAI, or Gemini).
-
-To use a custom port:
-
-```bash
-koincode --port 3000
-```
-
-The server defaults to port 37420 if not specified.
-
 To build and link the CLI globally:
 
 ```bash
@@ -66,29 +99,14 @@ bun run link:cli
 koincode
 ```
 
-<!-- ## Contributing
-
-Contributions are welcome! Please read the contributing guidelines before submitting a pull request. -->
-
-## Building the repo locally
+To build standalone binaries:
 
 ```bash
-# Install dependencies
-bun install
-
-# Generate Prisma client
-bun run --cwd packages/database db:generate
-
-# Run database migrations
-bun run db:migrate
-
-# Start the CLI (server auto-spawns on first run)
-bun run dev:cli
+cd packages/cli && COMPILE=true bash bin/build.sh
+# Outputs: dist/koincode-darwin-arm64, dist/koincode-darwin-x64, dist/koincode-linux-x64
 ```
 
 Server logs are available at `~/.koincode/server.log`.
-
-For development, you can also run type checking and linting:
 
 ```bash
 bun run typecheck

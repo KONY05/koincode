@@ -33,6 +33,18 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Recently Completed (Phase 2 — continued)
 
+- **Standalone binary distribution** — Replaced multi-step install flow with a single self-contained binary per platform. Built with `bun build --compile`, distributed via GitHub Releases, installable with a one-line curl command.
+  - **Build script:** `packages/cli/bin/build.sh` gains a `COMPILE=true` mode that produces `koincode-darwin-arm64`, `koincode-darwin-x64`, and `koincode-linux-x64` via `bun build --compile --target`. Playwright kept external in compiled binaries (gated at runtime).
+  - **Server bundling:** CLI entry point (`packages/cli/bin/koincode.ts`) checks for `--server` flag — when present, imports `@koincode/server` and skips the CLI entirely. This lets the compiled binary spawn itself as a background server.
+  - **Server manager:** `packages/cli/src/lib/server-manager.ts` detects three runtime modes: dev (source TS), npm (bundled `server.js`), compiled binary (no `server.js` → spawns `process.execPath --server`).
+  - **Playwright gating:** Browser tools are now opt-in. `browserTools: boolean` added to `KoincodeGlobalConfig`. Enable via `koincode --enable-browser-tools` (CLI flag) or `/enable-browser-tools` (command menu). `browserToolContracts` exported separately from `@koincode/shared/schemas`; `getToolContracts(mode, browserTools)` conditionally merges them. Chat route accepts `browserTools` in the request body, passed from `use-chat.ts` transport. System prompt only includes browser control section when enabled. `browser-session.ts` uses dynamic `import("playwright")` with browser resolution logic (`packages/cli/src/lib/browser-setup.ts`): checks system Chrome first, then `~/.cache/ms-playwright/`, caches the result in config.
+  - **CI:** `.github/workflows/release.yml` — triggered on `v*.*.*` tag push, builds macOS (arm64+x64) and Linux (x64) binaries on platform-appropriate runners, uploads as GitHub Release assets with auto-generated notes.
+  - **Install script:** `install.sh` at repo root — detects OS/arch, downloads latest release binary, installs to `/usr/local/bin` (or `~/.local/bin`), clears macOS quarantine flag.
+  - **README:** Updated with one-line install command, npm alternative in collapsible details, browser tools opt-in docs, and standalone binary build instructions.
+  - Spec: `context/feature-specs/xx1-standalone-binary-distribution.md`.
+
+## Recently Completed (Phase 2 — continued)
+
 - **IDE file awareness** — When KOINCODE runs inside a VSCode integrated terminal, the status bar now shows `In <filename>` (dim, right-aligned) for whatever file is active in the editor. Two-part implementation: (1) `packages/vscode-extension/` — a minimal VSCode extension (`koincode-vscode`) that activates on startup, writes `~/.koincode/ide-context.json` with the active editor path on every `onDidChangeActiveTextEditor` event, and clears it on deactivate; (2) `packages/cli/src/hooks/use-ide-context.ts` — a React hook that only activates when `TERM_PROGRAM === "vscode"`, reads the context file on mount, and watches `~/.koincode/` via `fs.watch` for subsequent changes. `StatusBar` gained an `activeFile` prop rendered between the left indicators and the context ring. `IDE_CONTEXT_FILE` constant added to `@koincode/shared/paths`. Spec: `context/feature-specs/29-ide-file-awareness.md`.
 
 ## Recently Completed (Phase 2 — continued)
@@ -87,6 +99,7 @@ These were scoped out and should be revisited:
 - **Browser control: mobile viewport emulation** — Set device viewport dimensions to simulate mobile.
 - **Browser control: Firefox/WebKit** — Chromium only for the initial implementation.
 - **Browser control: recording/replaying test scripts** — Save browser interactions as reusable test scripts.
+- **Compiled binary syntax highlighting** — TreeSitter can't load in compiled binaries (WASM workers don't resolve from Bun's virtual filesystem `/$bunfs/`). Replace with a lightweight regex-based highlighter that runs in pure JS with no external files. Covers keyword/string/comment/type coloring for common languages (JS/TS/Python/Go/Rust/etc.).
 
 ## Open Questions
 

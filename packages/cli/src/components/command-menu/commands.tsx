@@ -151,12 +151,42 @@ export const COMMANDS: Command[] = [
   //   action: (ctx) => { ctx.toggleVoice(); },
   // },
   {
+    name: "enable-browser-tools",
+    description: "Toggle browser tools (serverStart, browserNavigate, etc.)",
+    value: "/enable-browser-tools",
+    action: (ctx) => {
+      const current = readGlobalConfig().browser?.enabled ?? false;
+      updateGlobalConfig({ browser: { enabled: !current } });
+      if (!current) {
+        // Enabling — try to resolve a browser
+        import("../../lib/browser-setup").then(({ resolveBrowser }) => {
+          const resolution = resolveBrowser();
+          const detail =
+            resolution.type === "chrome"
+              ? " (using system Chrome)"
+              : resolution.type === "playwright-cache"
+                ? " (using cached Chromium)"
+                : " — no browser found, install Chrome or run: npx playwright install chromium";
+          ctx.toast.show({
+            message: `Browser tools enabled${detail}`,
+            variant: "success",
+          });
+        });
+      } else {
+        ctx.toast.show({
+          message: "Browser tools disabled",
+          variant: "info",
+        });
+      }
+    },
+  },
+  {
     name: "browser-headless",
     description: "Toggle headless mode for the browser tool",
     value: "/browser-headless",
     action: (ctx) => {
-      const current = readGlobalConfig().browserHeadless ?? false;
-      updateGlobalConfig({ browserHeadless: !current });
+      const current = readGlobalConfig().browser?.headless ?? false;
+      updateGlobalConfig({ browser: { headless: !current } });
       ctx.toast.show({
         message: `Browser headless mode ${!current ? "enabled" : "disabled"}`,
         variant: "info",

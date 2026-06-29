@@ -98,6 +98,13 @@ export type HooksConfig = {
   [K in HookEventType]?: HookMatcherGroup[];
 };
 
+export type BrowserConfig = {
+  enabled?: boolean;
+  headless?: boolean;
+  ready?: boolean;
+  path?: string;
+};
+
 // Global Config file type
 export type KoincodeGlobalConfig = {
   themeName?: string;
@@ -111,7 +118,7 @@ export type KoincodeGlobalConfig = {
   voiceInput?: boolean;
   whisperBackend?: "auto" | "openai" | "openrouter";
   mcpServers?: Record<string, McpServerConfig>;
-  browserHeadless?: boolean;
+  browser?: BrowserConfig;
   telemetry?: boolean;
   analyticsId?: string;
 };
