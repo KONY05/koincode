@@ -36,3 +36,17 @@ jobs:
         working-directory: packages/cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Tag release and trigger binary builds
+        run: |
+          VERSION="v$(node -p "require('./packages/cli/package.json').version")"
+          # Skip if tag already exists (re-run of same version)
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists, skipping"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          echo "Tagged $VERSION — release workflow will build binaries"
