@@ -10,14 +10,16 @@ permissions:
 
 jobs:
   build-macos:
-    runs-on: macos-latest
     strategy:
       matrix:
         include:
           - target_os: darwin
             target_arch: arm64
+            runner: macos-latest
           - target_os: darwin
             target_arch: x64
+            runner: macos-13
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
