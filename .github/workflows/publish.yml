@@ -41,6 +41,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Tag release and trigger binary builds
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           VERSION="v$(node -p "require('./packages/cli/package.json').version")"
           # Skip if tag already exists (re-run of same version)
@@ -50,6 +52,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${PAT_TOKEN}@github.com/KONY05/koincode.git"
           git tag "$VERSION"
           git push origin "$VERSION"
           echo "Tagged $VERSION — release workflow will build binaries"
