@@ -27,6 +27,7 @@ if (!MIXPANEL_TOKEN) {
 // ─── Flags ─────────────────────────────────────────────────────────────────
 
 const singleFlag = process.argv.includes("--single");
+const osFlag = process.argv.find((a) => a.startsWith("--os="))?.split("=")[1];
 
 // ─── Targets ───────────────────────────────────────────────────────────────
 
@@ -40,7 +41,9 @@ const allTargets: { os: string; arch: "arm64" | "x64" }[] = [
 
 const targets = singleFlag
   ? allTargets.filter((t) => t.os === process.platform && t.arch === process.arch)
-  : allTargets;
+  : osFlag
+    ? allTargets.filter((t) => t.os === osFlag || (osFlag === "windows" && t.os === "win32"))
+    : allTargets;
 
 // ─── Install all platform packages for cross-compilation ───────────────────
 
