@@ -1,5 +1,39 @@
 #!/usr/bin/env bun
 
+import { version } from "../package.json";
+
+const HELP_TEXT = `koincode v${version}
+An open source local-first terminal coding agent.
+
+Usage: koincode [options]
+
+Options:
+  -h, --help                Show this help message and exit
+  -v, --version             Print the installed version and exit
+  --port <number>           Run the server on a custom port (default: 37420)
+  --anthropic-key <key>     Save an Anthropic API key
+  --openai-key <key>        Save an OpenAI API key
+  --gemini-key <key>        Save a Google Gemini API key
+  --openrouter-key <key>    Save an OpenRouter API key
+  --enable-browser-tools    Enable Playwright-based browser tools
+  --disable-browser-tools   Disable browser tools
+  --update                  Update koincode to the latest version
+  --server                  Run only the API server (no terminal UI)
+
+Run \`koincode\` with no options to start the terminal UI.
+Use \`/setup\` inside a session to add API keys interactively.
+`;
+
+if (process.argv.includes("--help") || process.argv.includes("-h")) {
+  process.stdout.write(HELP_TEXT);
+  process.exit(0);
+}
+
+if (process.argv.includes("--version") || process.argv.includes("-v")) {
+  process.stdout.write(`v${version}\n`);
+  process.exit(0);
+}
+
 if (process.argv.includes("--server")) {
   const server = await import("@koincode/server");
   Bun.serve(server.default);

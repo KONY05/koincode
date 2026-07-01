@@ -98,6 +98,14 @@ koincode --update
 
 Works regardless of how koincode was installed (curl, npm, or a package manager) — it detects the install method and updates in place.
 
+### All flags
+
+```bash
+koincode --help
+```
+
+Prints the full list of flags (keys, port, browser tools, update, version).
+
 ## Building from source
 
 ```bash
