@@ -84,7 +84,9 @@ fs.mkdirSync(npmDir, { recursive: true });
 
 for (const item of targets) {
   const os = item.os === "win32" ? "windows" : item.os;
+  const exeSuffix = item.os === "win32" ? ".exe" : "";
   const name = `koincode-${os}-${item.arch}`;
+  const binaryName = `${name}${exeSuffix}`;
   console.log(`Building ${name}...`);
 
   const target = `bun-${os}-${item.arch}` as Bun.Build.CompileTarget;
@@ -97,7 +99,7 @@ for (const item of targets) {
     splitting: true,
     compile: {
       target,
-      outfile: `./dist/${name}`,
+      outfile: `./dist/${binaryName}`,
     },
     define: {
       "process.env.NODE_ENV": "'production'",
@@ -118,14 +120,13 @@ for (const item of targets) {
   // Each directory is a standalone publishable npm package containing only the
   // binary and a package.json with os/cpu constraints. Version is stamped from
   // the main package.json so all packages stay in sync.
-  const npmPkgName = `@koincode/${item.os === "win32" ? "windows" : item.os}-${item.arch}`;
+  const npmPkgName = `@koincode/${os}-${item.arch}`;
   const npmPkgDir = path.join(npmDir, npmPkgName);
   const npmBinDir = path.join(npmPkgDir, "bin");
   fs.mkdirSync(npmBinDir, { recursive: true });
 
-  const suffix = item.os === "win32" ? ".exe" : "";
-  const srcBinary = path.resolve(dir, `dist/${name}`);
-  const destBinary = path.join(npmBinDir, `koincode${suffix}`);
+  const srcBinary = path.resolve(dir, `dist/${binaryName}`);
+  const destBinary = path.join(npmBinDir, `koincode${exeSuffix}`);
   fs.copyFileSync(srcBinary, destBinary);
   fs.chmodSync(destBinary, 0o755);
 
