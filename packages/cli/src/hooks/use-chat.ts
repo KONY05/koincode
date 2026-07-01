@@ -16,6 +16,7 @@ import {
   toolInputSchemas,
 } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
+import { hasApiKeyForModel } from "../lib/usage";
 import { executeLocalTool } from "../tools";
 import { loadSkillsManifest } from "../lib/skills";
 import { getIdeContextForRequest } from "./use-ide-context";
@@ -28,6 +29,7 @@ import {
   readProjectConfig,
 } from "../utils/configs/project-config";
 import { usePromptConfig } from "../providers/prompt-config";
+import { useToast } from "../providers/toast";
 import type { ApprovalResponse, PendingApproval } from "../utils/permissions";
 import type {
   PendingModeSwitch,
@@ -79,6 +81,7 @@ const _activeModes = new Map<string, ModeType>();
 export function useChat(sessionId: string, initialMessages: Message[], initialSystemEvents: SystemEvent[] = []) {
   const { mode, setMode, autoModeSwitch, setAutoModeSwitch } =
     usePromptConfig();
+  const toast = useToast();
 
   const [wasInterrupted, setWasInterrupted] = useState(false);
 
@@ -612,6 +615,13 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
       mode: ModeType;
       model: string;
     }) => {
+      if (!hasApiKeyForModel(params.model)) {
+        toast.show({
+          variant: "error",
+          message: "No API key configured for this model. Run `koincode --openrouter-key <key>` or use /setup.",
+        });
+        return;
+      }
       const queued = chat.status === "submitted" || chat.status === "streaming";
       trackMessageSent({ model: params.model, mode: params.mode, queued });
       if (queued) {

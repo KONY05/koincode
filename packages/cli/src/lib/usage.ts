@@ -61,6 +61,10 @@ export function resolveUsageTarget(modelId: string): UsageTarget {
   return { type: "no-keys" };
 }
 
+export function hasApiKeyForModel(modelId: string): boolean {
+  return resolveUsageTarget(modelId).type !== "no-keys";
+}
+
 export function openUrl(url: string): void {
   const cmd =
     process.platform === "darwin"

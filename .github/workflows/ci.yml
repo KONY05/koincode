@@ -15,6 +15,24 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Check version bump
+        run: |
+          LOCAL_VERSION=$(node -p "require('./packages/cli/package.json').version")
+          PUBLISHED_VERSION=$(npm view koincode version 2>/dev/null || echo "0.0.0")
+          echo "Local version:     $LOCAL_VERSION"
+          echo "Published version: $PUBLISHED_VERSION"
+
+          if [ "$LOCAL_VERSION" = "$PUBLISHED_VERSION" ]; then
+            echo "::error file=packages/cli/package.json::Version $LOCAL_VERSION is already published on npm. Bump packages/cli/package.json before merging — the publish workflow will fail on main otherwise."
+            exit 1
+          fi
+
+          HIGHER=$(printf '%s\n%s\n' "$PUBLISHED_VERSION" "$LOCAL_VERSION" | sort -V | tail -n1)
+          if [ "$HIGHER" != "$LOCAL_VERSION" ]; then
+            echo "::error file=packages/cli/package.json::Version $LOCAL_VERSION is lower than the published version $PUBLISHED_VERSION. Bump packages/cli/package.json before merging."
+            exit 1
+          fi
+
       - name: Typecheck
         run: bun run typecheck
 
