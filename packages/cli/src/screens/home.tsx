@@ -6,31 +6,45 @@ import { Header } from "../components/header";
 import { InputBar } from "../components/input-bar";
 import { usePromptConfig } from "../providers/prompt-config";
 import { useTheme } from "../providers/theme";
+import { useToast } from "../providers/toast";
 import { SessionActionsProvider } from "../providers/session-actions";
 import { CWD, getGitBranch } from "../utils/helper";
+import { hasApiKeyForModel } from "../lib/usage";
 import { version } from "../../package.json";
 import { useUpdateCheck } from "../hooks/use-update-check";
 
 const GIT_BRANCH = getGitBranch();
 
+const NO_API_KEY_MESSAGE =
+  "No API key configured for this model. Run `koincode --openrouter-key <key>` or use /setup.";
+
 export function Home() {
   const navigate = useNavigate();
   const { mode, model } = usePromptConfig();
   const { colors } = useTheme();
+  const toast = useToast();
   const updateInfo = useUpdateCheck();
 
   const handleSubmit = useCallback(
     (text: string) => {
+      if (!hasApiKeyForModel(model)) {
+        toast.show({ variant: "error", message: NO_API_KEY_MESSAGE });
+        return;
+      }
       navigate("/sessions/new", { state: { message: text, mode, model } });
     },
-    [navigate, mode, model],
+    [navigate, mode, model, toast],
   );
 
   const handleInvokeSkill = useCallback(
     async (skillName: string) => {
+      if (!hasApiKeyForModel(model)) {
+        toast.show({ variant: "error", message: NO_API_KEY_MESSAGE });
+        return;
+      }
       navigate("/sessions/new", { state: { message: `Execute skill: ${skillName}`, mode, model } });
     },
-    [navigate, mode, model],
+    [navigate, mode, model, toast],
   );
 
   const noop = useCallback(() => Promise.resolve(), []);
