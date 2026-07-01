@@ -1,7 +1,5 @@
 import * as Sentry from "@sentry/bun";
 import { SENTRY_DSN } from "@koincode/shared";
-import fs from "fs";
-import path from "path";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
@@ -19,18 +17,8 @@ import images from "./routes/images";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
-// prod: dist/migrations/  dev: packages/database/prisma/migrations/
-const MIGRATIONS_PROD = path.join(import.meta.dirname, "migrations");
-const MIGRATIONS_DEV = path.join(
-  import.meta.dirname,
-  "../../database/prisma/migrations",
-);
-const MIGRATIONS_DIR = fs.existsSync(MIGRATIONS_PROD)
-  ? MIGRATIONS_PROD
-  : MIGRATIONS_DEV;
-
 try {
-  await runMigrations(MIGRATIONS_DIR);
+  await runMigrations();
 } catch (e) {
   logger.error("Startup failed:", e instanceof Error ? e.message : e);
   process.exit(1);

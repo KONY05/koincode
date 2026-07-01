@@ -42,9 +42,9 @@
 
 ## Data
 
-- All persistent state lives in the local SQLite database via Prisma.
-- Session message history is stored as a JSON blob on the `Session` row — do not normalize messages into separate rows.
-- Run `bun run db:generate` in `packages/database/` after any schema change.
+- All persistent state lives in the local SQLite database via `@libsql/client`.
+- Migrations are embedded as code in `packages/server/src/lib/migrations.ts` — never read migration SQL files from disk. This ensures migrations work identically across compiled binaries, npm installs, and curl/iex installs.
+- To add a new migration: (1) add an entry to the `MIGRATIONS` record with a timestamped key and the SQL string, (2) update the base `CREATE TABLE IF NOT EXISTS` statements so fresh installs get the final schema without running every migration.
 
 ## File Organization
 

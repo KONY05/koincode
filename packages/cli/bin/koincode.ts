@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 
-// Single-binary server mode: when invoked with --server, start the server
-// and skip the CLI entirely. This allows the compiled binary to spawn itself
-// as a background server process.
 if (process.argv.includes("--server")) {
   const server = await import("@koincode/server");
   Bun.serve(server.default);
+} else if (process.argv.includes("--update")) {
+  const { runCliUpdate } = await import("../src/lib/update-cli");
+  await runCliUpdate();
 } else {
   const { ensureServerRunning } = await import("../src/lib/server-manager");
   const { updateGlobalConfig } = await import("../src/utils/configs/global-config");

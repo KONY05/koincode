@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Dev-only build script — used for local development, not for npm publishing.
+# npm publishing uses the compiled standalone binary via compile.ts.
+
 # Load .env from repo root if present
 ENV_FILE="$(dirname "$0")/../../../.env"
 if [ -f "$ENV_FILE" ]; then
@@ -27,9 +30,8 @@ DEFINE_FLAGS=(
   --define "process.env.MIXPANEL_TOKEN='$MIXPANEL_TOKEN'"
 )
 
-# ─── JS bundle (npm publish) ────────────────────────────────────────────────
+# ─── CLI bundle (dev / local testing only) ─────────────────────────────────
 
-# CLI
 bun build bin/koincode.ts --outdir dist --target bun \
   --external playwright --external @sentry/bun \
   --external @opentui/core --external @opentui/react \
@@ -37,16 +39,8 @@ bun build bin/koincode.ts --outdir dist --target bun \
   "${DEFINE_FLAGS[@]}" \
   && mv dist/koincode.js dist/koincode
 
-# Server
+# ─── Server bundle (needed alongside CLI bundle for dev mode) ───────────────
+
 bun build ../server/src/index.ts --outfile dist/server.js --target bun \
   --external playwright --external @sentry/bun --external @libsql/client \
   --define "process.env.NODE_ENV='production'"
-
-# Migrations
-cp -r ../database/prisma/migrations dist/migrations
-
-# VS Code extension
-bun build ../vscode-extension/src/extension.ts \
-  --outfile dist/vscode-extension/out/extension.js \
-  --target node --format cjs --external vscode \
-  && cp ../vscode-extension/package.json dist/vscode-extension/package.json

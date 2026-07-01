@@ -1,7 +1,25 @@
+/**
+ * On CLI startup, extracts the embedded VS Code extension into every known
+ * editor's extensions folder (VS Code, Cursor, Windsurf, etc.). The extension
+ * writes ~/.koincode/ide-context.json with the active file path, which the
+ * CLI's status bar reads to show "In <filename>".
+ *
+ * Assets are embedded as string constants in ide-extension-assets.ts so this
+ * works across compiled binaries, npm installs, and curl/iex installs without
+ * depending on files in dist/.
+ */
+
 import path from "node:path";
 import fs from "node:fs";
-import { cp, mkdir, readFile, rm, readdir } from "node:fs/promises";
+import { mkdir, writeFile, rm, readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
+import { GLOBAL_CONFIG_DIR } from "@koincode/shared";
+
+import {
+  EXTENSION_VERSION,
+  EXTENSION_PACKAGE_JSON,
+  EXTENSION_JS,
+} from "./ide-extension-assets";
 
 const EXTENSION_NAME = "koincode-vscode";
 
@@ -18,16 +36,8 @@ const KNOWN_EXTENSION_DIRS = [
   path.join(homedir(), ".positron", "extensions"),       // Positron
 ];
 
-// Prod: vscode-extension/ sits next to the built binary in dist/.
-// Dev: resolve back up to the source package.
-const RUNTIME_DIR = path.dirname(Bun.main);
-const ASSET_DIR_PROD = path.join(RUNTIME_DIR, "vscode-extension");
-const ASSET_DIR_DEV = path.join(import.meta.dirname, "../../../vscode-extension");
-const ASSET_DIR = fs.existsSync(path.join(ASSET_DIR_PROD, "package.json"))
-  ? ASSET_DIR_PROD
-  : ASSET_DIR_DEV;
+const CACHE_DIR = path.join(GLOBAL_CONFIG_DIR, "vscode-extension");
 
-/** Reads the `version` field from `<dir>/package.json`. Returns null if the file is missing or malformed. */
 async function readVersion(dir: string): Promise<string | null> {
   try {
     const raw = await readFile(path.join(dir, "package.json"), "utf8");
@@ -39,55 +49,83 @@ async function readVersion(dir: string): Promise<string | null> {
 }
 
 /**
- * Installs the bundled extension into a single editor's extensions folder.
- * Skips if the current version is already present. Removes stale versions before copying.
+ * Extracts the embedded extension assets to ~/.koincode/vscode-extension/.
+ * Skips if the cached version already matches — only writes on first run or version bump.
  */
-async function installInto(extensionsDir: string): Promise<void> {
-  // Reads version from the extension assets shipped inside the CLI (dist/vscode-extension/package.json)
-  // If the assets are missing entirely, returns null and we bail out early.
-  const bundledVersion = await readVersion(ASSET_DIR);
-  if (!bundledVersion) return;
+async function ensureCachedAssets(): Promise<string> {
+  const outDir = path.join(CACHE_DIR, "out");
+  const existing = await readVersion(CACHE_DIR);
+  if (existing === EXTENSION_VERSION) return CACHE_DIR;
 
-  // This is where the new version WILL live — we haven't created it yet.
-  const installDir = path.join(extensionsDir, `${EXTENSION_NAME}-${bundledVersion}`);
+  await mkdir(outDir, { recursive: true });
+  await Promise.all([
+    writeFile(path.join(CACHE_DIR, "package.json"), EXTENSION_PACKAGE_JSON),
+    writeFile(path.join(outDir, "extension.js"), EXTENSION_JS),
+  ]);
 
-  // → null  (the folder doesn't exist yet, so package.json isn't there)
-  // If this had returned the current bundled version e.g "0.2.0", the versions match and we'd return early — nothing to do.
-  const installedVersion = await readVersion(installDir);
-  if (installedVersion === bundledVersion) return;
-
-  // Remove stale versions before installing the new one.
-  // Lists everything currently in the extensions folder.
-  const entries = await readdir(extensionsDir);
-
-  await Promise.all(
-    entries
-      .filter((e) => e.startsWith(`${EXTENSION_NAME}-`) && e !== path.basename(installDir))
-      .map((e) => rm(path.join(extensionsDir, e), { recursive: true, force: true })),
-  );
-
-  // Creates user/.ide/extensions/<new vscode extension to add, e.g koincode-vscode-0.2.0>/
-
-  await mkdir(installDir, { recursive: true });
-
-  // Copies the bundled extension files into that new folder.
-  // Editor picks up the new version on next restart.
-  await cp(ASSET_DIR, installDir, { recursive: true });
+  return CACHE_DIR;
 }
 
 /**
- * Called once at CLI startup. If running inside a VSCode-based editor (`TERM_PROGRAM === "vscode"`),
- * finds every known editor extensions folder present on disk and installs or updates the bundled
- * KOINCODE IDE extension into each one. Runs entirely in the background — never awaited.
+ * Installs the cached extension into a single editor's extensions folder.
+ * Skips if the current version is already present. Removes stale versions before copying.
+ */
+async function installInto(
+  extensionsDir: string,
+  assetDir: string,
+): Promise<void> {
+  // e.g. ~/.vscode/extensions/koincode-vscode-0.1.0/
+  const installDir = path.join(
+    extensionsDir,
+    `${EXTENSION_NAME}-${EXTENSION_VERSION}`,
+  );
+
+  // Already installed at this version — nothing to do
+  const installedVersion = await readVersion(installDir);
+  if (installedVersion === EXTENSION_VERSION) return;
+
+  // Remove old versions (e.g. koincode-vscode-0.0.9/) before installing new one
+  const entries = await readdir(extensionsDir);
+  await Promise.all(
+    entries
+      .filter(
+        (e) =>
+          e.startsWith(`${EXTENSION_NAME}-`) &&
+          e !== path.basename(installDir),
+      )
+      .map((e) =>
+        rm(path.join(extensionsDir, e), { recursive: true, force: true }),
+      ),
+  );
+
+  // Copy extension files from cache into the editor's extensions folder.
+  // Editor picks up the new version on next restart.
+  const outDir = path.join(installDir, "out");
+  await mkdir(outDir, { recursive: true });
+  await Promise.all([
+    writeFile(
+      path.join(installDir, "package.json"),
+      await readFile(path.join(assetDir, "package.json"), "utf8"),
+    ),
+    writeFile(
+      path.join(outDir, "extension.js"),
+      await readFile(path.join(assetDir, "out", "extension.js"), "utf8"),
+    ),
+  ]);
+}
+
+/**
+ * Called once at CLI startup. If running inside a VSCode-based editor (TERM_PROGRAM === "vscode"),
+ * extracts the embedded extension to ~/.koincode/vscode-extension/, then installs or updates it
+ * into every known editor extensions folder present on disk. Runs in the background — never awaited.
  */
 export function ensureIdeExtension(): void {
   if (process.env.TERM_PROGRAM !== "vscode") return;
 
-  // checks if file exists to add extension else exit
-  if (!fs.existsSync(path.join(ASSET_DIR, "package.json"))) return;
-
   const targets = KNOWN_EXTENSION_DIRS.filter((d) => fs.existsSync(d));
   if (targets.length === 0) return;
 
-  void Promise.allSettled(targets.map((d) => installInto(d)));
+  void ensureCachedAssets().then((assetDir) =>
+    Promise.allSettled(targets.map((d) => installInto(d, assetDir))),
+  );
 }

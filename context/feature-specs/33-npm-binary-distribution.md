@@ -149,21 +149,129 @@ yarn global add koincode
 
 npm detects the platform, downloads only the matching ~80MB binary package, and the wrapper script routes to it. Same zero-dependency binary, familiar install flow.
 
+### 6. Self-update across install methods
+
+The existing update flow (`update-cli.ts`) assumes an npm-managed install — it detects the package manager and runs `npm install -g koincode`. This breaks for users who installed via `curl` (installs to `/usr/local/bin/koincode` or `~/.local/bin/koincode`) or `iex` (installs to `$env:LOCALAPPDATA\koincode\koincode.exe`).
+
+#### Install method detection
+
+Detect how koincode was installed by examining the binary's own path (`process.execPath` or equivalent):
+
+| Path pattern | Install method |
+|---|---|
+| Contains `node_modules/koincode` | npm/bun/yarn/pnpm |
+| Contains `.bun/install` or `.bun/bin` | bun global |
+| `/usr/local/bin/koincode` or `~/.local/bin/koincode` | curl (Unix) |
+| `$LOCALAPPDATA\koincode\koincode.exe` | iex (Windows) |
+| Anything else | Unknown — fall back to npm |
+
+#### Update strategies
+
+**npm-managed installs** — existing flow, unchanged:
+1. Detect package manager from binary path
+2. Run `<pkg-manager> install -g koincode`
+
+**curl/iex installs** — new self-update flow:
+1. Check for new version against npm registry (same `registry.npmjs.org/koincode/latest` check)
+2. Resolve download URL: `https://github.com/KONY05/koincode/releases/download/v{version}/koincode-{os}-{arch}`
+3. Download new binary to a temp file in the same directory
+4. On Unix: `chmod +x` the temp file, rename it over the current binary (atomic on same filesystem)
+5. On Windows: rename current binary to `.old`, move new binary into place, delete `.old`
+6. On macOS: strip quarantine flag (`xattr -d com.apple.quarantine`)
+
+The download and replace happen in the background. No CLI output — the existing "New version available" banner on the Home screen changes to "Update installed — restart koincode to use v{version}" once the binary has been replaced.
+
+#### Permission handling
+
+- If the binary is in a root-owned directory (`/usr/local/bin`), the self-update will fail silently. The Home screen banner falls back to: `Update available — run: sudo koincode --update`
+- For `~/.local/bin` or `$LOCALAPPDATA` installs, no elevation needed — background replace works directly.
+
+#### Version source
+
+Both strategies check the same npm registry endpoint. The GitHub release tag is derived from the version: tag `v1.11.0` → binary asset `koincode-darwin-arm64`. This works because the CI workflow already publishes GitHub releases and npm packages from the same version.
+
+#### Changes to `update-cli.ts`
+
+```ts
+function detectInstallMethod(): "npm" | "curl" {
+  const binPath = process.execPath;
+  if (binPath.includes("node_modules") || binPath.includes(".bun")) {
+    return "npm";
+  }
+  return "curl";
+}
+
+export function runUpdate(destroyRenderer: () => void, newVersion: string): void {
+  const method = detectInstallMethod();
+  if (method === "npm") {
+    runNpmUpdate(destroyRenderer, newVersion);  // existing logic
+  } else {
+    runSelfUpdate(destroyRenderer, newVersion); // new: download + replace
+  }
+}
+```
+
+### 7. Wrapper script signal handling
+
+The Node wrapper script (`bin/koincode`) uses `execFileSync`, which doesn't propagate signals cleanly for an interactive CLI. Replace with `child_process.spawn` and forward signals:
+
+```js
+#!/usr/bin/env node
+const { spawn } = require("child_process");
+const path = require("path");
+const os = require("os");
+
+const PLATFORMS = {
+  "darwin-arm64": "koincode-darwin-arm64",
+  "darwin-x64": "koincode-darwin-x64",
+  "linux-x64": "koincode-linux-x64",
+  "linux-arm64": "koincode-linux-arm64",
+  "win32-x64": "koincode-windows-x64",
+};
+
+const key = `${os.platform()}-${os.arch()}`;
+const pkg = PLATFORMS[key];
+
+if (!pkg) {
+  console.error(`Unsupported platform: ${key}`);
+  process.exit(1);
+}
+
+const suffix = os.platform() === "win32" ? ".exe" : "";
+const bin = path.join(__dirname, "..", "node_modules", pkg, `bin/koincode${suffix}`);
+
+const child = spawn(bin, process.argv.slice(2), {
+  stdio: "inherit",
+});
+
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(sig, () => child.kill(sig));
+}
+
+child.on("close", (code) => process.exit(code ?? 1));
+```
+
 ## Scope
 
 - Platform npm packages (5 packages): package.json generation in compile.ts
-- Main package wrapper: `bin/koincode` Node script that resolves and exec's the binary
+- Main package wrapper: `bin/koincode` Node script with signal forwarding that resolves and exec's the binary
 - `optionalDependencies` in main package.json with version stamping
 - CI: publish platform packages before main package
 - Version sync across all packages
+- Self-update for curl/iex installs: download binary from GitHub releases and replace in place
+- Install method detection in `update-cli.ts` to route between npm update and self-update
 
 ## Out of Scope
 
 - Scoped packages (`@koincode/cli-darwin-arm64`) — requires npm org setup, use flat names for now
 - Homebrew tap — separate distribution channel, not npm-related
-- Auto-update from binary — keep using npm update flow
+- Auto-update on launch (checking + installing without user action) — keep explicit update trigger
+
+## Decisions
+
+- **Keep the Bun JS bundle** as a fallback for unsupported platforms. The npm binary packages cover the 5 main targets; any other platform falls back to the existing Bun-based install.
+- **`koincode --update` CLI flag** — expose self-update as a CLI flag so curl/iex users can update from the terminal without launching the TUI.
 
 ## Open Questions
 
-- Should we keep the existing Bun JS bundle as a fallback for unsupported platforms, or remove it entirely?
 - Should platform packages be published to a separate npm org (`@koincode/`) if one is created later?
