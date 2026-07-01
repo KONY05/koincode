@@ -1,5 +1,16 @@
-import fs from "fs";
-import path from "path";
+/**
+ * Self-contained migration runner — applies the base schema and any incremental
+ * migrations on every server startup.
+ *
+ * Migrations are embedded as code (not read from disk) so they work identically
+ * across all distribution methods: compiled binary, npm install, curl/iex, and dev.
+ *
+ * To add a new migration:
+ *   1. Add an entry to MIGRATIONS with a timestamped key and the SQL string
+ *   2. Update the base schema CREATE TABLE statements if it's a structural change
+ *      (so fresh installs get the final schema directly without running every migration)
+ */
+
 import { createClient } from "@libsql/client";
 import { DB_PATH } from "@koincode/shared";
 
@@ -14,11 +25,21 @@ const LEGACY_MIGRATIONS = new Set([
   "20260604202745_remove_messages_json_field",
 ]);
 
-export async function runMigrations(migrationsDir: string): Promise<void> {
+// Incremental migrations embedded as code. Each key is a timestamped name
+// (same convention as Prisma migration directories). The SQL runs once per
+// database and is tracked in _koincode_migrations.
+//
+// Add new migrations here in chronological order:
+//   "20260801000000_add_some_column": `ALTER TABLE "Foo" ADD COLUMN "bar" TEXT;`,
+const MIGRATIONS: Record<string, string> = {};
+
+export async function runMigrations(): Promise<void> {
   const client = createClient({ url: `file:${DB_PATH}` });
 
   try {
-    // Apply final schema — always idempotent, handles new installs and upgrades
+    // Base schema — always idempotent, handles new installs and upgrades.
+    // When adding a migration that changes table structure, update these
+    // statements too so fresh installs get the final schema directly.
     await client.executeMultiple(`
       CREATE TABLE IF NOT EXISTS "_koincode_migrations" (
         "name" TEXT NOT NULL PRIMARY KEY,
@@ -51,37 +72,26 @@ export async function runMigrations(migrationsDir: string): Promise<void> {
       );
     `);
 
-    if (!fs.existsSync(migrationsDir)) return;
-
     const applied = await client.execute(`SELECT "name" FROM "_koincode_migrations"`);
     const appliedNames = new Set(applied.rows.map((r) => r[0] as string));
 
-    const entries = fs.readdirSync(migrationsDir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
-      .sort();
+    // Baseline legacy migrations (mark as applied without running)
+    for (const name of LEGACY_MIGRATIONS) {
+      if (appliedNames.has(name)) continue;
+      await client.execute({
+        sql: `INSERT OR IGNORE INTO "_koincode_migrations" ("name") VALUES (?)`,
+        args: [name],
+      });
+    }
 
-    for (const entry of entries) {
-      if (appliedNames.has(entry)) continue;
-
-      if (LEGACY_MIGRATIONS.has(entry)) {
-        // Baseline: mark as applied without running
-        await client.execute({
-          sql: `INSERT OR IGNORE INTO "_koincode_migrations" ("name") VALUES (?)`,
-          args: [entry],
-        });
-        continue;
-      }
-
-      // New SQLite-native migration — run it
-      const sqlFile = path.join(migrationsDir, entry, "migration.sql");
-      if (!fs.existsSync(sqlFile)) continue;
-
-      const sql = fs.readFileSync(sqlFile, "utf-8");
-      await client.executeMultiple(sql);
+    // Run embedded migrations in order
+    const migrationNames = Object.keys(MIGRATIONS).sort();
+    for (const name of migrationNames) {
+      if (appliedNames.has(name)) continue;
+      await client.executeMultiple(MIGRATIONS[name]!);
       await client.execute({
         sql: `INSERT INTO "_koincode_migrations" ("name") VALUES (?)`,
-        args: [entry],
+        args: [name],
       });
     }
   } finally {

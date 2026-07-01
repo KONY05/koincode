@@ -44,7 +44,7 @@ type Props = {
 export function StatusBar({ contextUsage }: Props) {
   const { mode, model, voiceInput } = usePromptConfig();
   const { colors } = useTheme();
-  const hasUpdate = useUpdateCheck();
+  const updateInfo = useUpdateCheck();
   const { activeFile, fileContextEnabled, toggleFileContext } = useIdeContext();
   const mcpServerCount = useMcpServerCount();
 
@@ -79,10 +79,14 @@ export function StatusBar({ contextUsage }: Props) {
           </>
         )}
 
-        {hasUpdate && (
+        {updateInfo.status !== "current" && (
           <>
             <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
-            <text fg={colors.primary}>update available · /update</text>
+            <text fg={colors.primary}>
+              {updateInfo.status === "downloaded"
+                ? "restart for update"
+                : "update available · /update"}
+            </text>
           </>
         )}
       </box>

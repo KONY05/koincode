@@ -17,7 +17,7 @@ export function Home() {
   const navigate = useNavigate();
   const { mode, model } = usePromptConfig();
   const { colors } = useTheme();
-  const hasUpdate = useUpdateCheck();
+  const updateInfo = useUpdateCheck();
 
   const handleSubmit = useCallback(
     (text: string) => {
@@ -65,7 +65,10 @@ export function Home() {
           </text>
           <box flexDirection="row" gap={1}>
             <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>v{version}</text>
-            {hasUpdate && <text fg={colors.primary}>new version available!</text>}
+            {updateInfo.status === "available" && <text fg={colors.primary}>new version available!</text>}
+            {updateInfo.status === "downloading" && <text fg={colors.primary}>downloading update...</text>}
+            {updateInfo.status === "downloaded" && <text fg={colors.primary}>restart to use v{updateInfo.version}</text>}
+            {updateInfo.status === "permission-denied" && <text fg={colors.primary}>update available — run: sudo koincode --update</text>}
           </box>
         </box>
       </box>

@@ -1,11 +1,10 @@
 {
   "name": "koincode",
-  "version": "1.10.5",
+  "version": "1.11.0",
   "module": "src/index.tsx",
-  "main": "dist/koincode",
   "type": "module",
   "files": [
-    "dist"
+    "bin/npm-wrapper.js"
   ],
   "license": "MIT",
   "description": "An open source local-first terminal coding agent. Peer programming with any frontier model or local/free models to run agentic development.",
@@ -31,10 +30,17 @@
     "open-source"
   ],
   "bin": {
-    "koincode": "dist/koincode"
+    "koincode": "bin/npm-wrapper.js"
+  },
+  "optionalDependencies": {
+    "@koincode/darwin-arm64": "1.11.0",
+    "@koincode/darwin-x64": "1.11.0",
+    "@koincode/linux-x64": "1.11.0",
+    "@koincode/linux-arm64": "1.11.0",
+    "@koincode/windows-x64": "1.11.0"
   },
   "scripts": {
-    "dev": "bun run --watch src/index.tsx",
+    "dev": "bun run --watch bin/koincode.ts",
     "build": "bash bin/build.sh",
     "compile": "bun bin/compile.ts --single",
     "compile:all": "bun bin/compile.ts"

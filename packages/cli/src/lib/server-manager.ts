@@ -12,12 +12,8 @@ const LOG_FILE = `${GLOBAL_CONFIG_DIR}/server.log`;
 const execName = path.basename(process.execPath);
 const isCompiledBinary = execName !== "bun" && execName !== "bun.exe";
 
-const RUNTIME_DIR = path.dirname(Bun.main);
-const SERVER_ENTRY_PROD = path.join(RUNTIME_DIR, "server.js");
 const SERVER_ENTRY_DEV = path.join(import.meta.dirname, "../../../server/src/index.ts");
-
-const isDev = !isCompiledBinary && fs.existsSync(SERVER_ENTRY_DEV) && !fs.existsSync(SERVER_ENTRY_PROD);
-const SERVER_ENTRY = isDev ? SERVER_ENTRY_DEV : SERVER_ENTRY_PROD;
+const isDev = !isCompiledBinary;
 
 function getServerPort(): number {
   const config = readGlobalConfig();
@@ -123,15 +119,9 @@ function spawnServer(port: number) {
       stdio: ["ignore", logFd, logFd],
       env,
     });
-  } else if (isDev) {
-    server = spawn("bun", ["--hot", SERVER_ENTRY], {
-      detached: true,
-      stdio: ["ignore", logFd, logFd],
-      env,
-    });
   } else {
-    // NPM install: run bundled server.js with bun
-    server = spawn("bun", [SERVER_ENTRY], {
+    // Dev: run server source directly with hot reload
+    server = spawn("bun", ["--hot", SERVER_ENTRY_DEV], {
       detached: true,
       stdio: ["ignore", logFd, logFd],
       env,

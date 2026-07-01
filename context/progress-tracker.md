@@ -29,7 +29,7 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## In Progress
 
-- Nothing currently in progress.
+- **NPM binary distribution (Feature 33)** — Distribute compiled standalone binaries through npm so `npm i -g koincode` installs a native binary with no Bun/Node runtime needed at execution time. Platform-specific npm packages (`koincode-darwin-arm64`, `koincode-darwin-x64`, `koincode-linux-x64`, `koincode-linux-arm64`, `koincode-windows-x64`) published alongside the main `koincode` package via `optionalDependencies`. Thin Node wrapper (`bin/npm-wrapper.js`) resolves the correct platform binary with signal forwarding; falls back to Bun JS bundle for unsupported platforms. Self-update for curl/iex installs: background binary download + replace, with permission-denied fallback. `--update` CLI flag for manual updates. CI workflow updated to publish platform packages before main package. Spec: `context/feature-specs/33-npm-binary-distribution.md`.
 
 ## Recently Completed (Phase 2 — continued)
 

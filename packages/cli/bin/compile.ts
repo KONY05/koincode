@@ -1,5 +1,23 @@
 #!/usr/bin/env bun
 
+/**
+ * Cross-platform compilation script — builds standalone koincode binaries
+ * and generates per-platform npm packages for binary distribution.
+ *
+ * Outputs two things per target:
+ *   1. Flat binary at dist/koincode-{os}-{arch} — uploaded to GitHub Releases
+ *      for curl/iex installs.
+ *   2. npm package directory at dist/npm/koincode-{os}-{arch}/ — each contains
+ *      the binary in bin/ and a package.json with os/cpu constraints so npm
+ *      only installs the matching platform. These are published as separate npm
+ *      packages and pulled in via optionalDependencies from the main koincode package.
+ *
+ * Flags:
+ *   --single    Build only for the current platform (local dev)
+ *   --os=NAME   Build only for a specific OS (darwin, linux, windows)
+ *   (none)      Build all 5 targets
+ */
+
 import { $ } from "bun";
 import fs from "fs";
 import path from "path";
@@ -61,6 +79,9 @@ const parserWorker = fs.existsSync(localWorker) ? fs.realpathSync(localWorker) :
 
 // ─── Build each target ─────────────────────────────────────────────────────
 
+const npmDir = path.resolve(dir, "dist/npm");
+fs.mkdirSync(npmDir, { recursive: true });
+
 for (const item of targets) {
   const os = item.os === "win32" ? "windows" : item.os;
   const name = `koincode-${os}-${item.arch}`;
@@ -93,7 +114,41 @@ for (const item of targets) {
     process.exit(1);
   }
 
+  // Generate per-platform npm package directory.
+  // Each directory is a standalone publishable npm package containing only the
+  // binary and a package.json with os/cpu constraints. Version is stamped from
+  // the main package.json so all packages stay in sync.
+  const npmPkgName = `@koincode/${item.os === "win32" ? "windows" : item.os}-${item.arch}`;
+  const npmPkgDir = path.join(npmDir, npmPkgName);
+  const npmBinDir = path.join(npmPkgDir, "bin");
+  fs.mkdirSync(npmBinDir, { recursive: true });
+
+  const suffix = item.os === "win32" ? ".exe" : "";
+  const srcBinary = path.resolve(dir, `dist/${name}`);
+  const destBinary = path.join(npmBinDir, `koincode${suffix}`);
+  fs.copyFileSync(srcBinary, destBinary);
+  fs.chmodSync(destBinary, 0o755);
+
+  const npmPkgJson = {
+    name: npmPkgName,
+    version: pkg.version,
+    description: `Platform-specific binary for koincode (${item.os}/${item.arch})`,
+    os: [item.os],
+    cpu: [item.arch],
+    preferUnplugged: true,
+    license: "MIT",
+    repository: {
+      type: "git",
+      url: "https://github.com/KONY05/koincode.git",
+    },
+  };
+  fs.writeFileSync(
+    path.join(npmPkgDir, "package.json"),
+    JSON.stringify(npmPkgJson, null, 2) + "\n",
+  );
+
   console.log(`  ✓ ${name}`);
 }
 
 console.log("\nStandalone binaries built in dist/");
+console.log("npm packages generated in dist/npm/");

@@ -45,6 +45,13 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: true,
   },
   {
+    id: "claude-sonnet-5",
+    provider: "anthropic",
+    pricing: { inputUsdPerMillionTokens: 3, outputUsdPerMillionTokens: 15 },
+    contextWindow: 1_000_000,
+    vision: true,
+  },
+  {
     id: "claude-sonnet-4-6",
     provider: "anthropic",
     pricing: { inputUsdPerMillionTokens: 3, outputUsdPerMillionTokens: 15 },
@@ -149,6 +156,20 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
   },
   {
+    id: "moonshotai/kimi-k2.7-code",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.74, outputUsdPerMillionTokens: 3.50 },
+    contextWindow: 262_144,
+    vision: true,
+  },
+  {
+    id: "z-ai/glm-5.2",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.93, outputUsdPerMillionTokens: 3 },
+    contextWindow: 1_048_576,
+    vision: false,
+  },
+  {
     id: "qwen/qwen3.7-max",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 1.25, outputUsdPerMillionTokens: 3.75 },
@@ -162,6 +183,13 @@ export const SUPPORTED_CHAT_MODELS = [
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 1_048_756,
+    vision: false,
+  },
+  {
+    id: "cohere/north-mini-code:free",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
+    contextWindow: 256_000,
     vision: false,
   },
   {
