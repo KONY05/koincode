@@ -4,7 +4,7 @@
   "module": "src/index.tsx",
   "type": "module",
   "files": [
-    "bin/npm-wrapper.js"
+    "bin/npm-wrapper.cjs"
   ],
   "license": "MIT",
   "description": "An open source local-first terminal coding agent. Peer programming with any frontier model or local/free models to run agentic development.",
@@ -30,7 +30,7 @@
     "open-source"
   ],
   "bin": {
-    "koincode": "bin/npm-wrapper.js"
+    "koincode": "bin/npm-wrapper.cjs"
   },
   "optionalDependencies": {
     "@koincode/darwin-arm64": "1.11.0",
@@ -43,7 +43,9 @@
     "dev": "bun run --watch bin/koincode.ts",
     "build": "bash bin/build.sh",
     "compile": "bun bin/compile.ts --single",
-    "compile:all": "bun bin/compile.ts"
+    "compile:all": "bun bin/compile.ts",
+    "compile:test": "bun bin/compile.ts --single",
+    "test:wrapper": "node bin/npm-wrapper.cjs"
   },
   "devDependencies": {
     "@ai-sdk/react": "^3.0.186",

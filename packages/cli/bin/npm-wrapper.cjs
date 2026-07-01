@@ -7,16 +7,17 @@
  *
  * This script runs on plain Node.js (no Bun required). Its job is to resolve
  * the correct platform-specific native binary from the optionalDependencies
- * and spawn it. The platform packages (e.g. koincode-darwin-arm64) are installed
+ * and spawn it. The platform packages (e.g. @koincode/darwin-arm64) are installed
  * by npm based on the user's OS/CPU — only the matching one lands on disk.
  *
  * Resolution order:
- *   1. Native binary from optionalDependency: node_modules/koincode-{platform}/bin/koincode
- *   2. Bun JS bundle fallback: dist/koincode (requires Bun runtime — for unsupported platforms)
- *   3. Error with install instructions
+ *   1. Nested node_modules: node_modules/@koincode/{platform}/bin/koincode (npm)
+ *   2. require.resolve() fallback: for hoisting package managers (bun, pnpm, yarn)
+ *   3. Error with install instructions (unsupported platform)
  *
- * Uses CommonJS require() intentionally — this file must work on any Node.js
- * without a build step or ESM support.
+ * Uses CommonJS require() intentionally, and the .cjs extension is required
+ * because packages/cli/package.json sets "type": "module" — without it, Node
+ * would parse this file as ESM and require() would throw.
  */
 
 const { spawn } = require("child_process");
