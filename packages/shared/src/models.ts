@@ -176,6 +176,13 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_000_000,
     vision: false,
   },
+   {
+    id: "nex-agi/nex-n2-pro",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.25, outputUsdPerMillionTokens: 1 },
+    contextWindow: 262_144,
+    vision: true,
+  },
 
   // ── OpenRouter free (require OPENROUTER_API_KEY, $0 per token) ────────────
   {
@@ -212,14 +219,7 @@ export const SUPPORTED_CHAT_MODELS = [
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 1_000_000,
     vision: false,
-  },
-  // {
-  //   id: "nex-agi/nex-n2-pro:free",
-  //   provider: "openrouter",
-  //   pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-  //   contextWindow: 262_144,
-  //   vision: true,
-  // },
+  }
 ] as const satisfies readonly SupportedChatModelDefinition[];
 
 export type SupportedChatModel = (typeof SUPPORTED_CHAT_MODELS)[number];
@@ -257,4 +257,4 @@ export type LocalModelsResponse = {
   custom: LocalModelConfig[];
 };
 
-export const DEFAULT_CHAT_MODEL_ID: SupportedChatModelId = "claude-sonnet-4-6";
+export const DEFAULT_CHAT_MODEL_ID: SupportedChatModelId = "claude-sonnet-5";

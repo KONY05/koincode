@@ -34,7 +34,7 @@
 
 ## Install
 
-One command, no dependencies:
+One command, no dependencies — no Bun or Node runtime required at execution time:
 
 ```bash
 # macOS / Linux
@@ -46,24 +46,30 @@ curl -fsSL https://raw.githubusercontent.com/KONY05/koincode/main/install.sh | s
 irm https://raw.githubusercontent.com/KONY05/koincode/main/install.ps1 | iex
 ```
 
-Or download directly from [GitHub Releases](https://github.com/KONY05/koincode/releases/latest).
-
-<details>
-<summary>Alternative: install via npm</summary>
+Or install via npm — this pulls down a prebuilt native binary for your platform (no Bun needed):
 
 ```bash
-curl -fsSL https://bun.sh/install | bash && source ~/.bashrc && bun i -g koincode
+npm i -g koincode
 ```
-</details>
+
+Also works with other package managers (all resolve from the same npm registry):
+
+```bash
+bun i -g koincode
+pnpm i -g koincode
+yarn global add koincode
+```
+
+Or download a binary directly from [GitHub Releases](https://github.com/KONY05/koincode/releases/latest).
 
 ## Getting Started
 
 ```bash
-koincode --setup        # Configure your API keys
-koincode                # Start coding
+koincode --anthropic-key <your-key>   # or --openai-key / --gemini-key / --openrouter-key
+koincode                              # Start coding
 ```
 
-On first run, use `/setup` to add your API keys (OpenRouter, Anthropic, OpenAI, or Gemini).
+Or run `koincode` and use `/setup` from the in-app command menu to add keys interactively.
 
 ### Optional: Browser tools
 
@@ -71,6 +77,7 @@ Browser tools (automated testing via Playwright) are opt-in:
 
 ```bash
 koincode --enable-browser-tools   # Detects Chrome or prompts to download Chromium
+koincode --disable-browser-tools
 ```
 
 Or use `/enable-browser-tools` from the command menu inside a session.
@@ -82,6 +89,14 @@ koincode --port 3000
 ```
 
 The server defaults to port 37420 if not specified.
+
+### Updating
+
+```bash
+koincode --update
+```
+
+Works regardless of how koincode was installed (curl, npm, or a package manager) — it detects the install method and updates in place.
 
 ## Building from source
 
