@@ -140,12 +140,21 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          failures=0
           for pkg_dir in npm-packages/*/; do
             if [ -d "$pkg_dir" ]; then
-              echo "Publishing $(basename "$pkg_dir")..."
-              npm publish "$pkg_dir" --access public || echo "Already published or failed: $(basename "$pkg_dir")"
+              name=$(basename "$pkg_dir")
+              echo "Publishing $name..."
+              if ! npm publish "$pkg_dir" --access public; then
+                echo "::error::Failed to publish $name"
+                failures=$((failures + 1))
+              fi
             fi
           done
+          if [ "$failures" -gt 0 ]; then
+            echo "::error::$failures platform package(s) failed to publish"
+            exit 1
+          fi
 
   publish-main:
     needs: publish-platform-packages
