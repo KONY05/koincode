@@ -21,8 +21,20 @@ type SupportedChatModelDefinition = {
   vision: boolean;
 };
 
+/**
+ * Frontier and open source supported models list
+ * Frontier: have 2 of every model family and a legacy fallback
+ * Free (Openrouter): have the best (free) per model family
+*/
 export const SUPPORTED_CHAT_MODELS = [
   // ── Anthropic (direct ANTHROPIC_API_KEY or OpenRouter fallback) ────────────
+  {
+    id: "claude-fable-5",
+    provider: "anthropic",
+    pricing: { inputUsdPerMillionTokens: 10, outputUsdPerMillionTokens: 50 },
+    contextWindow: 1_000_000,
+    vision: true,
+  },
   {
     id: "claude-opus-4-8",
     provider: "anthropic",
@@ -32,13 +44,6 @@ export const SUPPORTED_CHAT_MODELS = [
   },
   {
     id: "claude-opus-4-7",
-    provider: "anthropic",
-    pricing: { inputUsdPerMillionTokens: 5, outputUsdPerMillionTokens: 25 },
-    contextWindow: 1_000_000,
-    vision: true,
-  },
-  {
-    id: "claude-opus-4-6",
     provider: "anthropic",
     pricing: { inputUsdPerMillionTokens: 5, outputUsdPerMillionTokens: 25 },
     contextWindow: 1_000_000,
@@ -82,9 +87,9 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: true,
   },
   {
-    id: "gpt-5",
+    id: "gpt-5.3-codex",
     provider: "openai",
-    pricing: { inputUsdPerMillionTokens: 1.25, outputUsdPerMillionTokens: 10 },
+    pricing: { inputUsdPerMillionTokens: 1.75, outputUsdPerMillionTokens: 14 },
     contextWindow: 400_000,
     vision: true,
   },
@@ -95,13 +100,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 400_000,
     vision: true,
   },
-  {
-    id: "gpt-5.3-codex",
-    provider: "openai",
-    pricing: { inputUsdPerMillionTokens: 1.75, outputUsdPerMillionTokens: 14 },
-    contextWindow: 400_000,
-    vision: true,
-  },
+  
   {
     id: "gpt-4.1-mini",
     provider: "openai",
@@ -156,9 +155,23 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
   },
   {
+    id: "deepseek/deepseek-v4-flash",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.089, outputUsdPerMillionTokens: 0.18 },
+    contextWindow: 1_048_576,
+    vision: false,
+  },
+  {
     id: "moonshotai/kimi-k2.7-code",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0.74, outputUsdPerMillionTokens: 3.50 },
+    contextWindow: 262_144,
+    vision: true,
+  },
+  {
+    id: "moonshotai/kimi-k2.6",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.66, outputUsdPerMillionTokens: 3.41 },
     contextWindow: 262_144,
     vision: true,
   },
@@ -170,11 +183,25 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
   },
   {
+    id: "qwen/qwen3.7-plus",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.32, outputUsdPerMillionTokens: 1.28 },
+    contextWindow: 1_000_000,
+    vision: true,
+  },
+  {
     id: "qwen/qwen3.7-max",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 1.25, outputUsdPerMillionTokens: 3.75 },
     contextWindow: 1_000_000,
     vision: false,
+  },
+  {
+    id: "minimax/minimax-m3",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.30, outputUsdPerMillionTokens: 1.20 },
+    contextWindow: 1_000_000,
+    vision: true,
   },
    {
     id: "nex-agi/nex-n2-pro",
@@ -190,6 +217,13 @@ export const SUPPORTED_CHAT_MODELS = [
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 1_048_756,
+    vision: false,
+  },
+  {
+    id: "poolside/laguna-xs-2.1:free",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
+    contextWindow: 262_144,
     vision: false,
   },
   {
