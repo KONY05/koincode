@@ -64,10 +64,16 @@ if (pkg) {
 }
 
 if (!binPath) {
-  console.error(`Unsupported platform: ${key}`);
-  console.error(
-    "Install via curl instead: curl -fsSL https://raw.githubusercontent.com/KONY05/koincode/main/install.sh | sh",
-  );
+  console.error(`Could not find the koincode binary for ${key}.`);
+  if (os.platform() === "win32") {
+    console.error(
+      "Try installing directly instead: irm https://raw.githubusercontent.com/KONY05/koincode/main/install.ps1 | iex",
+    );
+  } else {
+    console.error(
+      "Try installing directly instead: curl -fsSL https://raw.githubusercontent.com/KONY05/koincode/main/install.sh | sh",
+    );
+  }
   process.exit(1);
 } else {
   const child = spawn(binPath, process.argv.slice(2), { stdio: "inherit" });

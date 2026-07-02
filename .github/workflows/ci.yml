@@ -33,6 +33,20 @@ jobs:
             exit 1
           fi
 
+      - name: Check platform package versions match
+        run: |
+          node -e '
+            const pkg = require("./packages/cli/package.json");
+            const stale = Object.entries(pkg.optionalDependencies || {})
+              .filter(([name, v]) => name.startsWith("@koincode/") && v !== pkg.version);
+            if (stale.length) {
+              for (const [name, v] of stale) {
+                console.log(`::error file=packages/cli/package.json::${name} is pinned to ${v} but package.json version is ${pkg.version}. compile.ts publishes platform packages at the main version — bump optionalDependencies to match, or npm will silently skip installing them.`);
+              }
+              process.exit(1);
+            }
+          '
+
       - name: Typecheck
         run: bun run typecheck
 
