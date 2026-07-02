@@ -1,6 +1,6 @@
 {
   "name": "koincode",
-  "version": "1.12.1",
+  "version": "1.12.2",
   "module": "src/index.tsx",
   "type": "module",
   "files": [
@@ -33,13 +33,14 @@
     "koincode": "bin/npm-wrapper.cjs"
   },
   "optionalDependencies": {
-    "@koincode/darwin-arm64": "1.11.0",
-    "@koincode/darwin-x64": "1.11.0",
-    "@koincode/linux-x64": "1.11.0",
-    "@koincode/linux-arm64": "1.11.0",
-    "@koincode/windows-x64": "1.11.0"
+    "@koincode/darwin-arm64": "1.12.2",
+    "@koincode/darwin-x64": "1.12.2",
+    "@koincode/linux-x64": "1.12.2",
+    "@koincode/linux-arm64": "1.12.2",
+    "@koincode/windows-x64": "1.12.2"
   },
   "scripts": {
+    "version": "node bin/sync-platform-versions.cjs",
     "dev": "bun run --watch bin/koincode.ts",
     "build": "bash bin/build.sh",
     "compile": "bun bin/compile.ts --single",
