@@ -148,6 +148,16 @@ for (const item of targets) {
     JSON.stringify(npmPkgJson, null, 2) + "\n",
   );
 
+  const readme = `# ${npmPkgName}
+
+Platform-specific binary for [koincode](https://www.npmjs.com/package/koincode) (${item.os}/${item.arch}).
+
+Do not install this directly — install \`koincode\` instead:
+
+    npm i -g koincode
+`;
+  fs.writeFileSync(path.join(npmPkgDir, "README.md"), readme);
+
   console.log(`  ✓ ${name}`);
 }
 
