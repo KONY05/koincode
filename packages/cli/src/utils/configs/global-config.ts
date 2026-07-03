@@ -72,8 +72,12 @@ export function updateGlobalConfig(
     }
   }
 
-  if (updates.localModels !== undefined) {
-    next.localModels = updates.localModels;
+  if (updates.customProviders !== undefined) {
+    next.customProviders = updates.customProviders;
+  }
+
+  if (updates.customModels !== undefined) {
+    next.customModels = updates.customModels;
   }
 
   if (updates.voiceInput !== undefined) {

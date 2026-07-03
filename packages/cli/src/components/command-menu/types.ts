@@ -11,6 +11,7 @@ export type CommandContext = {
   navigate: (path: string) => void;
   mode: ModeType;
   model: string;
+  modelDisplayName: string;
   setMode: (mode: ModeType) => void;
   setModel: (model: string) => void;
   invokeSkill: (skillName: string) => Promise<void>;

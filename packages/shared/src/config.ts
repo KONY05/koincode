@@ -1,3 +1,5 @@
+import type { ModelPricing } from "./models";
+
 export type McpServerConfig = {
   /** Stdio transport: the executable to run (e.g. "npx"). Mutually exclusive with `url`. */
   command?: string;
@@ -28,10 +30,26 @@ export type ApiKeys = {
   gemini?: string;
 };
 
-export type LocalModelConfig = {
+export type CustomProviderConfig = {
+  /** Opaque, app-generated (e.g. "provider/8f2a1c") — never typed by the user. */
   id: string;
+  /** The provider's name, e.g. "OpenRouter", "Groq", "LM Studio" — not a personal nickname. */
+  name: string;
   baseURL: string;
-  displayName?: string;
+  /** Omitted for unauthenticated local servers. */
+  apiKey?: string;
+};
+
+export type CustomModelConfig = {
+  /** Opaque, app-generated (e.g. "custom/1a2b3c") — never typed by the user. */
+  id: string;
+  /** References CustomProviderConfig.id */
+  providerId: string;
+  /** Literal model string sent to the provider's API; also what the UI displays. */
+  modelId: string;
+  contextWindow?: number;
+  vision?: boolean;
+  pricing?: ModelPricing;
 };
 
 // Hook types
@@ -114,7 +132,8 @@ export type KoincodeGlobalConfig = {
   hooks?: HooksConfig;
   port?: number;
   ollamaBaseURL?: string;
-  localModels?: LocalModelConfig[];
+  customProviders?: CustomProviderConfig[];
+  customModels?: CustomModelConfig[];
   voiceInput?: boolean;
   whisperBackend?: "auto" | "openai" | "openrouter";
   mcpServers?: Record<string, McpServerConfig>;

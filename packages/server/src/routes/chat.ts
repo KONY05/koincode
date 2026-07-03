@@ -94,7 +94,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   const startTime = Date.now();
   const tools = { ...getToolContracts(mode, browserTools), ...getMcpTools() };
   const mcpStatus = getMcpServerStatus();
-  const resolvedModel = resolveChatModel(model);
+  const resolvedModel = await resolveChatModel(model);
   const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
   const userMemory =
     memories.length > 0
@@ -413,7 +413,7 @@ const appWithAgentStep = app.post(
     const { messages, mode, model } = c.req.valid("json");
 
     const tools = { ...getToolContracts(mode), ...getMcpTools() };
-    const resolvedModel = resolveChatModel(model);
+    const resolvedModel = await resolveChatModel(model);
 
     const result = await generateText({
       model: resolvedModel.model,

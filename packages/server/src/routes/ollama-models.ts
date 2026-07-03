@@ -1,7 +1,6 @@
-import fs from "fs";
 import { Hono } from "hono";
 
-import { GLOBAL_CONFIG_FILE, type KoincodeGlobalConfig, type LocalModelsResponse } from "@koincode/shared";
+import type { OllamaModelsResponse } from "@koincode/shared";
 import { resolveOllamaBaseURL } from "../lib/ollama";
 
 type OllamaTagsResponse = {
@@ -9,8 +8,7 @@ type OllamaTagsResponse = {
 };
 
 const app = new Hono().get("/", async (c) => {
-  // Auto-detect Ollama
-  let ollamaModels: LocalModelsResponse["ollama"] = null;
+  let ollamaModels: OllamaModelsResponse["ollama"] = null;
   try {
     const base = resolveOllamaBaseURL();
     const response = await fetch(`${base}/api/tags`, {
@@ -28,18 +26,7 @@ const app = new Hono().get("/", async (c) => {
     // Ollama not running or unreachable — leave as null
   }
 
-  // Read user-configured custom local models from global config
-  let customModels: LocalModelsResponse["custom"] = [];
-  try {
-    const config = JSON.parse(
-      fs.readFileSync(GLOBAL_CONFIG_FILE, "utf8"),
-    ) as KoincodeGlobalConfig;
-    customModels = config.localModels ?? [];
-  } catch {
-    // No config file yet
-  }
-
-  return c.json<LocalModelsResponse>({ ollama: ollamaModels, custom: customModels });
+  return c.json<OllamaModelsResponse>({ ollama: ollamaModels });
 });
 
 export default app;

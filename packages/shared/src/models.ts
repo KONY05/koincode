@@ -1,5 +1,3 @@
-import type { LocalModelConfig } from "./config";
-
 export type ModelPricing = {
   inputUsdPerMillionTokens: number;
   outputUsdPerMillionTokens: number;
@@ -11,7 +9,7 @@ export type SupportedProvider =
   | "google"
   | "openrouter"
   | "ollama"
-  | "local";
+  | "custom";
 
 type SupportedChatModelDefinition = {
   id: string;
@@ -263,8 +261,8 @@ export function findSupportedChatModel(modelId: string) {
   return SUPPORTED_CHAT_MODELS.find((model) => model.id === modelId);
 }
 
-export function isLocalModelId(modelId: string): boolean {
-  return modelId.startsWith("ollama/") || modelId.startsWith("local/");
+export function isCustomOrOllamaModelId(modelId: string): boolean {
+  return modelId.startsWith("ollama/") || modelId.startsWith("custom/");
 }
 
 /** Returns the context window size in tokens for a given model ID. Falls back to 128k for unknown/local models. */
@@ -279,16 +277,8 @@ export function isVisionModel(modelId: string): boolean {
   return model?.vision ?? false;
 }
 
-export type LocalModelEntry = {
-  id: string;
-  provider: "ollama" | "local";
-  displayName: string;
-  size?: number;
-};
-
-export type LocalModelsResponse = {
+export type OllamaModelsResponse = {
   ollama: Array<{ id: string; name: string; size?: number }> | null;
-  custom: LocalModelConfig[];
 };
 
 export const DEFAULT_CHAT_MODEL_ID: SupportedChatModelId = "claude-sonnet-5";

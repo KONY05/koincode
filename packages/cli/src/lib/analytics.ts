@@ -3,7 +3,8 @@ import os from "os";
 import crypto from "crypto";
 
 import { readGlobalConfig, writeGlobalConfig } from "../utils/configs/global-config";
-import { findSupportedChatModel, isLocalModelId } from "@koincode/shared";
+import { findSupportedChatModel, isCustomOrOllamaModelId } from "@koincode/shared";
+import { getCustomProviderName } from "./custom-models";
 import { version } from "../../package.json";
 
 const MIXPANEL_TOKEN = process.env.MIXPANEL_TOKEN ?? "";
@@ -60,7 +61,8 @@ function track(event: string, properties?: Record<string, unknown>) {
 }
 
 function resolveProvider(modelId: string): string {
-  if (isLocalModelId(modelId)) return "local";
+  if (modelId.startsWith("custom/")) return getCustomProviderName(modelId) ?? "custom";
+  if (isCustomOrOllamaModelId(modelId)) return "local";
   return findSupportedChatModel(modelId)?.provider ?? "unknown";
 }
 

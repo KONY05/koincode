@@ -14,6 +14,7 @@ import TodoList from "../tool-view/todo-list";
 import ShellView from "../tool-view/shell";
 import McpToolView, { ManageMcpView } from "../tool-view/mcp-tool";
 import { Spinner } from "../spinner";
+import { getModelDisplayName } from "../../lib/custom-models";
 
 const treeSitterClient = getTreeSitterClient();
 
@@ -469,7 +470,7 @@ export function BotMessage({
             <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
               ›
             </text>
-            <text attributes={TextAttributes.DIM}>{model}</text>
+            <text attributes={TextAttributes.DIM}>{getModelDisplayName(model)}</text>
             {durationMs != null && (
               <>
                 <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>

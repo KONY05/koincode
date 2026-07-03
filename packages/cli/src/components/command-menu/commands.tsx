@@ -118,7 +118,7 @@ export const COMMANDS: Command[] = [
         children: (
           <ContextDialogContent
             contextUsage={ctx.contextUsage}
-            model={ctx.model}
+            model={ctx.modelDisplayName}
           />
         ),
       });
@@ -213,8 +213,12 @@ export const COMMANDS: Command[] = [
     value: "/usage",
     action: (ctx) => {
       const result = resolveUsageTarget(ctx.model);
-      if (result.type === "local") {
+      if (result.type === "ollama") {
         ctx.toast.show({ message: "Local model — no usage page to open", variant: "info" });
+        return;
+      }
+      if (result.type === "custom") {
+        ctx.toast.show({ message: "No usage dashboard registered for custom providers", variant: "info" });
         return;
       }
       if (result.type === "no-keys") {

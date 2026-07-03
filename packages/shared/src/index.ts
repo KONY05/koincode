@@ -2,15 +2,14 @@ export {
   SUPPORTED_CHAT_MODELS,
   DEFAULT_CHAT_MODEL_ID,
   findSupportedChatModel,
-  isLocalModelId,
+  isCustomOrOllamaModelId,
   getContextWindow,
   isVisionModel,
   type ModelPricing,
   type SupportedProvider,
   type SupportedChatModel,
   type SupportedChatModelId,
-  type LocalModelEntry,
-  type LocalModelsResponse,
+  type OllamaModelsResponse,
 } from "./models";
 
 export {
@@ -47,13 +46,21 @@ export {
 
 export { parseMcpToolName, isMcpTool } from "./mcp";
 
+export {
+  customProviderInputSchema,
+  customModelInputSchema,
+  type CustomProviderInput,
+  type CustomModelInput,
+} from "./config-schemas";
+
 export { SENTRY_DSN } from "./sentry-dsn";
 
 export type {
   KoincodeGlobalConfig,
   BrowserConfig,
   ApiKeys,
-  LocalModelConfig,
+  CustomProviderConfig,
+  CustomModelConfig,
   HookEventType,
   HookHandlerType,
   CommandHookHandler,

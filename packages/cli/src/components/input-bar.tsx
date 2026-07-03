@@ -355,7 +355,7 @@ export function InputBar({
   onRemoveFromQueue,
   queueFocusedIndex = null,
   onQueueFocusedIndexChange }: Props) {
-  const { mode, model, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
+  const { mode, model, modelDisplayName, toggleMode, setMode, setModel, voiceInput, toggleVoice } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => { });
@@ -548,6 +548,7 @@ export function InputBar({
           navigate,
           mode,
           model,
+          modelDisplayName,
           setMode,
           setModel,
           invokeSkill,
@@ -563,7 +564,7 @@ export function InputBar({
         skipUndoRef.current = false;
       }
     },
-    [renderer, toast, dialog, navigate, mode, model, setMode, setModel, invokeSkill, clearSession, handoff, compact, contextUsage, toggleVoice],
+    [renderer, toast, dialog, navigate, mode, model, modelDisplayName, setMode, setModel, invokeSkill, clearSession, handoff, compact, contextUsage, toggleVoice],
   );
 
   const handleCommandExecute = useCallback(

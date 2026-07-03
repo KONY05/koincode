@@ -5,6 +5,7 @@ import { useTheme } from "../../providers/theme";
 
 type Props = {
   contextUsage: ContextUsage | null;
+  /** Already resolved for display (e.g. via usePromptConfig().modelDisplayName) — not a raw model id. */
   model: string;
 };
 
@@ -17,13 +18,13 @@ function renderBar(percent: number, width = 30): string {
   return "█".repeat(filled) + "░".repeat(width - filled);
 }
 
-export function ContextDialogContent({ contextUsage, model }: Props) {
+export function ContextDialogContent({ contextUsage, model: displayModel }: Props) {
   const { colors } = useTheme();
 
   if (!contextUsage) {
     return (
       <box flexDirection="column" gap={1} paddingX={1} paddingY={1}>
-        <text fg={colors.primary}>{model}</text>
+        <text fg={colors.primary}>{displayModel}</text>
         <text attributes={TextAttributes.DIM}>
           No messages sent yet — context usage will appear after the first response.
         </text>
@@ -34,7 +35,7 @@ export function ContextDialogContent({ contextUsage, model }: Props) {
   if (!contextUsage.hasUsageData) {
     return (
       <box flexDirection="column" gap={1} paddingX={1} paddingY={1}>
-        <text fg={colors.primary}>{model}</text>
+        <text fg={colors.primary}>{displayModel}</text>
         <text attributes={TextAttributes.DIM}>
           This model does not report token usage.
         </text>
@@ -54,7 +55,7 @@ export function ContextDialogContent({ contextUsage, model }: Props) {
   return (
     <box flexDirection="column" gap={1} paddingX={1} paddingY={1}>
       <box flexDirection="row" gap={2}>
-        <text fg={colors.primary}>{model}</text>
+        <text fg={colors.primary}>{displayModel}</text>
         <text attributes={TextAttributes.DIM}>{contextWindowK} context window</text>
       </box>
 

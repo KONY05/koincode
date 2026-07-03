@@ -1,11 +1,11 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useMemo } from "react";
 import type { ReactNode } from "react";
 
 import {
   DEFAULT_CHAT_MODEL_ID,
   SUPPORTED_CHAT_MODELS,
   findSupportedChatModel,
-  isLocalModelId,
+  isCustomOrOllamaModelId,
   Mode,
   type ModeType,
 } from "@koincode/shared";
@@ -13,6 +13,7 @@ import {
   readGlobalConfig,
   updateGlobalConfig,
 } from "../../utils/configs/global-config";
+import { getModelDisplayName } from "../../lib/custom-models";
 import { trackModelChanged } from "../../lib/analytics";
 
 type PromptConfigContextValue = {
@@ -20,6 +21,8 @@ type PromptConfigContextValue = {
   toggleMode: () => void;
   setMode: (mode: ModeType) => void;
   model: string;
+  /** `model` resolved for display — custom-model opaque ids swapped for their real modelId. */
+  modelDisplayName: string;
   setModel: (model: string) => void;
   autoModeSwitch: "confirm" | "auto";
   setAutoModeSwitch: (v: "confirm" | "auto") => void;
@@ -43,7 +46,7 @@ function resolveInitialModel(): string {
   const config = readGlobalConfig();
 
   const saved = config.defaultModel;
-  if (saved && (findSupportedChatModel(saved) || isLocalModelId(saved)))
+  if (saved && (findSupportedChatModel(saved) || isCustomOrOllamaModelId(saved)))
     return saved;
 
   const keys = config.apiKeys ?? {};
@@ -70,6 +73,8 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   const [voiceInput, setVoiceInputState] = useState<boolean>(
     () => readGlobalConfig().voiceInput ?? false,
   );
+
+  const modelDisplayName = useMemo(() => getModelDisplayName(model), [model]);
 
   const toggleMode = useCallback(() => {
     setMode((m) => (m === Mode.BUILD ? Mode.PLAN : Mode.BUILD));
@@ -101,6 +106,7 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
         toggleMode,
         setMode,
         model,
+        modelDisplayName,
         setModel,
         autoModeSwitch,
         setAutoModeSwitch,

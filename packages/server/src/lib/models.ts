@@ -1,6 +1,8 @@
 import fs from "fs";
 import { anthropic } from "@ai-sdk/anthropic";
-import { openai, createOpenAI } from "@ai-sdk/openai";
+import { openai } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { createOllama } from "ollama-ai-provider-v2";
 import { google } from "@ai-sdk/google";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
@@ -8,10 +10,11 @@ import type { LanguageModel } from "ai";
 
 import {
   findSupportedChatModel,
-  isLocalModelId,
+  isCustomOrOllamaModelId,
   GLOBAL_CONFIG_FILE,
   type KoincodeGlobalConfig,
-  type LocalModelConfig,
+  type CustomModelConfig,
+  type CustomProviderConfig,
   type SupportedChatModel,
   type SupportedChatModelId,
   type SupportedProvider,
@@ -142,41 +145,93 @@ function resolveSupportedChatModel(model: SupportedChatModel): ResolvedModel {
 }
 
 export function isSupportedChatModel(modelId: string): boolean {
-  return findSupportedChatModel(modelId) != null || isLocalModelId(modelId);
+  return findSupportedChatModel(modelId) != null || isCustomOrOllamaModelId(modelId);
 }
 
-function readLocalModels(): LocalModelConfig[] {
+function readGlobalConfig(): KoincodeGlobalConfig {
   try {
-    const config = JSON.parse(
-      fs.readFileSync(GLOBAL_CONFIG_FILE, "utf8"),
-    ) as KoincodeGlobalConfig;
-    return config.localModels ?? [];
+    return JSON.parse(fs.readFileSync(GLOBAL_CONFIG_FILE, "utf8")) as KoincodeGlobalConfig;
   } catch {
-    return [];
+    return {};
   }
 }
 
-function resolveLocalModel(modelId: string): ResolvedModel {
-  if (modelId.startsWith("ollama/")) {
-    const ollamaModelName = modelId.slice("ollama/".length);
-    const baseURL = `${resolveOllamaBaseURL()}/v1`;
-    const provider = createOpenAI({ baseURL, apiKey: "ollama" });
-    return { model: provider(ollamaModelName), provider: "ollama", modelId };
-  }
-
-  if (modelId.startsWith("local/")) {
-    const localModelName = modelId.slice("local/".length);
-    const entry = readLocalModels().find((m) => m.id === modelId);
-    if (!entry) throw new Error(`Local model not configured: ${modelId}`);
-    const provider = createOpenAI({ baseURL: entry.baseURL, apiKey: "local" });
-    return { model: provider(localModelName), provider: "local", modelId };
-  }
-
-  throw new Error(`Unknown local model format: ${modelId}`);
+function readCustomModels(): CustomModelConfig[] {
+  return readGlobalConfig().customModels ?? [];
 }
 
-export function resolveChatModel(modelId: string): ResolvedModel {
-  if (isLocalModelId(modelId)) return resolveLocalModel(modelId);
+function readCustomProviders(): CustomProviderConfig[] {
+  return readGlobalConfig().customProviders ?? [];
+}
+
+type OllamaShowResponse = {
+  model_info?: Record<string, unknown>;
+};
+
+/**
+ * Ollama namespaces context length under the model's architecture, e.g.
+ * "llama.context_length" or "qwen2.context_length" — there's no fixed key name,
+ * so scan for the first one that matches.
+ */
+async function fetchOllamaContextLength(
+  baseURL: string,
+  modelName: string,
+): Promise<number | undefined> {
+  try {
+    const response = await fetch(`${baseURL}/api/show`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelName }),
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!response.ok) return undefined;
+    const data = (await response.json()) as OllamaShowResponse;
+    for (const [key, value] of Object.entries(data.model_info ?? {})) {
+      if (key.endsWith(".context_length") && typeof value === "number") return value;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function resolveOllamaModel(modelId: string): Promise<ResolvedModel> {
+  const ollamaModelName = modelId.slice("ollama/".length);
+  const rootBaseURL = resolveOllamaBaseURL();
+  const provider = createOllama({ name: "ollama", baseURL: `${rootBaseURL}/api` });
+  const contextLength = await fetchOllamaContextLength(rootBaseURL, ollamaModelName);
+  return {
+    model: provider.chat(ollamaModelName),
+    provider: "ollama",
+    modelId,
+    providerOptions: contextLength
+      ? { ollama: { options: { num_ctx: contextLength } } }
+      : undefined,
+  };
+}
+
+function resolveCustomModel(modelId: string): ResolvedModel {
+  const model = readCustomModels().find((m) => m.id === modelId);
+
+  if (!model) throw new Error(`Custom model not configured: ${modelId}`);
+
+  const provider = readCustomProviders().find((p) => p.id === model.providerId);
+  
+  if (!provider) throw new Error(`Custom provider not configured for model: ${modelId}`);
+  
+  const client = createOpenAICompatible({
+    name: "custom",
+    baseURL: provider.baseURL,
+    apiKey: provider.apiKey ?? "custom",
+    includeUsage: true,
+  });
+
+  return { model: client(model.modelId), provider: "custom", modelId };
+}
+
+export async function resolveChatModel(modelId: string): Promise<ResolvedModel> {
+  if (modelId.startsWith("ollama/")) return resolveOllamaModel(modelId);
+  if (modelId.startsWith("custom/")) return resolveCustomModel(modelId);
   const model = findSupportedChatModel(modelId);
   if (!model) throw new Error(`Unsupported model: ${modelId}`);
   return resolveSupportedChatModel(model);
