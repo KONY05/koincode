@@ -42,7 +42,7 @@ type Props = {
 };
 
 export function StatusBar({ contextUsage }: Props) {
-  const { mode, model, voiceInput } = usePromptConfig();
+  const { mode, modelDisplayName, voiceInput } = usePromptConfig();
   const { colors } = useTheme();
   const updateInfo = useUpdateCheck();
   const { activeFile, fileContextEnabled, toggleFileContext } = useIdeContext();
@@ -61,7 +61,7 @@ export function StatusBar({ contextUsage }: Props) {
         <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
           ›
         </text>
-        <text>{model}</text>
+        <text>{modelDisplayName}</text>
 
         {voiceInput && (
           <>

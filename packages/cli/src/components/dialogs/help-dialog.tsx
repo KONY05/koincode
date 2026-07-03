@@ -23,6 +23,11 @@ const SHORTCUTS = [
 
 const KEY_COL_WIDTH = Math.max(...SHORTCUTS.map((s) => s.key.length)) + 4;
 
+// Behavior-based features with no literal key trigger — don't fit the Shortcuts list above.
+const TIPS = [
+  "Paste or type an image file path (.png, .jpg, .gif, .webp) — it's auto-attached inline (vision-capable models only)",
+];
+
 export function HelpDialogContent() {
   const { colors } = useTheme();
   const { height: terminalHeight } = useTerminalDimensions();
@@ -30,10 +35,15 @@ export function HelpDialogContent() {
   // The dialog box itself is height="auto", so it can't cap our height for us —
   // bound the scrollbox to the terminal so overflow scrolls instead of clipping.
   const maxHeight = Math.max(4, terminalHeight - 15);
-  const scrollHeight = Math.min(SHORTCUTS.length * 2, maxHeight);
+  const scrollHeight = Math.min(SHORTCUTS.length * 2 + TIPS.length * 2 + 2, maxHeight);
 
   return (
     <scrollbox height={scrollHeight}>
+      <box paddingX={1}>
+        <text fg={colors.dimSeparator} attributes={TextAttributes.BOLD}>
+          Shortcuts
+        </text>
+      </box>
       {SHORTCUTS.map((shortcut) => (
         <box key={shortcut.key} flexDirection="row" paddingX={1}>
           <box width={KEY_COL_WIDTH} flexShrink={0}>
@@ -44,6 +54,20 @@ export function HelpDialogContent() {
               {shortcut.description}
             </text>
           </box>
+        </box>
+      ))}
+
+      <box paddingX={1} marginTop={1}>
+        <text fg={colors.dimSeparator} attributes={TextAttributes.BOLD}>
+          Tips
+        </text>
+      </box>
+      {TIPS.map((tip) => (
+        <box key={tip} flexDirection="row" paddingX={1} gap={1}>
+          <text fg={colors.dimSeparator}>• </text>
+          <text attributes={TextAttributes.DIM} wrapMode="word" width="100%">
+            {tip}
+          </text>
         </box>
       ))}
     </scrollbox>

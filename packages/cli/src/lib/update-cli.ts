@@ -126,9 +126,11 @@ export async function downloadSelfUpdate(
       if (code === "EACCES" || code === "EPERM") {
         return "permission-denied";
       }
+      Sentry.captureException(err, { extra: { stage: "install", url, binPath } });
       return "error";
     }
-  } catch {
+  } catch (err: unknown) {
+    Sentry.captureException(err, { extra: { stage: "download", url } });
     return "error";
   }
 }

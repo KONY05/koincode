@@ -1,6 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import prettyMs from "pretty-ms";
-import { getTreeSitterClient, TextAttributes } from "@opentui/core";
+import {
+  BoxRenderable,
+  getTreeSitterClient,
+  type Renderable,
+  TextAttributes,
+  TextRenderable,
+} from "@opentui/core";
+import { useRenderer } from "@opentui/react";
 
 import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
@@ -14,6 +21,8 @@ import TodoList from "../tool-view/todo-list";
 import ShellView from "../tool-view/shell";
 import McpToolView, { ManageMcpView } from "../tool-view/mcp-tool";
 import { Spinner } from "../spinner";
+import { getModelDisplayName } from "../../lib/custom-models";
+import { copyToClipboard } from "../../lib/clipboard";
 
 const treeSitterClient = getTreeSitterClient();
 
@@ -298,17 +307,55 @@ export function BotMessage({
     [colors],
   );
 
+  const renderer = useRenderer();
+
   const renderCodeBlock = useCallback(
     (
-      token: { type: string },
-      ctx: { defaultRender: () => { bg?: string } | null },
+      token: { type: string; text?: string },
+      ctx: { defaultRender: () => (Renderable & { bg?: string }) | null },
     ) => {
       if (token.type !== "code") return undefined;
       const renderable = ctx.defaultRender();
-      if (renderable) renderable.bg = "#313131ff";
-      return renderable;
+      if (!renderable) return undefined;
+      renderable.bg = "#313131ff";
+
+      const code = token.text ?? "";
+
+      const wrapper = new BoxRenderable(renderable.ctx, {
+        width: "100%",
+        position: "relative",
+      });
+      wrapper.add(renderable);
+
+      const label = new TextRenderable(renderable.ctx, {
+        content: " ⧉ copy ",
+        fg: colors.info,
+        position: "absolute",
+        top: 0,
+        right: 0,
+        zIndex: 1,
+        onMouseDown: () => {
+          void (async () => {
+            const copied =
+              (await copyToClipboard(code)) || renderer.copyToClipboardOSC52(code);
+            if (label.isDestroyed) return;
+            label.content = copied ? " ✓ copied " : " ✗ no clipboard ";
+            label.fg = copied ? colors.success : colors.error;
+            renderer.requestRender();
+            setTimeout(() => {
+              if (label.isDestroyed) return;
+              label.content = " ⧉ copy ";
+              label.fg = colors.info;
+              renderer.requestRender();
+            }, 1200);
+          })();
+        },
+      });
+      wrapper.add(label);
+
+      return wrapper;
     },
-    [],
+    [colors, renderer],
   );
 
   const shouldHidePart = (part: ClientMessagePart): boolean => {
@@ -469,7 +516,7 @@ export function BotMessage({
             <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
               ›
             </text>
-            <text attributes={TextAttributes.DIM}>{model}</text>
+            <text attributes={TextAttributes.DIM}>{getModelDisplayName(model)}</text>
             {durationMs != null && (
               <>
                 <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>

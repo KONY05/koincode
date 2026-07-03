@@ -11,7 +11,7 @@ import { runMigrations } from "./lib/migrations";
 import sessions from "./routes/sessions";
 import chat from "./routes/chat";
 import memory from "./routes/memory";
-import localModels from "./routes/local-models";
+import ollamaModels from "./routes/ollama-models";
 import mcp from "./routes/mcp";
 import images from "./routes/images";
 
@@ -71,7 +71,7 @@ const routes = app
   .route("/sessions", sessions)
   .route("/chat", chat)
   .route("/memory", memory)
-  .route("/local-models", localModels)
+  .route("/ollama-models", ollamaModels)
   .route("/mcp", mcp)
   .route("/images", images);
 

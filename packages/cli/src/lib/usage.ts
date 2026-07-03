@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 
-import { findSupportedChatModel, isLocalModelId } from "@koincode/shared";
+import { findSupportedChatModel } from "@koincode/shared";
 import { readGlobalConfig } from "../utils/configs/global-config";
 
 const USAGE_URLS = {
@@ -11,14 +11,16 @@ const USAGE_URLS = {
 } as const;
 
 export type UsageTarget =
-  | { type: "url"; 
-      url: string; 
+  | { type: "url";
+      url: string;
       via: "direct" | "openrouter" }
-  | { type: "local" }
+  | { type: "ollama" }
+  | { type: "custom" }
   | { type: "no-keys" };
 
 export function resolveUsageTarget(modelId: string): UsageTarget {
-  if (isLocalModelId(modelId)) return { type: "local" };
+  if (modelId.startsWith("ollama/")) return { type: "ollama" };
+  if (modelId.startsWith("custom/")) return { type: "custom" };
 
   const model = findSupportedChatModel(modelId);
   if (!model) return { type: "no-keys" };

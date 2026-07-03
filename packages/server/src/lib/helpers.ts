@@ -32,9 +32,10 @@ export async function generateTextWithFallback(
   for (const modelId of modelsToTry) {
     try {
       const abortSignal = AbortSignal.timeout(timeoutMs);
+      const resolved = await resolveChatModel(modelId);
       return await generateText({
         ...options,
-        model: resolveChatModel(modelId).model,
+        model: resolved.model,
         abortSignal,
       } as Parameters<typeof generateText>[0]);
     } catch (err) {

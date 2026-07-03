@@ -556,7 +556,9 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
     }
 
     const modelId = lastWithUsage.metadata.model ?? "";
-    const contextWindow = getContextWindow(String(modelId));
+    // Ollama/custom models report their real context window in metadata (server-known,
+    // since it's not in the curated list); everything else falls back to the static lookup.
+    const contextWindow = lastWithUsage.metadata.contextWindow ?? getContextWindow(String(modelId));
     const tokensUsed = lastWithUsage.metadata.usage.inputTokens ?? 0;
     return {
       tokensUsed,
