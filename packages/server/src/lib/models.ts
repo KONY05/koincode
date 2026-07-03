@@ -6,7 +6,8 @@ import { createOllama } from "ollama-ai-provider-v2";
 import { google } from "@ai-sdk/google";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
-import type { LanguageModel } from "ai";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
+import { extractReasoningMiddleware, wrapLanguageModel, type LanguageModel } from "ai";
 
 import {
   findSupportedChatModel,
@@ -47,6 +48,19 @@ const GOOGLE_THINKING: ProviderOptions = {
 
 function assertUnsupportedProvider(provider: never): never {
   throw new Error(`Unsupported provider: ${provider}`);
+}
+
+/**
+ * Ollama/custom models (DeepSeek R1, QwQ, some Kimi/GLM variants) often emit
+ * `<think>...</think>` inline in plain text rather than a structured reasoning
+ * field. Extract it into a proper reasoning part so it renders in the existing
+ * collapsible "Thinking..." UI instead of showing up as literal tags in the answer.
+ */
+function withReasoningExtraction(model: LanguageModelV3): LanguageModelV3 {
+  return wrapLanguageModel({
+    model,
+    middleware: extractReasoningMiddleware({ tagName: "think" }),
+  });
 }
 
 function readConfigKey(
@@ -203,7 +217,7 @@ async function resolveOllamaModel(modelId: string): Promise<ResolvedModel> {
   const provider = createOllama({ name: "ollama", baseURL: `${rootBaseURL}/api` });
   const contextLength = await fetchOllamaContextLength(rootBaseURL, ollamaModelName);
   return {
-    model: provider.chat(ollamaModelName),
+    model: withReasoningExtraction(provider.chat(ollamaModelName)),
     provider: "ollama",
     modelId,
     providerOptions: contextLength
@@ -230,7 +244,7 @@ function resolveCustomModel(modelId: string): ResolvedModel {
   });
 
   return {
-    model: client(model.modelId),
+    model: withReasoningExtraction(client(model.modelId)),
     provider: "custom",
     modelId,
     contextWindow: model.contextWindow,

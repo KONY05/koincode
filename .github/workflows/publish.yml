@@ -156,25 +156,8 @@ jobs:
             exit 1
           fi
 
-  publish-main:
-    needs: publish-platform-packages
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Publish to npm
-        run: npm publish --access public
-        working-directory: packages/cli
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
   release:
-    needs: [build-macos, build-linux, build-windows, publish-main]
+    needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -206,3 +189,23 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           generate_release_notes: true
           files: artifacts/koincode-*
+
+  publish-main:
+    # Must run after `release` so the GitHub Release binaries are live before npm
+    # reports the new version — otherwise checkForUpdate() (npm) can fire before
+    # downloadSelfUpdate() (GitHub Releases) has anything to download.
+    needs: [publish-platform-packages, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish to npm
+        run: npm publish --access public
+        working-directory: packages/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
