@@ -30,6 +30,8 @@ export type ResolvedModel = {
   provider: SupportedProvider;
   modelId: string;
   providerOptions?: ProviderOptions;
+  /** Known only for models outside the curated list (Ollama's real num_ctx, a custom model's configured value). */
+  contextWindow?: number;
 };
 
 // Thinking is a provider-level capability — enabled for every model from providers that support it.
@@ -207,6 +209,7 @@ async function resolveOllamaModel(modelId: string): Promise<ResolvedModel> {
     providerOptions: contextLength
       ? { ollama: { options: { num_ctx: contextLength } } }
       : undefined,
+    contextWindow: contextLength,
   };
 }
 
@@ -226,7 +229,12 @@ function resolveCustomModel(modelId: string): ResolvedModel {
     includeUsage: true,
   });
 
-  return { model: client(model.modelId), provider: "custom", modelId };
+  return {
+    model: client(model.modelId),
+    provider: "custom",
+    modelId,
+    contextWindow: model.contextWindow,
+  };
 }
 
 export async function resolveChatModel(modelId: string): Promise<ResolvedModel> {
