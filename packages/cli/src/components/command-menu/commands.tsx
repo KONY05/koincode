@@ -125,6 +125,14 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: "info",
+    description: "Toggle the info sidebar (context, cost, mcp, modified files)",
+    value: "/info",
+    action: (ctx) => {
+      ctx.toggleInfoSidebar();
+    },
+  },
+  {
     name: "compact",
     description: "Summarize conversation and reset the context window",
     value: "/compact",

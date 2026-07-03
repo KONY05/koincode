@@ -19,6 +19,7 @@ export type CommandContext = {
   handoff: () => Promise<void>;
   compact: () => Promise<void>;
   toggleVoice: () => void;
+  toggleInfoSidebar: () => void;
   contextUsage: ContextUsage | null;
 };
 

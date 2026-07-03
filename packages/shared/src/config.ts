@@ -136,6 +136,7 @@ export type KoincodeGlobalConfig = {
   customModels?: CustomModelConfig[];
   voiceInput?: boolean;
   whisperBackend?: "auto" | "openai" | "openrouter";
+  infoSidebarVisible?: boolean;
   mcpServers?: Record<string, McpServerConfig>;
   browser?: BrowserConfig;
   telemetry?: boolean;

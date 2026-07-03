@@ -28,6 +28,8 @@ type PromptConfigContextValue = {
   setAutoModeSwitch: (v: "confirm" | "auto") => void;
   voiceInput: boolean;
   toggleVoice: () => void;
+  infoSidebarVisible: boolean;
+  toggleInfoSidebar: () => void;
 };
 
 const PromptConfigContext = createContext<PromptConfigContextValue | null>(
@@ -74,6 +76,10 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     () => readGlobalConfig().voiceInput ?? false,
   );
 
+  const [infoSidebarVisible, setInfoSidebarVisible] = useState<boolean>(
+    () => process.argv.includes("--info") || (readGlobalConfig().infoSidebarVisible ?? false),
+  );
+
   const modelDisplayName = useMemo(() => getModelDisplayName(model), [model]);
 
   const toggleMode = useCallback(() => {
@@ -99,6 +105,14 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     });
   }, []);
 
+  const toggleInfoSidebar = useCallback(() => {
+    setInfoSidebarVisible((v) => {
+      const next = !v;
+      updateGlobalConfig({ infoSidebarVisible: next });
+      return next;
+    });
+  }, []);
+
   return (
     <PromptConfigContext.Provider
       value={{
@@ -112,6 +126,8 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
         setAutoModeSwitch,
         voiceInput,
         toggleVoice,
+        infoSidebarVisible,
+        toggleInfoSidebar,
       }}
     >
       {children}

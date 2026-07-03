@@ -211,13 +211,6 @@ export const SUPPORTED_CHAT_MODELS = [
 
   // ── OpenRouter free (require OPENROUTER_API_KEY, $0 per token) ────────────
   {
-    id: "openrouter/owl-alpha",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-    contextWindow: 1_048_756,
-    vision: false,
-  },
-  {
     id: "poolside/laguna-xs-2.1:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },

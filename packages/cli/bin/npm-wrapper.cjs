@@ -5,15 +5,29 @@
 /**
  * NPM binary wrapper — the entry point when koincode is installed via npm/yarn/pnpm.
  *
- * This script runs on plain Node.js (no Bun required). Its job is to resolve
- * the correct platform-specific native binary from the optionalDependencies
- * and spawn it. The platform packages (e.g. @koincode/darwin-arm64) are installed
- * by npm based on the user's OS/CPU — only the matching one lands on disk.
+ * IMPORTANT: this script never downloads anything. The download already
+ * happened during `npm install`, via optionalDependencies + the os/cpu fields
+ * on each platform package (see bin/compile.ts). npm reads koincode's
+ * optionalDependencies list (all 5 platform packages), checks each one's
+ * os/cpu against the host machine, and silently skips every non-matching one
+ * — so only one platform package ever actually lands on disk. This script's
+ * only job is to find that one binary and exec it.
+ *
+ * This file itself is installed as bin/npm-wrapper.cjs inside the `koincode`
+ * package, so __dirname at runtime is `.../koincode/bin`. `path.join(__dirname, "..")`
+ * climbs back up to the root of the installed koincode package.
  *
  * Resolution order:
- *   1. Nested node_modules: node_modules/@koincode/{platform}/bin/koincode (npm)
- *   2. require.resolve() fallback: for hoisting package managers (bun, pnpm, yarn)
- *   3. Error with install instructions (unsupported platform)
+ *   1. Nested node_modules: {koincode}/node_modules/@koincode/{platform}/bin/koincode
+ *      — where plain npm normally places optional deps (nested under the
+ *      depending package rather than hoisted).
+ *   2. require.resolve() fallback: bun/pnpm/yarn often hoist deps into a
+ *      shared top-level node_modules instead, so the nested path above won't
+ *      exist. require.resolve() reuses Node's own module resolution to find
+ *      wherever the platform package actually ended up.
+ *   3. Error with manual-install instructions — happens if the platform is
+ *      unsupported, or the optionalDependency was never installed (e.g. `npm
+ *      install --no-optional`).
  *
  * Uses CommonJS require() intentionally, and the .cjs extension is required
  * because packages/cli/package.json sets "type": "module" — without it, Node
@@ -25,6 +39,9 @@ const path = require("path");
 const os = require("os");
 const fs = require("fs");
 
+// Maps Node's os.platform()-os.arch() key to the optionalDependency package name
+// that ships the matching binary. Must stay in sync with the targets built in
+// bin/compile.ts and the packages published from packages/cli/dist/npm.
 const PLATFORMS = {
   "darwin-arm64": "@koincode/darwin-arm64",
   "darwin-x64": "@koincode/darwin-x64",
@@ -53,6 +70,8 @@ if (pkg) {
   if (fs.existsSync(nested)) {
     binPath = nested;
   } else {
+    // Hoisting package managers may place the platform package elsewhere in
+    // the tree, so fall back to Node's own module resolution.
     try {
       const pkgJson = require.resolve(`${pkg}/package.json`);
       const resolved = path.join(path.dirname(pkgJson), "bin", `koincode${suffix}`);
@@ -64,6 +83,8 @@ if (pkg) {
 }
 
 if (!binPath) {
+  // Either the platform isn't in PLATFORMS, or npm didn't install the
+  // matching optionalDependency (e.g. --no-optional, or an unsupported combo).
   console.error(`Could not find the koincode binary for ${key}.`);
   if (os.platform() === "win32") {
     console.error(
@@ -76,11 +97,16 @@ if (!binPath) {
   }
   process.exit(1);
 } else {
+  // binPath already exists on disk (installed in step 1 above) — this just
+  // execs it, forwarding CLI args and inheriting stdio so the TUI renders
+  // directly in the user's terminal. No download happens here.
   const child = spawn(binPath, process.argv.slice(2), { stdio: "inherit" });
 
+  // Forward termination signals so Ctrl+C etc. reach the actual binary.
   for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(sig, () => child.kill(sig));
   }
 
+  // Mirror the child's exit code so shells/scripts see the real result.
   child.on("close", (code) => process.exit(code ?? 1));
 }

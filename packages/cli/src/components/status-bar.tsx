@@ -1,13 +1,12 @@
-import { useState, useEffect } from "react";
 import { TextAttributes } from "@opentui/core";
 
 import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
 import { useUpdateCheck } from "../hooks/use-update-check";
 import { useIdeContext } from "../hooks/use-ide-context";
+import { useMcpServers } from "../hooks/use-mcp-servers";
 import { Mode } from "@koincode/shared";
 import type { ContextUsage } from "../hooks/use-chat";
-import { apiClient } from "../lib/api-client";
 
 const RING_SEGMENTS = 10;
 const RING_THRESHOLD = 80; // from what context percent to show the ring
@@ -15,26 +14,6 @@ const RING_THRESHOLD = 80; // from what context percent to show the ring
 function buildRing(percent: number): string {
   const filled = Math.min(RING_SEGMENTS, Math.floor(percent / RING_SEGMENTS));
   return "●".repeat(filled) + "○".repeat(RING_SEGMENTS - filled);
-}
-
-function useMcpServerCount(): number {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    const fetch = async () => {
-      try {
-        const res = await apiClient.mcp.servers.$get();
-        if (!res.ok) return;
-        const servers = await res.json();
-        setCount(servers.filter((s) => s.status === "connected").length);
-      } catch {
-        // non-fatal
-      }
-    };
-    void fetch();
-  }, []);
-
-  return count;
 }
 
 type Props = {
@@ -46,7 +25,7 @@ export function StatusBar({ contextUsage }: Props) {
   const { colors } = useTheme();
   const updateInfo = useUpdateCheck();
   const { activeFile, fileContextEnabled, toggleFileContext } = useIdeContext();
-  const mcpServerCount = useMcpServerCount();
+  const mcpServerCount = useMcpServers().filter((s) => s.status === "connected").length;
 
   const showRing = contextUsage !== null && contextUsage !== undefined && contextUsage.percent >= RING_THRESHOLD;
   const ringColor = contextUsage && contextUsage.percent >= 95 ? "red" : "yellow";

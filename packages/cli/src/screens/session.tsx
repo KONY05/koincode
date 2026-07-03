@@ -132,6 +132,7 @@ function SessionChat({
     systemEvents,
     isSubagentRunning,
     contextUsage,
+    sessionCost,
     messageQueue,
     removeFromQueue,
     addSystemEvent,
@@ -332,6 +333,8 @@ function SessionChat({
       onSubmit={(text) => submit({ userText: text, mode, model })}
       onForceNext={interrupt}
       contextUsage={contextUsage}
+      sessionCost={sessionCost}
+      sessionTitle={session.title}
       streaming={
         status === "submitted" || status === "streaming" || isSubagentRunning || isCompacting || isHandingOff
       }

@@ -156,7 +156,7 @@ jobs:
             exit 1
           fi
 
-  release:
+  publish-github-release:
     needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
@@ -191,10 +191,10 @@ jobs:
           files: artifacts/koincode-*
 
   publish-main:
-    # Must run after `release` so the GitHub Release binaries are live before npm
-    # reports the new version — otherwise checkForUpdate() (npm) can fire before
-    # downloadSelfUpdate() (GitHub Releases) has anything to download.
-    needs: [publish-platform-packages, release]
+    # Must run after `publish-github-release` so the GitHub Release binaries are live
+    # before npm reports the new version — otherwise checkForUpdate() (npm) can fire
+    # before downloadSelfUpdate() (GitHub Releases) has anything to download.
+    needs: [publish-platform-packages, publish-github-release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
