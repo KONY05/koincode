@@ -84,6 +84,10 @@ export function updateGlobalConfig(
     next.voiceInput = updates.voiceInput;
   }
 
+  if (updates.infoSidebarVisible !== undefined) {
+    next.infoSidebarVisible = updates.infoSidebarVisible;
+  }
+
   if (updates.browser !== undefined) {
     next.browser = { ...current.browser, ...updates.browser };
   }

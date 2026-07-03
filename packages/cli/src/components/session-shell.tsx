@@ -11,6 +11,7 @@ import { QueuePanel } from "./queue-panel";
 import { ApprovalWidget } from "./widget/approval-widget";
 import { AskUserWidget } from "./widget/ask-user-widget";
 import { ModeSwitchWidget } from "./widget/mode-switch-widget";
+import { InfoSidebar } from "./info-sidebar";
 import type {
   PendingModeSwitch,
   ModeSwitchResponse,
@@ -23,6 +24,7 @@ import type {
 } from "../hooks/use-chat";
 import { CWD, getGitBranch } from "../utils/helper";
 import { useTheme } from "../providers/theme";
+import { usePromptConfig } from "../providers/prompt-config";
 
 type Props = {
   children?: ReactNode;
@@ -41,6 +43,8 @@ type Props = {
   onUserQuestionResponse?: (value: string | null) => void;
   pendingModeSwitch?: PendingModeSwitch | null;
   onModeSwitchResponse?: (response: ModeSwitchResponse) => void;
+  sessionTitle?: string;
+  sessionCost?: number;
 };
 
 const GIT_BRANCH = getGitBranch();
@@ -62,6 +66,8 @@ export function SessionShell({
   onUserQuestionResponse,
   pendingModeSwitch = null,
   onModeSwitchResponse,
+  sessionTitle,
+  sessionCost = 0,
 }: Props) {
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
   const scrollRef = useRef<ScrollBoxRenderable>(null);
@@ -70,6 +76,7 @@ export function SessionShell({
     null,
   );
   const { colors } = useTheme();
+  const { infoSidebarVisible } = usePromptConfig();
 
   // Clear queue focus when the queue empties.
   useEffect(() => {
@@ -96,10 +103,11 @@ export function SessionShell({
   const queueLength = queue.length;
 
   return (
+    <box flexDirection="row" width="100%" height="100%">
     <box
       flexDirection="column"
       flexGrow={1}
-      width="100%"
+      flexShrink={1}
       height="100%"
       paddingY={1}
       paddingX={2}
@@ -199,6 +207,13 @@ export function SessionShell({
           </text>
         </box>
       </box>
+    </box>
+    <InfoSidebar
+      visible={infoSidebarVisible}
+      sessionTitle={sessionTitle}
+      contextUsage={contextUsage}
+      sessionCost={sessionCost}
+    />
     </box>
   );
 }

@@ -17,6 +17,7 @@ Options:
   --openrouter-key <key>    Save an OpenRouter API key
   --enable-browser-tools    Enable Playwright-based browser tools
   --disable-browser-tools   Disable browser tools
+  --info                    Show the info sidebar (context, cost, mcp, modified files)
   --update                  Update koincode to the latest version
   --server                  Run only the API server (no terminal UI)
 

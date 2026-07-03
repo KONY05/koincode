@@ -17,6 +17,7 @@ import {
 } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
 import { hasApiKeyForModel } from "../lib/usage";
+import { estimateSessionCost } from "../lib/cost";
 import { executeLocalTool } from "../tools";
 import { loadSkillsManifest } from "../lib/skills";
 import { getIdeContextForRequest } from "./use-ide-context";
@@ -79,7 +80,7 @@ export type QueuedMessage = { userText: string; mode: ModeType; model: string };
 const _activeModes = new Map<string, ModeType>();
 
 export function useChat(sessionId: string, initialMessages: Message[], initialSystemEvents: SystemEvent[] = []) {
-  const { mode, setMode, autoModeSwitch, setAutoModeSwitch } =
+  const { mode, setMode, autoModeSwitch, setAutoModeSwitch, model: currentModel } =
     usePromptConfig();
   const toast = useToast();
 
@@ -555,18 +556,28 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
       return { tokensUsed: 0, contextWindow: 0, percent: 0, hasUsageData: false };
     }
 
-    const modelId = lastWithUsage.metadata.model ?? "";
-    // Ollama/custom models report their real context window in metadata (server-known,
-    // since it's not in the curated list); everything else falls back to the static lookup.
-    const contextWindow = lastWithUsage.metadata.contextWindow ?? getContextWindow(String(modelId));
     const tokensUsed = lastWithUsage.metadata.usage.inputTokens ?? 0;
+    // Capacity reflects the *currently selected* model, not necessarily the model that produced
+    // the last response — switching models should update the window immediately, even before the
+    // next request goes out. The last message's own contextWindow (server-known, for Ollama/custom
+    // models outside the curated list) is only reusable when that message's model is still selected.
+    const contextWindow =
+      lastWithUsage.metadata.model === currentModel
+        ? lastWithUsage.metadata.contextWindow ?? getContextWindow(currentModel)
+        : getContextWindow(currentModel);
+
     return {
       tokensUsed,
       contextWindow,
       percent: Math.min(100, Math.round((tokensUsed / contextWindow) * 100)),
       hasUsageData: true,
     };
-  }, [chat.messages]);
+  }, [chat.messages, currentModel]);
+
+  const sessionCost = useMemo(
+    () => estimateSessionCost(chat.messages),
+    [chat.messages],
+  );
 
   const resolveApproval = useCallback((response: ApprovalResponse) => {
     resolveApprovalRef.current?.(response);
@@ -601,6 +612,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
     systemEvents,
     isSubagentRunning,
     contextUsage,
+    sessionCost,
     addSystemEvent: (text: string) => {
       setSystemEvents((prev) => [
         ...prev,
