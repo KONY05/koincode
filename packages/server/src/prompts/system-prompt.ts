@@ -28,10 +28,19 @@ type SystemPromptParams = {
   userMemory?: string;
   skillsManifest?: SkillManifestEntry[];
   mcpServers?: McpServerStatus[];
-  ideActiveFile?: string | null;
 };
 
-export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers, ideActiveFile }: SystemPromptParams): string {
+/**
+ * Fully stable for the life of a session (mode/tools/skills/memory only change on
+ * rare events like a skill being added). Deliberately excludes anything that varies
+ * turn-to-turn — Anthropic's prompt caching is a cumulative prefix across
+ * tools → system → messages (in that canonical order), so any per-turn-varying
+ * content placed anywhere in `system` would invalidate the cache hit for every
+ * later breakpoint, including the messages/history one. Per-turn context (the
+ * user's active editor file) is injected directly into the newest message instead
+ * — see `appendIdeContext` in `lib/prompt-caching.ts`.
+ */
+export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers }: SystemPromptParams): string {
   const parts: string[] = [];
 
   parts.push(getIdentitySection());
@@ -53,13 +62,6 @@ export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManife
 
   if (skillsManifest && skillsManifest.length > 0) {
     parts.push(getSkillsSection(skillsManifest));
-  }
-
-  if (ideActiveFile) {
-    parts.push(
-      `# IDE Context\nThe user currently has **${ideActiveFile}** open in their editor. ` +
-      `This is likely the file they want to work on — treat it as the starting point and read it before responding if you haven't already.`
-    );
   }
 
   if (userMemory) {

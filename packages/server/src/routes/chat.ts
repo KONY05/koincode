@@ -26,6 +26,7 @@ import { logger, getLastBoundaryIndex } from "../lib/helpers";
 import { getMcpTools, getMcpServerStatus } from "../lib/mcp-manager";
 import { buildSystemPrompt } from "../prompts/system-prompt";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
+import { appendIdeContext, buildCachedSystemMessage, withHistoryCacheControl, withToolsCacheControl } from "../lib/prompt-caching";
 import { getStoredImages, clearStoredImages } from "./images";
 
 type KoincodeUIMessage = UIMessage<
@@ -236,11 +237,18 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     break;
   }
 
+  const promptCaching = resolvedModel.promptCaching === true;
+  const systemPrompt = buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus });
+  // Order matters: append the volatile IDE context to the newest message's content
+  // *before* marking that message as this turn's cache breakpoint, so the breakpoint's
+  // hash covers the final content, not a stale pre-append snapshot.
+  const messagesWithIdeContext = appendIdeContext(modelMessages, ideActiveFile ?? null);
+
   const result = streamText({
     model: resolvedModel.model,
-    system: buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus, ideActiveFile: ideActiveFile ?? null }),
-    messages: modelMessages,
-    tools,
+    system: buildCachedSystemMessage(systemPrompt, promptCaching),
+    messages: withHistoryCacheControl(messagesWithIdeContext, promptCaching),
+    tools: withToolsCacheControl(tools, promptCaching),
     abortSignal: c.req.raw.signal,
     providerOptions: resolvedModel.providerOptions,
   });

@@ -33,6 +33,13 @@ export type ResolvedModel = {
   providerOptions?: ProviderOptions;
   /** Known only for models outside the curated list (Ollama's real num_ctx, a custom model's configured value). */
   contextWindow?: number;
+  /**
+   * True only when talking directly to Anthropic's API with a real Anthropic key.
+   * Explicitly false (not just unset) on the OpenRouter fallback path — whether
+   * cache_control passes through OpenRouter's routing is unverified, so callers
+   * must not assume `provider === "anthropic"` alone means caching is safe to use.
+   */
+  promptCaching?: boolean;
 };
 
 // Thinking is a provider-level capability — enabled for every model from providers that support it.
@@ -94,8 +101,13 @@ function resolveViaOpenRouter(
   // openrouter-native models already carry their full provider/name ID.
   // anthropic/openai/google models get the provider prefix prepended.
   const routerModelId = provider === "openrouter" ? modelId : `${provider}/${modelId}`;
+  // OpenRouter's automatic prompt caching (top-level `cache_control`, auto-advancing
+  // breakpoint) only applies to Anthropic models — confirmed against OpenRouter's docs
+  // and this package's own types. OpenAI models cache automatically on OpenRouter with
+  // no config needed, same as calling OpenAI directly, so nothing to set for them here.
+  const settings = provider === "anthropic" ? { cache_control: { type: "ephemeral" as const } } : undefined;
   return {
-    model: openrouter.chat(routerModelId),
+    model: openrouter.chat(routerModelId, settings),
     provider,
     modelId: modelId as SupportedChatModelId,
   };
@@ -112,6 +124,7 @@ function resolveAnthropicModel(modelId: AnthropicModelId): ResolvedModel {
       provider: "anthropic",
       modelId,
       providerOptions: ANTHROPIC_THINKING,
+      promptCaching: true,
     };
   }
   return resolveViaOpenRouter(modelId, "anthropic");
