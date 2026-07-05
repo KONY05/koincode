@@ -28,6 +28,7 @@ execFileSync("bun", ["run", "build"], { cwd: EXT_DIR, stdio: "inherit" });
 
 const pkg = JSON.parse(readFileSync(path.join(EXT_DIR, "package.json"), "utf8"));
 const extensionJs = readFileSync(path.join(EXT_DIR, "out", "extension.js"), "utf8");
+const iconPngBase64 = readFileSync(path.join(EXT_DIR, "icon.png")).toString("base64");
 
 // The extension.js body becomes a backtick string below, so its own
 // backslashes/backticks/${...} need neutralizing first.
@@ -59,6 +60,7 @@ export const EXTENSION_PACKAGE_JSON = JSON.stringify(
     categories: ${JSON.stringify(pkg.categories)},
     activationEvents: ${JSON.stringify(pkg.activationEvents)},
     main: ${JSON.stringify(pkg.main)},
+    icon: ${JSON.stringify(pkg.icon)},
     contributes: ${JSON.stringify(pkg.contributes)},
   },
   null,
@@ -66,6 +68,8 @@ export const EXTENSION_PACKAGE_JSON = JSON.stringify(
 );
 
 export const EXTENSION_JS = \`${escapeForTemplateLiteral(extensionJs)}\`;
+
+export const EXTENSION_ICON_PNG_BASE64 = ${JSON.stringify(iconPngBase64)};
 `;
 
 writeFileSync(OUT_FILE, output);

@@ -2,7 +2,8 @@
   "name": "koincode-vscode",
   "displayName": "KOINCODE",
   "description": "IDE context bridge for KOINCODE — surfaces the active file and text selection in the terminal agent status bar.",
-  "version": "0.7.0",
+  "version": "0.8.0",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.80.0"
   },
