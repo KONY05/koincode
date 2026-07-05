@@ -22,6 +22,8 @@ import { executeLocalTool } from "../tools";
 import { loadSkillsManifest } from "../lib/skills";
 import { getIdeContextForRequest } from "./use-ide-context";
 import { readGlobalConfig } from "../utils/configs/global-config";
+import { isTerminalFocused } from "../lib/terminal-focus";
+import { notifyVsCode } from "../lib/vscode-notify";
 import { runSpawnAgent } from "../tools/spawn-agent";
 import { getPermissionInfo } from "../utils/permissions";
 import {
@@ -120,6 +122,21 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
 
   // Shared mutex — serializes approvals, askUser, and mode switch widgets so only one shows at a time.
   const interactionMutexRef = useRef<Promise<void>>(Promise.resolve());
+
+  // Fires when the agent needs the user's attention (turn finished, approval/question/
+  // mode-switch prompt shown) — the whole point being to surface this when the user
+  // has tabbed away and wouldn't otherwise notice.
+  const ringBellIfUnfocused = useCallback(() => {
+    const enabled = readGlobalConfig().notificationEnabled ?? true;
+    if (!enabled) return;
+    if (isTerminalFocused()) return;
+
+    if (process.env.TERM_PROGRAM === "vscode") {
+      notifyVsCode("Koincode is waiting for you");
+    } else {
+      process.stdout.write("\x07");
+    }
+  }, []);
 
   _activeModes.set(sessionId, mode);
   const autoModeSwitchRef = useRef(autoModeSwitch);
@@ -252,6 +269,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
                       options,
                       allowFreeText: allowFreeText ?? false,
                     });
+                    ringBellIfUnfocused();
                   }),
               )
               .then(() => {
@@ -320,6 +338,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
                         releaseMutex();
                       };
                       setPendingModeSwitch({ target, reason });
+                      ringBellIfUnfocused();
                     }),
                 )
                 .then(() => {
@@ -386,6 +405,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
                         tier: "normal",
                         sessionOnly: true,
                       });
+                      ringBellIfUnfocused();
                     }),
                 )
                 .then(() => {
@@ -446,6 +466,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
                         releaseMutex();
                       };
                       setPendingApproval(approval);
+                      ringBellIfUnfocused();
                     }),
                 )
                 .then(() => {
@@ -541,6 +562,24 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
         metadata: { mode: next.mode, model: next.model },
       });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.status]);
+
+  // Ring the bell when the agent goes idle with nothing queued to auto-send —
+  // i.e. it's genuinely done and waiting on the user, not mid-way through a batch.
+  // Guarded by prevStatusRef so this only fires on a streaming/submitted → ready
+  // transition, not on mount (e.g. reopening a session that's already "ready").
+  const prevStatusRef = useRef(chat.status);
+
+  useEffect(() => {
+    const prevStatus = prevStatusRef.current;
+    prevStatusRef.current = chat.status;
+
+    if (chat.status !== "ready") return;
+    if (prevStatus !== "streaming" && prevStatus !== "submitted") return;
+    if (messageQueueRef.current.length > 0) return;
+    
+    ringBellIfUnfocused();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.status]);
 

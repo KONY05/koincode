@@ -25,6 +25,7 @@ const EXTENSION_NAME = "koincode-vscode";
 
 const KNOWN_EXTENSION_DIRS = [
   path.join(homedir(), ".antigravity", "extensions"),   // Antigravity
+  path.join(homedir(), ".antigravity-ide", "extensions"),   // Antigravity
   path.join(homedir(), ".cursor", "extensions"),         // Cursor
   path.join(homedir(), ".trae", "extensions"),           // Trae
   path.join(homedir(), ".void", "extensions"),           // Void

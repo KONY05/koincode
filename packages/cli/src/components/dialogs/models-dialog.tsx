@@ -48,7 +48,10 @@ type ModelsDialogContentProps = {
 
 // ── Custom tab sub-views: pick a provider, then run the model-fields wizard ────────
 
-type CustomSubView = { kind: "pick-provider" } | { kind: "model-wizard"; providerId: string } | null;
+type CustomSubView =
+  | { kind: "pick-provider" }
+  | { kind: "model-wizard"; providerId: string }
+  | null;
 
 type ProviderPickerProps = {
   providers: CustomProviderConfig[];
@@ -56,7 +59,11 @@ type ProviderPickerProps = {
   onCancel: () => void;
 };
 
-function ProviderPicker({ providers, onSelect, onCancel }: ProviderPickerProps) {
+function ProviderPicker({
+  providers,
+  onSelect,
+  onCancel,
+}: ProviderPickerProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { isTopLayer } = useKeyboardLayer();
   const { colors } = useTheme();
@@ -118,13 +125,17 @@ export const ModelsDialogContent = ({
   const toast = useToast();
   const { push, pop, isTopLayer } = useKeyboardLayer();
   const [activeTab, setActiveTab] = useState<Tab>("frontier");
-  const [ollamaData, setOllamaData] = useState<OllamaModelsResponse | null>(null);
+  const [ollamaData, setOllamaData] = useState<OllamaModelsResponse | null>(
+    null,
+  );
   const fetchedRef = useRef(false);
 
   const [customModels, setCustomModels] = useState<CustomModelConfig[]>(() =>
     listCustomModels(),
   );
-  const [customProviders] = useState<CustomProviderConfig[]>(() => listCustomProviders());
+  const [customProviders] = useState<CustomProviderConfig[]>(() =>
+    listCustomProviders(),
+  );
   const [customSubView, setCustomSubView] = useState<CustomSubView>(null);
   const highlightedCustomRef = useRef<CustomModelConfig | null>(null);
   const pendingDeleteRef = useRef<{
@@ -140,7 +151,9 @@ export const ModelsDialogContent = ({
     { id: "ollama", label: "Ollama", activeColor: colors.info },
   ];
 
-  const frontierModels = models.filter((m) => !isFree(m)) as SupportedChatModel[];
+  const frontierModels = models.filter(
+    (m) => !isFree(m),
+  ) as SupportedChatModel[];
   const freeModels = models.filter(isFree) as SupportedChatModel[];
 
   // loadingLocal: the ollama tab is active but we haven't received the live detection result yet
@@ -277,7 +290,7 @@ export const ModelsDialogContent = ({
       const { model, index, timerId } = pendingDeleteRef.current;
 
       clearTimeout(timerId);
-      
+
       pendingDeleteRef.current = null;
 
       setCustomModels((prev) => {
@@ -294,7 +307,9 @@ export const ModelsDialogContent = ({
       <ProviderPicker
         providers={customProviders}
         onCancel={exitCustomWizard}
-        onSelect={(provider) => setCustomSubView({ kind: "model-wizard", providerId: provider.id })}
+        onSelect={(provider) =>
+          setCustomSubView({ kind: "model-wizard", providerId: provider.id })
+        }
       />
     );
   }
@@ -326,7 +341,8 @@ export const ModelsDialogContent = ({
               fg={isActive ? tab.activeColor : colors.dimSeparator}
               attributes={isActive ? TextAttributes.BOLD : TextAttributes.DIM}
             >
-              {isActive ? "▶ " : "  "}{tab.label}
+              {isActive ? "▶ " : "  "}
+              {tab.label}
             </text>
           );
         })}
@@ -338,7 +354,8 @@ export const ModelsDialogContent = ({
           items={activeTab === "frontier" ? frontierModels : freeModels}
           onSelect={handleSelectStatic}
           filterFn={(model, query) =>
-            model.id.toLowerCase().includes(query.toLowerCase())
+            model.id.toLowerCase().includes(query.toLowerCase()) ||
+            model.provider.toLowerCase().includes(query.toLowerCase())
           }
           renderItem={(model, isSelected) => (
             <box flexGrow={1} paddingX={1}>
@@ -359,10 +376,12 @@ export const ModelsDialogContent = ({
           items={customRows}
           onSelect={handleSelectCustom}
           onHighlight={(row) => {
-            highlightedCustomRef.current = row.kind === "model" ? row.model : null;
+            highlightedCustomRef.current =
+              row.kind === "model" ? row.model : null;
           }}
           filterFn={(row, query) =>
-            row.kind === "add" || row.model.modelId.toLowerCase().includes(query.toLowerCase())
+            row.kind === "add" ||
+            row.model.modelId.toLowerCase().includes(query.toLowerCase())
           }
           renderItem={(row, isSelected) =>
             row.kind === "add" ? (
@@ -391,22 +410,32 @@ export const ModelsDialogContent = ({
 
       {activeTab === "ollama" && loadingLocal && (
         <box paddingX={1}>
-          <text selectable={false} fg={colors.dimSeparator} attributes={TextAttributes.DIM}>
+          <text
+            selectable={false}
+            fg={colors.dimSeparator}
+            attributes={TextAttributes.DIM}
+          >
             Detecting local models…
           </text>
         </box>
       )}
 
-      {activeTab === "ollama" && !loadingLocal && ollamaData?.ollama === null && (
-        <box paddingX={1} flexDirection="column" gap={1}>
-          <text selectable={false} fg={colors.dimSeparator}>
-            Ollama not detected at {DEFAULT_OLLAMA_BASE_URL}
-          </text>
-          <text selectable={false} fg={colors.dimSeparator} attributes={TextAttributes.DIM}>
-            Install Ollama (ollama.com) and run a model to use it here.
-          </text>
-        </box>
-      )}
+      {activeTab === "ollama" &&
+        !loadingLocal &&
+        ollamaData?.ollama === null && (
+          <box paddingX={1} flexDirection="column" gap={1}>
+            <text selectable={false} fg={colors.dimSeparator}>
+              Ollama not detected at {DEFAULT_OLLAMA_BASE_URL}
+            </text>
+            <text
+              selectable={false}
+              fg={colors.dimSeparator}
+              attributes={TextAttributes.DIM}
+            >
+              Install Ollama (ollama.com) and run a model to use it here.
+            </text>
+          </box>
+        )}
 
       {activeTab === "ollama" && !loadingLocal && ollamaModels.length > 0 && (
         <DialogSearchList
@@ -438,15 +467,25 @@ export const ModelsDialogContent = ({
         />
       )}
 
-      {activeTab === "ollama" && !loadingLocal && ollamaData?.ollama?.length === 0 && (
-        <box paddingX={1}>
-          <text selectable={false} fg={colors.dimSeparator} attributes={TextAttributes.DIM}>
-            No models pulled yet. Run: ollama pull llama3.2
-          </text>
-        </box>
-      )}
+      {activeTab === "ollama" &&
+        !loadingLocal &&
+        ollamaData?.ollama?.length === 0 && (
+          <box paddingX={1}>
+            <text
+              selectable={false}
+              fg={colors.dimSeparator}
+              attributes={TextAttributes.DIM}
+            >
+              No models pulled yet. Run: ollama pull llama3.2
+            </text>
+          </box>
+        )}
 
-      <text selectable={false} fg={colors.dimSeparator} attributes={TextAttributes.DIM}>
+      <text
+        selectable={false}
+        fg={colors.dimSeparator}
+        attributes={TextAttributes.DIM}
+      >
         {activeTab === "custom"
           ? "Tab · switch tabs · + add model · ctrl+d delete custom model"
           : "Tab · switch tabs"}

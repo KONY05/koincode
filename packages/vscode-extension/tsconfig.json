@@ -1,7 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "verbatimModuleSyntax": false
+    "verbatimModuleSyntax": false,
+    "allowImportingTsExtensions": false,
+    "moduleResolution": "node",
+    "module": "CommonJS",
+    "esModuleInterop": true,
+    "noEmit": false,
+    "outDir": "out",
+    "rootDir": "src"
   },
   "include": ["src"],
   "exclude": ["node_modules", "out"]

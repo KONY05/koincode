@@ -140,5 +140,6 @@ export type KoincodeGlobalConfig = {
   mcpServers?: Record<string, McpServerConfig>;
   browser?: BrowserConfig;
   telemetry?: boolean;
+  notificationEnabled?: boolean;
   analyticsId?: string;
 };

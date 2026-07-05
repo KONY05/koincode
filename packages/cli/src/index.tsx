@@ -12,6 +12,7 @@ import { Session } from "./screens/session";
 import { updateGlobalConfig } from "./utils/configs/global-config";
 import { ensureIdeExtension } from "./lib/ide-extension";
 import { closeBrowser } from "./tools/browser/browser-session";
+import { handleFocusSequence } from "./lib/terminal-focus";
 import type { ApiKeys } from "@koincode/shared";
 
 // Handle key-saving flags before starting the TUI
@@ -72,9 +73,15 @@ if (process.env.TERM_PROGRAM === "Apple_Terminal") {
 const renderer = await createCliRenderer({
   targetFps: 60,
   exitOnCtrlC: false,
+  prependInputHandlers: [handleFocusSequence],
 });
 
+// Enable DEC focus reporting so we know when the terminal window is backgrounded
+// (used to decide whether to ring the bell when the agent needs the user).
+process.stdout.write("\x1b[?1004h");
+
 function shutdown(code = 0) {
+  process.stdout.write("\x1b[?1004l");
   renderer.destroy();
   void closeBrowser().finally(() => process.exit(code));
 }

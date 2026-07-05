@@ -42,6 +42,12 @@ if (!MIXPANEL_TOKEN) {
   process.exit(1);
 }
 
+// ─── Regenerate the embedded VS Code extension assets ───────────────────────
+// Must happen before bin/koincode.ts gets bundled below, since it transitively
+// imports src/lib/ide-extension-assets.ts.
+
+await $`bun run bin/sync-ide-extension.ts`;
+
 // ─── Flags ─────────────────────────────────────────────────────────────────
 
 const singleFlag = process.argv.includes("--single");
