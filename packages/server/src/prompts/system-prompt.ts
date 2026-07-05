@@ -28,10 +28,19 @@ type SystemPromptParams = {
   userMemory?: string;
   skillsManifest?: SkillManifestEntry[];
   mcpServers?: McpServerStatus[];
-  ideActiveFile?: string | null;
 };
 
-export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers, ideActiveFile }: SystemPromptParams): string {
+/**
+ * Fully stable for the life of a session (mode/tools/skills/memory only change on
+ * rare events like a skill being added). Deliberately excludes anything that varies
+ * turn-to-turn — Anthropic's prompt caching is a cumulative prefix across
+ * tools → system → messages (in that canonical order), so any per-turn-varying
+ * content placed anywhere in `system` would invalidate the cache hit for every
+ * later breakpoint, including the messages/history one. Per-turn context (the
+ * user's active editor file) is injected directly into the newest message instead
+ * — see `appendIdeContext` in `lib/prompt-caching.ts`.
+ */
+export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers }: SystemPromptParams): string {
   const parts: string[] = [];
 
   parts.push(getIdentitySection());
@@ -53,13 +62,6 @@ export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManife
 
   if (skillsManifest && skillsManifest.length > 0) {
     parts.push(getSkillsSection(skillsManifest));
-  }
-
-  if (ideActiveFile) {
-    parts.push(
-      `# IDE Context\nThe user currently has **${ideActiveFile}** open in their editor. ` +
-      `This is likely the file they want to work on — treat it as the starting point and read it before responding if you haven't already.`
-    );
   }
 
   if (userMemory) {
@@ -126,7 +128,7 @@ function getModeSection(mode: ModeType): string {
 You are in planning mode. Your job is to analyze, research, and propose solutions — but NOT make changes.
 - Use your available tools to explore the codebase
 - Present your analysis and a clear plan of action
-- Explain trade-offs and ask for clarification when needed
+- Explain trade-offs. If the implementation strategy is unclear or multiple viable approaches exist, call \`askUser\` to pinpoint direction before finalizing the plan — do not silently pick one and proceed
 - After discussing and a plan is created/finalized create a "Todo list" for the tasks to be done calling the \`createTodo\` tool.
 - If the task requires writing or running code, call \`switchMode\` with target "BUILD" and a short reason before proceeding`;
   }
@@ -151,7 +153,9 @@ function getToolUsageSection(mode: ModeType, mcpServers?: McpServerStatus[], bro
   const sharedRules = `### Rules
 1. **Be decisive.** Use \`glob\` and \`grep\` to find what's relevant, then read only those files. Don't read every file in the project.
 2. **Never re-read files** you already read in this conversation.
-3. **Batch tool calls.** Call multiple independent tools in parallel when possible (e.g. read 5 files at once, not one at a time).`;
+3. **Batch tool calls.** Call multiple independent tools in parallel when possible (e.g. read 5 files at once, not one at a time).
+4. **Delegate broad exploration.** For open-ended or multi-location searches (spanning many files/directories, or requiring several rounds of grep/read to narrow down), prefer \`spawnAgent\` over doing it yourself turn-by-turn — spawn one sub-agent per independent question, in parallel, and use the returned summaries rather than the raw search trail.
+5. **Ask before guessing.** When the implementation strategy is unclear or there's a real choice to make (approach, scope, trade-off), use \`askUser\` to confirm direction before implementing, rather than picking an assumption and finding out later it was wrong.`;
 
   const contracts = mode === Mode.PLAN
     ? readOnlyToolContracts
@@ -161,7 +165,7 @@ function getToolUsageSection(mode: ModeType, mcpServers?: McpServerStatus[], bro
   const toolList = formatToolList(contracts);
   const buildOnlyRule =
     mode === Mode.BUILD
-      ? "\n4. **Prefer `editFile` for small changes** to existing files. Only use `writeFile` when creating new files or rewriting most of a file."
+      ? "\n6. **Prefer `editFile` for small changes** to existing files. Only use `writeFile` when creating new files or rewriting most of a file."
       : "";
 
   const connectedServers = mcpServers?.filter((s) => s.status === "connected") ?? [];
@@ -222,11 +226,12 @@ function getOperationalSection(): string {
 
 When asked to fix bugs, add features, or refactor code:
 
-1. **Understand** — Search the codebase to understand structure and conventions before touching anything. Use parallel tool calls for independent reads.
-2. **Plan** — Call \`createTodos\` with a numbered list of steps before writing or editing any file. This is required for any non-trivial task.
-3. **Implement** — Execute each todo item in order. Call \`updateTodos\` to mark items complete as you finish them.
-4. **Verify** — Run the project's build, lint, and type-check commands to confirm nothing is broken. Never assume standard commands — check \`package.json\` or README first.
-5. **Finalize** — Once verification passes, consider the task complete and await the next instruction.
+1. **Understand** — Search the codebase to understand structure and conventions before touching anything. Use parallel tool calls for independent reads. For broad or open-ended exploration (e.g. locating a feature across many files, mapping an unfamiliar module, answering "where/how is X done"), prefer delegating to \`spawnAgent\` rather than manually chaining many \`grep\`/\`readFile\` calls yourself — it keeps your own context focused on synthesis and decisions, and multiple sub-agents can run in parallel for independent lookups.
+2. **Clarify** — If the request is ambiguous, more than one implementation strategy is viable, or a choice would meaningfully affect scope or architecture, call \`askUser\` to pinpoint the intended approach before writing any code. Don't guess on decisions the user should make.
+3. **Plan** — Call \`createTodos\` with a numbered list of steps before writing or editing any file. This is required for any non-trivial task.
+4. **Implement** — Execute each todo item in order. Call \`updateTodos\` to mark items complete as you finish them.
+5. **Verify** — Run the project's build, lint, and type-check commands to confirm nothing is broken. Never assume standard commands — check \`package.json\` or README first.
+6. **Finalize** — Once verification passes, consider the task complete and await the next instruction.
 
 ## Task Execution
 

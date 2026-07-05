@@ -202,6 +202,21 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: "notifications",
+    description: "Toggle terminal bell when the agent needs your attention",
+    value: "/notifications",
+    action: (ctx) => {
+      const current = readGlobalConfig().notificationEnabled ?? true;
+
+      updateGlobalConfig({ notificationEnabled: !current });
+      
+      ctx.toast.show({
+        message: `Terminal bell notifications ${!current ? "enabled" : "disabled"}`,
+        variant: "info",
+      });
+    },
+  },
+  {
     name: "restart-server",
     description: "Restart the background server process",
     value: "/restart-server",

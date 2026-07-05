@@ -12,6 +12,11 @@ export function getModelPricing(modelId: string): ModelPricing | undefined {
   return listCustomModels().find((m) => m.id === modelId)?.pricing;
 }
 
+// Anthropic's ephemeral (5-minute) prompt-cache multipliers, applied to the model's
+// base input rate — a cache write costs a premium, a cache read is heavily discounted.
+const CACHE_WRITE_MULTIPLIER = 1.25;
+const CACHE_READ_MULTIPLIER = 0.1;
+
 /** Sums cost across every assistant turn using the pricing of the model that produced it. */
 export function estimateSessionCost(messages: UsageMessage[]): number {
   let total = 0;
@@ -24,10 +29,20 @@ export function estimateSessionCost(messages: UsageMessage[]): number {
     const pricing = getModelPricing(String(modelId));
     if (!pricing) continue;
 
-    const inputTokens = usage.inputTokens ?? 0;
     const outputTokens = usage.outputTokens ?? 0;
+    const cacheReadTokens = usage.inputTokenDetails?.cacheReadTokens ?? 0;
+    const cacheWriteTokens = usage.inputTokenDetails?.cacheWriteTokens ?? 0;
+    // Providers that don't report the cache breakdown (non-Anthropic models, or
+    // turns saved before caching shipped) leave these undefined — fall back to
+    // treating the whole input total as uncached, matching prior behavior exactly.
+    const noCacheTokens =
+      usage.inputTokenDetails?.noCacheTokens ??
+      Math.max((usage.inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens, 0);
+
     total +=
-      (inputTokens / 1_000_000) * pricing.inputUsdPerMillionTokens +
+      (noCacheTokens / 1_000_000) * pricing.inputUsdPerMillionTokens +
+      (cacheReadTokens / 1_000_000) * pricing.inputUsdPerMillionTokens * CACHE_READ_MULTIPLIER +
+      (cacheWriteTokens / 1_000_000) * pricing.inputUsdPerMillionTokens * CACHE_WRITE_MULTIPLIER +
       (outputTokens / 1_000_000) * pricing.outputUsdPerMillionTokens;
   }
   return total;

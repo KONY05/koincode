@@ -104,6 +104,10 @@ export function updateGlobalConfig(
     next.telemetry = updates.telemetry;
   }
 
+  if (updates.notificationEnabled !== undefined) {
+    next.notificationEnabled = updates.notificationEnabled;
+  }
+
   writeGlobalConfig(next);
   return next;
 }

@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { TextAttributes } from "@opentui/core";
 
 import { useTheme } from "../providers/theme";
@@ -24,7 +25,14 @@ export function StatusBar({ contextUsage }: Props) {
   const { mode, modelDisplayName, voiceInput } = usePromptConfig();
   const { colors } = useTheme();
   const updateInfo = useUpdateCheck();
-  const { activeFile, fileContextEnabled, toggleFileContext } = useIdeContext();
+  const {
+    activeFile,
+    fileContextEnabled,
+    toggleFileContext,
+    selection,
+    selectionContextEnabled,
+    toggleSelectionContext,
+  } = useIdeContext();
   const mcpServerCount = useMcpServers().filter((s) => s.status === "connected").length;
 
   const showRing = contextUsage !== null && contextUsage !== undefined && contextUsage.percent >= RING_THRESHOLD;
@@ -76,7 +84,19 @@ export function StatusBar({ contextUsage }: Props) {
             {buildRing(contextUsage!.percent)} {contextUsage!.percent}%
           </text>
         )}
-        {activeFile && (
+        {selection && (
+          <text
+            attributes={selectionContextEnabled
+              ? TextAttributes.DIM
+              : TextAttributes.DIM | TextAttributes.STRIKETHROUGH}
+            onMouseDown={toggleSelectionContext}
+          >
+            {selection.endLine - selection.startLine + 1}{" "}
+            {selection.endLine - selection.startLine + 1 === 1 ? "line" : "lines"} selected ·{" "}
+            {basename(selection.file)}:{selection.startLine}-{selection.endLine}
+          </text>
+        )}
+        {!selection && activeFile && (
           <text
             attributes={fileContextEnabled
               ? TextAttributes.DIM

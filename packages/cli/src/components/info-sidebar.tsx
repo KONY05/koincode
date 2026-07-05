@@ -59,7 +59,7 @@ export function InfoSidebar({ sessionTitle, contextUsage, sessionCost, visible }
           <>
             <text>{formatNumber(contextUsage.tokensUsed)} tokens</text>
             <text>{contextUsage.percent}% used</text>
-            <text>${sessionCost.toFixed(2)} spent</text>
+            <text>≈ ${sessionCost.toFixed(2)} spent</text>
           </>
         ) : (
           <text attributes={TextAttributes.DIM}>No usage yet</text>

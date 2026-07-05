@@ -1,8 +1,8 @@
 {
   "name": "koincode-vscode",
   "displayName": "KOINCODE",
-  "description": "IDE context bridge for KOINCODE — surfaces the active file in the terminal agent status bar.",
-  "version": "0.1.0",
+  "description": "IDE context bridge for KOINCODE — surfaces the active file and text selection in the terminal agent status bar.",
+  "version": "0.7.0",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -15,7 +15,6 @@
     "watch": "tsc -p tsconfig.json --watch"
   },
   "devDependencies": {
-    "@koincode/shared": "workspace:*",
     "@types/vscode": "^1.80.0",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"

@@ -30,6 +30,12 @@ DEFINE_FLAGS=(
   --define "process.env.MIXPANEL_TOKEN='$MIXPANEL_TOKEN'"
 )
 
+# ─── Regenerate the embedded VS Code extension assets ──────────────────────
+# Must happen before the CLI bundle step below, since bin/koincode.ts
+# transitively imports src/lib/ide-extension-assets.ts.
+
+bun run "$(dirname "$0")/sync-ide-extension.ts"
+
 # ─── CLI bundle (dev / local testing only) ─────────────────────────────────
 
 bun build bin/koincode.ts --outdir dist --target bun \
