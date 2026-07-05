@@ -26,7 +26,7 @@ import { logger, getLastBoundaryIndex } from "../lib/helpers";
 import { getMcpTools, getMcpServerStatus } from "../lib/mcp-manager";
 import { buildSystemPrompt } from "../prompts/system-prompt";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
-import { appendIdeContext, buildCachedSystemMessage, withHistoryCacheControl, withToolsCacheControl } from "../lib/prompt-caching";
+import { appendIdeContext, appendSelectionContext, buildCachedSystemMessage, withHistoryCacheControl, withToolsCacheControl } from "../lib/prompt-caching";
 import { getStoredImages, clearStoredImages } from "./images";
 
 type KoincodeUIMessage = UIMessage<
@@ -60,6 +60,15 @@ const submitSchema = z.object({
   browserTools: z.boolean().optional().default(false),
   skillsManifest: z.array(skillManifestEntrySchema).optional().default([]),
   ideActiveFile: z.string().nullable().optional(),
+  ideSelection: z
+    .object({
+      file: z.string(),
+      startLine: z.number(),
+      endLine: z.number(),
+      text: z.string(),
+    })
+    .nullable()
+    .optional(),
 });
 
 const submitValidator = zValidator("json", submitSchema, (result, c) => {
@@ -81,7 +90,7 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 
 
 const app = new Hono().post("/", submitValidator, async (c) => {
-  const { id, messages, mode, model, browserTools, skillsManifest, ideActiveFile } = c.req.valid("json");
+  const { id, messages, mode, model, browserTools, skillsManifest, ideActiveFile, ideSelection } = c.req.valid("json");
 
   const session = await db.session.findUnique({
     where: { id },
@@ -243,11 +252,12 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   // *before* marking that message as this turn's cache breakpoint, so the breakpoint's
   // hash covers the final content, not a stale pre-append snapshot.
   const messagesWithIdeContext = appendIdeContext(modelMessages, ideActiveFile ?? null);
+  const messagesWithSelection = appendSelectionContext(messagesWithIdeContext, ideSelection ?? null);
 
   const result = streamText({
     model: resolvedModel.model,
     system: buildCachedSystemMessage(systemPrompt, promptCaching),
-    messages: withHistoryCacheControl(messagesWithIdeContext, promptCaching),
+    messages: withHistoryCacheControl(messagesWithSelection, promptCaching),
     tools: withToolsCacheControl(tools, promptCaching),
     abortSignal: c.req.raw.signal,
     providerOptions: resolvedModel.providerOptions,

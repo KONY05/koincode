@@ -20,7 +20,7 @@ import { hasApiKeyForModel } from "../lib/usage";
 import { estimateSessionCost } from "../lib/cost";
 import { executeLocalTool } from "../tools";
 import { loadSkillsManifest } from "../lib/skills";
-import { getIdeContextForRequest } from "./use-ide-context";
+import { getIdeContextForRequest, getIdeSelectionForRequest } from "./use-ide-context";
 import { readGlobalConfig } from "../utils/configs/global-config";
 import { isTerminalFocused } from "../lib/terminal-focus";
 import { notifyVsCode } from "../lib/vscode-notify";
@@ -198,6 +198,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
               scope: s.scope,
             })),
             ideActiveFile: getIdeContextForRequest(),
+            ideSelection: getIdeSelectionForRequest(),
           },
         };
       },

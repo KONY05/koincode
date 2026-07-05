@@ -57,6 +57,46 @@ export function appendIdeContext(
   );
 }
 
+export type IdeSelection = {
+  file: string;
+  startLine: number;
+  endLine: number;
+  text: string;
+};
+
+/**
+ * Appends the user's editor selection onto the newest message, same placement
+ * and cache-safety rationale as `appendIdeContext` above. Runs after
+ * `appendIdeContext` so both blocks can land on the same message when both
+ * are present — a selection is more specific than "this file is open" and
+ * doesn't need it removed, just supplemented.
+ */
+export function appendSelectionContext(
+  messages: ModelMessage[],
+  selection: IdeSelection | null,
+): ModelMessage[] {
+  if (!selection || messages.length === 0) return messages;
+
+  const lastIndex = messages.length - 1;
+  const last = messages[lastIndex]!;
+  if (last.role !== "user" && last.role !== "assistant") return messages;
+
+  const contextText =
+    `# Selected Code\nThe user highlighted lines ${selection.startLine}-${selection.endLine} ` +
+    `in **${selection.file}**:\n\n\`\`\`\n${selection.text}\n\`\`\`\n\n` +
+    `Treat this as the specific code their message refers to, unless the message clearly points elsewhere.`;
+
+  const textPart: TextPart = { type: "text", text: contextText };
+  const newContent =
+    typeof last.content === "string"
+      ? `${last.content}\n\n${contextText}`
+      : [...last.content, textPart];
+
+  return messages.map((message, i) =>
+    i === lastIndex ? ({ ...message, content: newContent } as ModelMessage) : message,
+  );
+}
+
 /** Marks the last tool definition with a cache breakpoint, so the system prompt + full tool list cache as one prefix. */
 export function withToolsCacheControl<T extends Record<string, Tool>>(
   tools: T,

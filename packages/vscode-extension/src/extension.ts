@@ -11,16 +11,57 @@ const GLOBAL_CONFIG_DIR = path.join(os.homedir(), ".koincode");
 const IDE_CONTEXT_FILE = path.join(GLOBAL_CONFIG_DIR, "ide-context.json");
 const NOTIFY_REQUEST_FILE = path.join(GLOBAL_CONFIG_DIR, "notify-request.json");
 
-function writeActiveFile(filePath: string | null): void {
+// Selected text is capped so a huge selection can't balloon the context file
+// (and, downstream, the chat request body) — truncated with a marker instead
+// of dropped entirely.
+const MAX_SELECTION_CHARS = 20_000;
+
+type SelectionInfo = {
+  file: string;
+  startLine: number;
+  endLine: number;
+  text: string;
+} | null;
+
+// Both fields live in one file, so they're tracked in memory and written
+// together — writing just one would clobber whichever field changed most
+// recently on the other axis.
+let currentActiveFile: string | null = null;
+let currentSelection: SelectionInfo = null;
+
+function writeIdeContext(): void {
   try {
     fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
     fs.writeFileSync(
       IDE_CONTEXT_FILE,
-      JSON.stringify({ activeFile: filePath }),
+      JSON.stringify({ activeFile: currentActiveFile, selection: currentSelection }),
     );
   } catch {
     // Non-fatal — the status bar just won't update.
   }
+}
+
+function setActiveFile(filePath: string | null): void {
+  currentActiveFile = filePath;
+  writeIdeContext();
+}
+
+function setSelection(editor: vscode.TextEditor | undefined): void {
+  if (!editor || editor.selection.isEmpty) {
+    currentSelection = null;
+  } else {
+    let text = editor.document.getText(editor.selection);
+    if (text.length > MAX_SELECTION_CHARS) {
+      text = `${text.slice(0, MAX_SELECTION_CHARS)}...truncated`;
+    }
+    currentSelection = {
+      file: editor.document.fileName,
+      startLine: editor.selection.start.line + 1,
+      endLine: editor.selection.end.line + 1,
+      text,
+    };
+  }
+  writeIdeContext();
 }
 
 // Fallback for terminals that ignore BEL (VS Code's integrated terminal does,
@@ -48,14 +89,21 @@ function checkNotifyRequest(): void {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-  // Write whatever is open right now on activation.
-  writeActiveFile(vscode.window.activeTextEditor?.document.fileName ?? null);
+  // Write whatever is open (and selected) right now on activation.
+  setActiveFile(vscode.window.activeTextEditor?.document.fileName ?? null);
+  setSelection(vscode.window.activeTextEditor);
 
-  const disposable = vscode.window.onDidChangeActiveTextEditor((editor: vscode.TextEditor | undefined) => {
-    writeActiveFile(editor?.document.fileName ?? null);
+  const activeEditorDisposable = vscode.window.onDidChangeActiveTextEditor((editor: vscode.TextEditor | undefined) => {
+    setActiveFile(editor?.document.fileName ?? null);
+    setSelection(editor);
   });
+  context.subscriptions.push(activeEditorDisposable);
 
-  context.subscriptions.push(disposable);
+  const selectionDisposable = vscode.window.onDidChangeTextEditorSelection((e: vscode.TextEditorSelectionChangeEvent) => {
+    if (e.textEditor !== vscode.window.activeTextEditor) return; // ignore inactive panes
+    setSelection(e.textEditor);
+  });
+  context.subscriptions.push(selectionDisposable);
 
   try {
     fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
@@ -70,5 +118,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
-  writeActiveFile(null);
+  currentActiveFile = null;
+  currentSelection = null;
+  writeIdeContext();
 }

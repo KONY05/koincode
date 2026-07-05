@@ -10,13 +10,13 @@
  * sibling package.
  */
 
-export const EXTENSION_VERSION = "0.6.0";
+export const EXTENSION_VERSION = "0.7.0";
 
 export const EXTENSION_PACKAGE_JSON = JSON.stringify(
   {
     name: "koincode-vscode",
     displayName: "KOINCODE",
-    description: "IDE context bridge for KOINCODE — surfaces the active file in the terminal agent status bar.",
+    description: "IDE context bridge for KOINCODE — surfaces the active file and text selection in the terminal agent status bar.",
     version: EXTENSION_VERSION,
     engines: {"vscode":"^1.80.0"},
     categories: ["Other"],
@@ -76,14 +76,45 @@ const os = __importStar(require("node:os"));
 const GLOBAL_CONFIG_DIR = path.join(os.homedir(), ".koincode");
 const IDE_CONTEXT_FILE = path.join(GLOBAL_CONFIG_DIR, "ide-context.json");
 const NOTIFY_REQUEST_FILE = path.join(GLOBAL_CONFIG_DIR, "notify-request.json");
-function writeActiveFile(filePath) {
+// Selected text is capped so a huge selection can't balloon the context file
+// (and, downstream, the chat request body) — truncated with a marker instead
+// of dropped entirely.
+const MAX_SELECTION_CHARS = 20_000;
+// Both fields live in one file, so they're tracked in memory and written
+// together — writing just one would clobber whichever field changed most
+// recently on the other axis.
+let currentActiveFile = null;
+let currentSelection = null;
+function writeIdeContext() {
     try {
         fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
-        fs.writeFileSync(IDE_CONTEXT_FILE, JSON.stringify({ activeFile: filePath }));
+        fs.writeFileSync(IDE_CONTEXT_FILE, JSON.stringify({ activeFile: currentActiveFile, selection: currentSelection }));
     }
     catch {
         // Non-fatal — the status bar just won't update.
     }
+}
+function setActiveFile(filePath) {
+    currentActiveFile = filePath;
+    writeIdeContext();
+}
+function setSelection(editor) {
+    if (!editor || editor.selection.isEmpty) {
+        currentSelection = null;
+    }
+    else {
+        let text = editor.document.getText(editor.selection);
+        if (text.length > MAX_SELECTION_CHARS) {
+            text = \`\${text.slice(0, MAX_SELECTION_CHARS)}...truncated\`;
+        }
+        currentSelection = {
+            file: editor.document.fileName,
+            startLine: editor.selection.start.line + 1,
+            endLine: editor.selection.end.line + 1,
+            text,
+        };
+    }
+    writeIdeContext();
 }
 // Fallback for terminals that ignore BEL (VS Code's integrated terminal does,
 // unless the user opts into a bell setting). The CLI writes a notify request
@@ -107,12 +138,20 @@ function checkNotifyRequest() {
     }
 }
 function activate(context) {
-    // Write whatever is open right now on activation.
-    writeActiveFile(vscode.window.activeTextEditor?.document.fileName ?? null);
-    const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
-        writeActiveFile(editor?.document.fileName ?? null);
+    // Write whatever is open (and selected) right now on activation.
+    setActiveFile(vscode.window.activeTextEditor?.document.fileName ?? null);
+    setSelection(vscode.window.activeTextEditor);
+    const activeEditorDisposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
+        setActiveFile(editor?.document.fileName ?? null);
+        setSelection(editor);
     });
-    context.subscriptions.push(disposable);
+    context.subscriptions.push(activeEditorDisposable);
+    const selectionDisposable = vscode.window.onDidChangeTextEditorSelection((e) => {
+        if (e.textEditor !== vscode.window.activeTextEditor)
+            return; // ignore inactive panes
+        setSelection(e.textEditor);
+    });
+    context.subscriptions.push(selectionDisposable);
     try {
         fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
         const watcher = fs.watch(GLOBAL_CONFIG_DIR, (_event, filename) => {
@@ -127,6 +166,8 @@ function activate(context) {
     }
 }
 function deactivate() {
-    writeActiveFile(null);
+    currentActiveFile = null;
+    currentSelection = null;
+    writeIdeContext();
 }
 `;
