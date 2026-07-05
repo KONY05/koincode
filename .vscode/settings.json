@@ -28,6 +28,7 @@
     "Renderable",
     "scrollbox",
     "Streamable",
-    "subshell"
+    "subshell",
+    "unpdf"
   ]
 }

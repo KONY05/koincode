@@ -231,7 +231,7 @@ export const toolInputSchemas = {
 
 export const readOnlyToolContracts = {
   readFile: tool({
-    description: "Read a file from the current project directory. For large files that get truncated, call again with an offset to read the next chunk.",
+    description: "Read a file from the current project directory. Supports plain text/code files as well as .pdf and .docx, which are extracted to plain text (visual layout, tables, and embedded images are not preserved). For large files that get truncated, call again with an offset to read the next chunk.",
     inputSchema: toolInputSchemas.readFile,
   }),
   listDirectory: tool({
