@@ -4,6 +4,7 @@ import { createPatch } from "diff";
 
 import { toolInputSchemas } from "@koincode/shared";
 import { resolveFromCwd } from "./utils";
+import { captureSnapshot, hashContent } from "../lib/snapshots";
 
 const normalize = (s: string) => s.replace(/\r\n/g, "\n").trimEnd();
 
@@ -40,6 +41,8 @@ export async function runEditFile(input: unknown) {
 
   await writeFile(resolved, newContent, "utf-8");
 
+  const beforeHash = await captureSnapshot(content);
+
   // Generate diff preview
   const patch = createPatch(resolved, content, newContent);
 
@@ -47,5 +50,10 @@ export async function runEditFile(input: unknown) {
     success: true as const,
     path: relative(cwd, resolved),
     diff: patch,
+    snapshot: {
+      path: relative(cwd, resolved),
+      beforeHash,
+      afterHash: hashContent(newContent),
+    },
   };
 }

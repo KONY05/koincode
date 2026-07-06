@@ -14,6 +14,7 @@ import memory from "./routes/memory";
 import ollamaModels from "./routes/ollama-models";
 import mcp from "./routes/mcp";
 import images from "./routes/images";
+import snapshots from "./routes/snapshots";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -73,7 +74,8 @@ const routes = app
   .route("/memory", memory)
   .route("/ollama-models", ollamaModels)
   .route("/mcp", mcp)
-  .route("/images", images);
+  .route("/images", images)
+  .route("/snapshots", snapshots);
 
 export type AppType = typeof routes;
 

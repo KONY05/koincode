@@ -43,6 +43,7 @@ export {
   PROJECT_CONFIG_FILE,
   DB_PATH,
   PID_FILE,
+  SNAPSHOTS_DIR,
 } from "./paths";
 
 export { parseMcpToolName, isMcpTool } from "./mcp";
