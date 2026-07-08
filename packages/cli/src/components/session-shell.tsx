@@ -11,6 +11,7 @@ import { QueuePanel } from "./queue-panel";
 import { ApprovalWidget } from "./widget/approval-widget";
 import { AskUserWidget } from "./widget/ask-user-widget";
 import { ModeSwitchWidget } from "./widget/mode-switch-widget";
+import { type PendingRevertConfirm, RevertConfirmWidget } from "./widget/revert-confirm-widget";
 import { InfoSidebar } from "./info-sidebar";
 import type {
   PendingModeSwitch,
@@ -43,6 +44,8 @@ type Props = {
   onUserQuestionResponse?: (value: string | null) => void;
   pendingModeSwitch?: PendingModeSwitch | null;
   onModeSwitchResponse?: (response: ModeSwitchResponse) => void;
+  pendingRevertConfirm?: PendingRevertConfirm | null;
+  onRevertConfirmResponse?: (confirmed: boolean) => void;
   sessionTitle?: string;
   sessionCost?: number;
 };
@@ -66,6 +69,8 @@ export function SessionShell({
   onUserQuestionResponse,
   pendingModeSwitch = null,
   onModeSwitchResponse,
+  pendingRevertConfirm = null,
+  onRevertConfirmResponse,
   sessionTitle,
   sessionCost = 0,
 }: Props) {
@@ -128,6 +133,11 @@ export function SessionShell({
           <ApprovalWidget
             approval={pendingApproval}
             onResponse={onApprovalResponse}
+          />
+        ) : pendingRevertConfirm && onRevertConfirmResponse ? (
+          <RevertConfirmWidget
+            pending={pendingRevertConfirm}
+            onResponse={onRevertConfirmResponse}
           />
         ) : pendingModeSwitch && onModeSwitchResponse ? (
           <ModeSwitchWidget

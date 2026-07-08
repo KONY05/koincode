@@ -13,3 +13,4 @@ export const PID_FILE = path.join(GLOBAL_CONFIG_DIR, "server.pid");
 export const GLOBAL_CONFIG_FILE = path.join(GLOBAL_CONFIG_DIR, "config.json");
 export const IDE_CONTEXT_FILE = path.join(GLOBAL_CONFIG_DIR, "ide-context.json");
 export const NOTIFY_REQUEST_FILE = path.join(GLOBAL_CONFIG_DIR, "notify-request.json");
+export const SNAPSHOTS_DIR = path.join(GLOBAL_CONFIG_DIR, "snapshots");

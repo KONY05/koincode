@@ -29,17 +29,21 @@ export default function WriteFilePreview({
 
   return (
     <box width="100%">
-      <box flexDirection="row" gap={1}>
-        <text>
-          <em fg={colors.success}>Write File</em>
-        </text>
-        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
-          ›
-        </text>
-        <text attributes={TextAttributes.DIM}>{path}</text>
-        {pending && <text attributes={TextAttributes.DIM}> …</text>}
+      <box flexDirection="row" justifyContent="space-between" width="100%">
+        <box flexDirection="row" gap={1}>
+          <text>
+            <em fg={colors.success}>Write File</em>
+          </text>
+          <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+            ›
+          </text>
+          <text attributes={TextAttributes.DIM}>{path}</text>
+          {pending && <text attributes={TextAttributes.DIM}> …</text>}
+        </box>
+        {!!error && <text fg={colors.error}>✗</text>}
       </box>
-      {preview.length > 0 && (
+      {/* Not shown on failure — the write never happened, so this preview would misleadingly imply it did. */}
+      {!error && preview.length > 0 && (
         <box width="100%" paddingLeft={1}>
           {preview.map((line, i) => (
             <text key={i} attributes={TextAttributes.DIM}>
@@ -53,7 +57,11 @@ export default function WriteFilePreview({
           )}
         </box>
       )}
-      {!!error && <text fg={colors.error}>{error}</text>}
+      {!!error && (
+        <text fg={colors.error} paddingLeft={2}>
+          {error}
+        </text>
+      )}
     </box>
   );
 }

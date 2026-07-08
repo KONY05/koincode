@@ -19,6 +19,7 @@ import {
   EXTENSION_VERSION,
   EXTENSION_PACKAGE_JSON,
   EXTENSION_JS,
+  EXTENSION_ICON_PNG_BASE64,
 } from "./ide-extension-assets";
 
 const EXTENSION_NAME = "koincode-vscode";
@@ -62,6 +63,7 @@ async function ensureCachedAssets(): Promise<string> {
   await Promise.all([
     writeFile(path.join(CACHE_DIR, "package.json"), EXTENSION_PACKAGE_JSON),
     writeFile(path.join(outDir, "extension.js"), EXTENSION_JS),
+    writeFile(path.join(CACHE_DIR, "icon.png"), Buffer.from(EXTENSION_ICON_PNG_BASE64, "base64")),
   ]);
 
   return CACHE_DIR;
@@ -111,6 +113,10 @@ async function installInto(
     writeFile(
       path.join(outDir, "extension.js"),
       await readFile(path.join(assetDir, "out", "extension.js"), "utf8"),
+    ),
+    writeFile(
+      path.join(installDir, "icon.png"),
+      await readFile(path.join(assetDir, "icon.png")),
     ),
   ]);
 }

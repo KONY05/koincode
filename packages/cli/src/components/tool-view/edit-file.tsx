@@ -43,20 +43,25 @@ export default function EditFileDiff({
   if (typeof path !== "string") return null;
 
   const filetype = path.split(".").pop();
+  // Don't render the diff on failure — the edit was never applied, so a green
+  // "added" block next to it would misleadingly read as a successful change.
   const hasDiff =
-    typeof oldString === "string" && typeof newString === "string";
+    !error && typeof oldString === "string" && typeof newString === "string";
 
   return (
     <box width="100%">
-      <box flexDirection="row" gap={1}>
-        <text>
-          <em fg={colors.info}>Edit File</em>
-        </text>
-        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
-          ›
-        </text>
-        <text attributes={TextAttributes.DIM}>{path}</text>
-        {pending && <text attributes={TextAttributes.DIM}> …</text>}
+      <box flexDirection="row" justifyContent="space-between" width="100%">
+        <box flexDirection="row" gap={1}>
+          <text>
+            <em fg={colors.info}>Edit File</em>
+          </text>
+          <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+            ›
+          </text>
+          <text attributes={TextAttributes.DIM}>{path}</text>
+          {pending && <text attributes={TextAttributes.DIM}> …</text>}
+        </box>
+        {!!error && <text fg={colors.error}>✗</text>}
       </box>
       {hasDiff && (
         <diff
@@ -71,7 +76,11 @@ export default function EditFileDiff({
           width="100%"
         />
       )}
-      {!!error && <text fg={colors.error}>{error}</text>}
+      {!!error && (
+        <text fg={colors.error} paddingLeft={2}>
+          {error}
+        </text>
+      )}
     </box>
   );
 }

@@ -20,6 +20,8 @@ import type { Message } from "../hooks/use-chat";
 import { apiClient } from "../lib/api-client";
 import { getErrorMessage } from "../lib/http-errors";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
+import { collectMutations, planRevert, applyRevert } from "../lib/revert-mutations";
+import type { PendingRevertConfirm } from "../components/widget/revert-confirm-widget";
 
 type SessionData = InferResponseType<
   (typeof apiClient.sessions)[":id"]["$get"],
@@ -118,6 +120,8 @@ function SessionChat({
   const toast = useToast();
   const lastEscapePressRef = useRef<number>(0);
   const hasAutoSubmittedRef = useRef(false);
+  const [pendingRevertConfirm, setPendingRevertConfirm] =
+    useState<PendingRevertConfirm | null>(null);
 
   const {
     messages,
@@ -175,6 +179,36 @@ function SessionChat({
     void autoSubmit();
   }, [initialState, initialMessages, submit, toast]);
 
+  // Deleting the last turn also reverts any writeFile/editFile mutations it made
+  // (shell mutations aren't tracked — not safely revertible). If the turn made no
+  // such mutations, delete immediately; otherwise confirm first, since revert
+  // touches the user's files on disk.
+  const initiateDelete = async () => {
+    if (!onDeleteLastMessage) return;
+
+    const lastUserIndex = messages.findLastIndex((m) => m.role === "user");
+    if (lastUserIndex === -1) {
+      onDeleteLastMessage();
+      return;
+    }
+
+    const mutations = collectMutations(messages.slice(lastUserIndex));
+    if (mutations.length === 0) {
+      onDeleteLastMessage();
+      return;
+    }
+
+    const plans = await planRevert(mutations);
+    setPendingRevertConfirm({ plans });
+  };
+
+  const handleRevertConfirmResponse = async (confirmed: boolean) => {
+    setPendingRevertConfirm(null);
+    if (!confirmed) return;
+    await applyRevert(pendingRevertConfirm?.plans ?? []);
+    onDeleteLastMessage?.();
+  };
+
   // Let the user cancel a reply even before the first streamed chunk arrives.
   // Double-tap escape to delete last message when not streaming
   useKeyboard((key) => {
@@ -195,7 +229,7 @@ function SessionChat({
       ) {
         // Double-tap when ready: delete last message
         lastEscapePressRef.current = 0;
-        onDeleteLastMessage();
+        void initiateDelete();
       } else {
         // Single press when ready: just record the time
         lastEscapePressRef.current = now;
@@ -354,6 +388,8 @@ function SessionChat({
       onUserQuestionResponse={resolveUserQuestion}
       pendingModeSwitch={pendingModeSwitch}
       onModeSwitchResponse={resolveModeSwitch}
+      pendingRevertConfirm={pendingRevertConfirm}
+      onRevertConfirmResponse={handleRevertConfirmResponse}
     >
       {transcript.map((item) => {
         if (item.type === "system") {

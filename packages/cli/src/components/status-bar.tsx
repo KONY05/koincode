@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+// import { basename } from "node:path";
 import { TextAttributes } from "@opentui/core";
 
 import { useTheme } from "../providers/theme";
@@ -92,8 +92,9 @@ export function StatusBar({ contextUsage }: Props) {
             onMouseDown={toggleSelectionContext}
           >
             {selection.endLine - selection.startLine + 1}{" "}
-            {selection.endLine - selection.startLine + 1 === 1 ? "line" : "lines"} selected ·{" "}
-            {basename(selection.file)}:{selection.startLine}-{selection.endLine}
+            {selection.endLine - selection.startLine + 1 === 1 ? "line" : "lines"} selected
+            {/* ·{" "}
+            {/* {basename(selection.file)}:{selection.startLine}-{selection.endLine} */}
           </text>
         )}
         {!selection && activeFile && (

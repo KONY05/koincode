@@ -16,6 +16,7 @@ import {
   toolInputSchemas,
 } from "@koincode/shared";
 import { apiClient } from "../lib/api-client";
+import { sweepOrphanSnapshots } from "../lib/snapshots";
 import { hasApiKeyForModel } from "../lib/usage";
 import { estimateSessionCost } from "../lib/cost";
 import { executeLocalTool } from "../tools";
@@ -85,6 +86,12 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
   const { mode, setMode, autoModeSwitch, setAutoModeSwitch, model: currentModel } =
     usePromptConfig();
   const toast = useToast();
+
+  // Opportunistic, throttled cleanup of orphaned snapshot blobs — the server
+  // is already known to be reachable by the time a session is active.
+  useEffect(() => {
+    void sweepOrphanSnapshots();
+  }, []);
 
   const [wasInterrupted, setWasInterrupted] = useState(false);
 
