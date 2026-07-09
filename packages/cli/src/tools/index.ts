@@ -15,6 +15,7 @@ import {
   runMemoryList,
 } from "./memory";
 import { runManageHook } from "./manage-hook";
+import { runCheckAgentTask } from "./check-agent-task";
 import { runReadSkill } from "./read-skill";
 import { runWriteSkill } from "./write-skill";
 import { runMcpTool, runManageMcp } from "./mcp";
@@ -46,47 +47,47 @@ export async function executeLocalTool(
   try {
     switch (toolName) {
       case "readFile":
-        toolOutput = runReadFile(input);
+        toolOutput = await runReadFile(input);
         break;
       case "listDirectory":
-        toolOutput = runListDirectory(input);
+        toolOutput = await runListDirectory(input);
         break;
       case "glob":
-        toolOutput = runGlob(input);
+        toolOutput = await runGlob(input);
         break;
       case "grep":
-        toolOutput = runGrep(input);
+        toolOutput = await runGrep(input);
         break;
       case "writeFile":
-        toolOutput = runWriteFile(input);
+        toolOutput = await runWriteFile(input);
         break;
       case "editFile":
-        toolOutput = runEditFile(input);
+        toolOutput = await runEditFile(input);
         break;
       case "shell":
-        toolOutput = runShellCommand(input);
+        toolOutput = await runShellCommand(input, sessionId);
         break;
       case "webFetch":
-        toolOutput = runWebFetch(input);
+        toolOutput = await runWebFetch(input);
         break;
       case "webSearch":
-        toolOutput = runWebSearch(input);
+        toolOutput = await runWebSearch(input);
         break;
       case "createTodos":
       case "updateTodos":
         toolOutput = { ok: true };
         break;
       case "memoryAdd":
-        toolOutput = runMemoryAdd(input);
+        toolOutput = await runMemoryAdd(input);
         break;
       case "memoryUpdate":
-        toolOutput = runMemoryUpdate(input);
+        toolOutput = await runMemoryUpdate(input);
         break;
       case "memoryDelete":
-        toolOutput = runMemoryDelete(input);
+        toolOutput = await runMemoryDelete(input);
         break;
       case "memoryList":
-        toolOutput = runMemoryList(input);
+        toolOutput = await runMemoryList(input);
         break;
       case "manageHook":
         toolOutput = await runManageHook(input);
@@ -99,6 +100,9 @@ export async function executeLocalTool(
         break;
       case "manageMcp":
         toolOutput = await runManageMcp();
+        break;
+      case "checkAgentTask":
+        toolOutput = runCheckAgentTask(input);
         break;
       case "serverStart":
         toolOutput = await runServerStart(input);
@@ -125,6 +129,7 @@ export async function executeLocalTool(
       // case "askUser":
       // case "switchMode":
       // case "spawnAgent":
+      // case "scheduleWakeup":
       default:
         if (toolName.includes("__")) {
           toolOutput = await runMcpTool(toolName, input);

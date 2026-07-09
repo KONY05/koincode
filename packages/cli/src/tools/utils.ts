@@ -18,3 +18,12 @@ export function truncate(value: string, limit: number) {
     ? `${value.slice(0, limit)}\n... (truncated, ${value.length} total chars)`
     : value;
 }
+
+/** Same as truncate, but keeps the tail and drops from the top — for delivery
+ * text where the most recent output (final errors, completion status) is
+ * what matters, unlike the head-truncated live tool-view display. */
+export function truncateTail(value: string, limit: number) {
+  return value.length > limit
+    ? `... (truncated, ${value.length} total chars)\n${value.slice(value.length - limit)}`
+    : value;
+}

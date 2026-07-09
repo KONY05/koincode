@@ -27,9 +27,12 @@
     "poweroff",
     "qwen",
     "Renderable",
+    "reparented",
     "scrollbox",
     "Streamable",
     "subshell",
-    "unpdf"
+    "unpdf",
+    "Wakeup",
+    "Wakeups"
   ]
 }

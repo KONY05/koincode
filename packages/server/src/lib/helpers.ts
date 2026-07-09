@@ -2,12 +2,13 @@ import { generateText } from "ai";
 
 import { BOUNDARY_ROLES, findSupportedChatModel, type SupportedProvider } from "@koincode/shared";
 import { resolveChatModel } from "./models";
+import { FALLBACK_MODEL_ID } from "../../../shared/src/models";
 
 const PROVIDER_FALLBACKS: Partial<Record<SupportedProvider, string[]>> = {
   anthropic:  ["claude-sonnet-4-6", "claude-haiku-4-5"],
   openai:     ["gpt-4o-mini", "gpt-4.1-nano"],
   google:     ["gemini-2.0-flash", "gemini-2.5-flash"],
-  openrouter: ["openrouter/owl-alpha", "google/gemma-4-31b-it:free"],
+  openrouter: [FALLBACK_MODEL_ID, "google/gemma-4-31b-it:free"],
 };
 
 const GENERATE_TEXT_TIMEOUT_MS = 60_000;

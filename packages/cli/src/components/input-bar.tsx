@@ -35,6 +35,7 @@ import { usePromptConfig } from "../providers/prompt-config";
 import { useSessionActions } from "../providers/session-actions";
 import { Mode } from "@koincode/shared";
 import type { QueuedMessage } from "../hooks/use-chat";
+import { cancelAllRegisteredWork } from "../lib/background/session-background-work";
 
 const MAX_VISIBLE_MENTIONS = 8;
 const CURRENT_DIRECTORY = process.cwd();
@@ -539,6 +540,11 @@ export function InputBar({
       if (command.action) {
         command.action({
           exit: () => {
+            // process.exit() below never unmounts the Session screen, so the
+            // usual per-session cleanup effect (kills backgrounded shell
+            // processes, aborts in-flight background sub-agents) never runs
+            // on its own — do it explicitly here first.
+            cancelAllRegisteredWork();
             renderer.destroy();
             process.exit(0);
           },

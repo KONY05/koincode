@@ -10,7 +10,7 @@ import { Mode } from "@koincode/shared";
 import type { ContextUsage } from "../hooks/use-chat";
 
 const RING_SEGMENTS = 10;
-const RING_THRESHOLD = 80; // from what context percent to show the ring
+const RING_THRESHOLD = 70; // from what context percent to show the ring
 
 function buildRing(percent: number): string {
   const filled = Math.min(RING_SEGMENTS, Math.floor(percent / RING_SEGMENTS));
@@ -36,7 +36,7 @@ export function StatusBar({ contextUsage }: Props) {
   const mcpServerCount = useMcpServers().filter((s) => s.status === "connected").length;
 
   const showRing = contextUsage !== null && contextUsage !== undefined && contextUsage.percent >= RING_THRESHOLD;
-  const ringColor = contextUsage && contextUsage.percent >= 95 ? "red" : "yellow";
+  const ringColor = contextUsage && contextUsage.percent >= 90 ? "red" : "yellow";
 
   return (
     <box flexDirection="row" gap={1} width="100%" justifyContent="space-between">

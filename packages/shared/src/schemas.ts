@@ -53,8 +53,13 @@ export const toolInputSchemas = {
     description: z
       .string()
       .describe("Short human-readable description of what this command does"),
-    timeout: z.number().optional().describe("Timeout in milliseconds"),
-    run_in_background: z.boolean().default(false).describe("Spawn detached without waiting for exit. Returns immediately with the process PID."),
+    timeout: z
+      .number()
+      .optional()
+      .describe(
+        "Timeout in milliseconds before the command is killed. Defaults to 30s for a normal (blocking) call. For run_in_background: true, the command is allowed to run indefinitely unless you set this explicitly — pass it if you want a hung or runaway background command to be killed automatically after a bound you choose.",
+      ),
+    run_in_background: z.boolean().default(false).describe("Spawn without waiting for exit. Returns immediately with the process PID; its result (stdout/stderr/exit code) is delivered here automatically once it exits — no need to poll. Optionally use scheduleWakeup with waitingOnTaskId (the PID, as a string) to also resume with a specific follow-up prompt the moment it's done."),
   }),
   createTodos: z.object({
     todos: z
@@ -132,8 +137,58 @@ export const toolInputSchemas = {
       .optional()
       .default("PLAN")
       .describe("Starting mode for the sub-agent"),
+    runInBackground: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        "Run the sub-agent without blocking this turn. Returns a taskId immediately — use checkAgentTask to poll for its result, or scheduleWakeup to check back later.",
+      ),
+    maxTurns: z
+      .number()
+      .int()
+      .min(1)
+      .max(50)
+      .optional()
+      .default(20)
+      .describe(
+        "Maximum number of turns before the sub-agent is stopped and returns whatever progress it made so far, instead of running unbounded. Default 20.",
+      ),
+    timeoutSeconds: z
+      .number()
+      .int()
+      .min(30)
+      .max(1800)
+      .optional()
+      .default(300)
+      .describe(
+        "Maximum wall-clock seconds before the sub-agent is stopped and returns whatever progress it made so far. Default 300 (5 minutes).",
+      ),
   }),
   manageMcp: z.object({}),
+  scheduleWakeup: z.object({
+    delaySeconds: z
+      .number()
+      .int()
+      .min(10)
+      .max(1800)
+      .describe("Seconds to wait before automatically resuming this session (10-1800)"),
+    reason: z
+      .string()
+      .describe("Short human-readable reason shown in the transcript, e.g. 'waiting on background build'"),
+    prompt: z
+      .string()
+      .describe("The exact instruction to resume with when this wakeup fires — reference specific task ids, files, or what to check next"),
+    waitingOnTaskId: z
+      .string()
+      .optional()
+      .describe(
+        "If this wakeup is specifically waiting on a runInBackground spawnAgent task or a run_in_background shell command, pass its taskId (the spawnAgent taskId, or the shell command's PID as a string) — this session resumes immediately with that task's result the moment it completes or errors, instead of waiting out the full delay. The delay still applies as a fallback if the task runs long.",
+      ),
+  }),
+  checkAgentTask: z.object({
+    taskId: z.string().describe("The task id returned by a spawnAgent call made with runInBackground: true"),
+  }),
   readSkill: z.object({
     name: z.string().describe("Skill name to read"),
     file: z
@@ -298,8 +353,13 @@ export const readOnlyToolContracts = {
   }),
   spawnAgent: tool({
     description:
-      "Spawn a sub-agent to handle a delegated subtask. The sub-agent runs its own full LLM loop (with tool calls and mode switching) and returns a final text result. Multiple sub-agents can be spawned in parallel in a single turn.",
+      "Spawn a sub-agent to handle a delegated subtask. The sub-agent runs its own full LLM loop (with tool calls and mode switching) and returns a final text result. Multiple sub-agents can be spawned in parallel in a single turn. Pass runInBackground: true to avoid blocking this turn — its result is delivered here automatically once it finishes, no polling needed. checkAgentTask and scheduleWakeup (with waitingOnTaskId) are optional if you want to check sooner or resume with a specific follow-up prompt. Lower maxTurns/timeoutSeconds for a quick, narrow lookup; raise them for a genuinely long research task — if the sub-agent runs out of either, it returns its partial progress rather than nothing.",
     inputSchema: toolInputSchemas.spawnAgent,
+  }),
+  checkAgentTask: tool({
+    description:
+      "Check the status of a sub-agent spawned with runInBackground: true. Returns 'running' with no result yet, or 'completed'/'error' with the final output.",
+    inputSchema: toolInputSchemas.checkAgentTask,
   }),
   manageHook: tool({
     description:
@@ -365,8 +425,14 @@ export const buildToolContracts = {
     inputSchema: toolInputSchemas.editFile,
   }),
   shell: tool({
-    description: "Run a shell command in the current project directory.",
+    description:
+      "Run a shell command in the current project directory. Pass run_in_background: true to avoid blocking this turn on a long-running build/test/watch command — its result is delivered here automatically once it exits, no polling needed. scheduleWakeup (with waitingOnTaskId set to the process's PID, as a string) is optional if you want to resume with a specific follow-up prompt the moment it's done. For starting a dev server, use serverStart instead, which waits for the port to accept connections.",
     inputSchema: toolInputSchemas.shell,
+  }),
+  scheduleWakeup: tool({
+    description:
+      "Defer your own next check-in by a delay instead of blocking or polling immediately. Use this when waiting on something you started in the background (e.g. a backgrounded shell command or a runInBackground sub-agent). When the delay elapses, this session automatically continues with the exact prompt you provide. Pass waitingOnTaskId to also resume immediately the moment that specific task finishes, without waiting out the full delay.",
+    inputSchema: toolInputSchemas.scheduleWakeup,
   }),
   writeSkill: tool({
     description:

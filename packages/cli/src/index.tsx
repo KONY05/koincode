@@ -13,6 +13,7 @@ import { updateGlobalConfig } from "./utils/configs/global-config";
 import { ensureIdeExtension } from "./lib/ide-extension";
 import { closeBrowser } from "./tools/browser/browser-session";
 import { handleFocusSequence } from "./lib/terminal-focus";
+import { cancelAllRegisteredWork } from "./lib/background/session-background-work";
 import type { ApiKeys } from "@koincode/shared";
 
 // Handle key-saving flags before starting the TUI
@@ -82,6 +83,11 @@ process.stdout.write("\x1b[?1004h");
 
 function shutdown(code = 0) {
   process.stdout.write("\x1b[?1004l");
+  // process.exit() below never unmounts the Session screen, so the usual
+  // per-session cleanup effect (kills backgrounded shell processes, aborts
+  // in-flight background sub-agents) never runs on its own — do it
+  // explicitly here first, same reasoning as the /exit command.
+  cancelAllRegisteredWork();
   renderer.destroy();
   void closeBrowser().finally(() => process.exit(code));
 }

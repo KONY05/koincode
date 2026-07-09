@@ -165,7 +165,8 @@ function getToolUsageSection(mode: ModeType, mcpServers?: McpServerStatus[], bro
   const toolList = formatToolList(contracts);
   const buildOnlyRule =
     mode === Mode.BUILD
-      ? "\n6. **Prefer `editFile` for small changes** to existing files. Only use `writeFile` when creating new files or rewriting most of a file."
+      ? "\n6. **Prefer `editFile` for small changes** to existing files. Only use `writeFile` when creating new files or rewriting most of a file." +
+        "\n7. **Don't block or poll on background work.** If you started something that runs on its own (a `shell` call with `run_in_background: true`, or a `spawnAgent` call with `runInBackground: true`), don't sit there re-checking it turn after turn — its result is delivered here automatically the moment it finishes (exits, for a backgrounded shell command; completes or errors, for a `runInBackground` sub-agent), with no extra tool call needed. Use `scheduleWakeup` only when you have a reason to check back at a specific time or with a specific follow-up prompt — pass its `prompt` describing exactly what to do next, and (if it's about a specific piece of background work) its id as `waitingOnTaskId` (the `spawnAgent` `taskId`, or the shell command's PID as a string) so it resumes the instant that work finishes rather than waiting out the full delay. `scheduleWakeup` is optional, not required — plain background work already reaches you on its own."
       : "";
 
   const connectedServers = mcpServers?.filter((s) => s.status === "connected") ?? [];

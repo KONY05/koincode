@@ -11,6 +11,12 @@ export type ChatMessageMetadata = {
   durationMs?: number;
   usage?: LanguageModelUsage;
   interrupted?: boolean;
+  /** Set on synthetic user-role turns delivering a background task's result
+   * (spawnAgent runInBackground, scheduleWakeup, backgrounded shell) — the
+   * wire-level role stays "user" (required for the model to react to it as a
+   * turn), but the CLI renders these on the assistant side instead of as a
+   * user-typed bubble. */
+  origin?: "background-task";
 };
 
 export const BOUNDARY_ROLES = new Set(["clear_boundary", "compact_boundary"]);

@@ -51,6 +51,18 @@ function ChatMessage({
       .map((p) => p.text)
       .join("");
 
+    // Background task deliveries are sent as real user turns (required for the
+    // model to react to them), but should read as the assistant surfacing its
+    // own findings rather than as something the human typed.
+    if (msg.metadata?.origin === "background-task") {
+      return (
+        <BotMessage
+          parts={[{ type: "text", text }]}
+          model={msg.metadata?.model ?? "unknown"}
+        />
+      );
+    }
+
     return <UserMessage message={text} mode={msg.metadata?.mode ?? "BUILD"} />;
   }
 
