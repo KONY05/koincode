@@ -22,6 +22,7 @@ import type {
   PendingUserQuestion,
   ContextUsage,
   QueuedMessage,
+  Message,
 } from "../hooks/use-chat";
 import { CWD, getGitBranch } from "../utils/helper";
 import { useTheme } from "../providers/theme";
@@ -37,7 +38,7 @@ type Props = {
   loadingAction?: string;
   interruptible?: boolean;
   queue?: QueuedMessage[];
-  onRemoveFromQueue?: (index: number) => void;
+  onRemoveFromQueue?: (id: string) => void;
   pendingApproval?: PendingApproval | null;
   onApprovalResponse?: (response: ApprovalResponse) => void;
   pendingUserQuestion?: PendingUserQuestion | null;
@@ -48,6 +49,7 @@ type Props = {
   onRevertConfirmResponse?: (confirmed: boolean) => void;
   sessionTitle?: string;
   sessionCost?: number;
+  messages?: Message[];
 };
 
 const GIT_BRANCH = getGitBranch();
@@ -73,6 +75,7 @@ export function SessionShell({
   onRevertConfirmResponse,
   sessionTitle,
   sessionCost = 0,
+  messages = [],
 }: Props) {
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
   const scrollRef = useRef<ScrollBoxRenderable>(null);
@@ -164,6 +167,7 @@ export function SessionShell({
               onRemoveFromQueue={onRemoveFromQueue}
               queueFocusedIndex={queueFocusedIndex}
               onQueueFocusedIndexChange={setQueueFocusedIndex}
+              messages={messages}
             />
           </box>
         )}

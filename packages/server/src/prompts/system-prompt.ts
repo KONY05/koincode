@@ -53,7 +53,7 @@ export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManife
   parts.push(getOperationalSection());
 
   if (mode === Mode.BUILD && browserTools) {
-    parts.push(getBrowserControlSection());
+    parts.push(getBrowserServerControlSection());
   }
 
   if (mode === Mode.BUILD) {
@@ -165,7 +165,8 @@ function getToolUsageSection(mode: ModeType, mcpServers?: McpServerStatus[], bro
   const toolList = formatToolList(contracts);
   const buildOnlyRule =
     mode === Mode.BUILD
-      ? "\n6. **Prefer `editFile` for small changes** to existing files. Only use `writeFile` when creating new files or rewriting most of a file."
+      ? "\n6. **Prefer `editFile` for small changes** to existing files. Only use `writeFile` when creating new files or rewriting most of a file." +
+        "\n7. **Don't block or poll on background work.** If you started something that runs on its own (a `shell` call with `run_in_background: true`, or a `spawnAgent` call with `runInBackground: true`), don't sit there re-checking it turn after turn — its result is delivered here automatically the moment it finishes (exits, for a backgrounded shell command; completes or errors, for a `runInBackground` sub-agent), with no extra tool call needed. Use `scheduleWakeup` only when you have a reason to check back at a specific time or with a specific follow-up prompt — pass its `prompt` describing exactly what to do next, and (if it's about a specific piece of background work) its id as `waitingOnTaskId` (the `spawnAgent` `taskId`, or the shell command's PID as a string) so it resumes the instant that work finishes rather than waiting out the full delay. `scheduleWakeup` is optional, not required — plain background work already reaches you on its own."
       : "";
 
   const connectedServers = mcpServers?.filter((s) => s.status === "connected") ?? [];
@@ -291,23 +292,23 @@ Edge cases, warnings, or caveats.
 - Skills are plain markdown files and can also be edited directly in any text editor`;
 }
 
-function getBrowserControlSection(): string {
+function getBrowserServerControlSection(): string {
   return `# Browser Control
 
-You have browser tools available in BUILD mode: \`serverStart\`, \`browserNavigate\`, \`browserScreenshot\`, \`browserClick\`, \`browserType\`, \`browserGetConsoleLogs\`, and \`browserClose\`.
+You have browser and server tools available in BUILD mode: \`serverStart\`, \`checkServerLogs\`, \`serverStop\`, \`browserNavigate\`, \`browserScreenshot\`, \`browserClick\`, \`browserType\`, \`browserGetConsoleLogs\`, and \`browserClose\`.
 
 Use this only when you want to perform test/use case testing on your code or when the user ask you to do so.
 
 ## Autonomous testing workflow
 
-1. Start the server: \`serverStart({ command: "bun run dev", port: 3000 })\` — waits until the port accepts connections, then returns.
+1. Start the server: \`serverStart({ command: "bun run dev", port: 3000 })\` — waits until the port accepts connections, then returns its PID. If it times out, the failure message includes recent stdout/stderr so you can see why it didn't start (missing dependency, syntax error, port in use, etc.) — no need to re-run it blind.
 2. Navigate: \`browserNavigate({ url: "http://localhost:3000" })\`
 3. Observe: \`browserScreenshot({})\` — returns the page as an image (vision models) and extracted page text (all models).
 4. Fix and iterate: edit code, screenshot again, repeat until the app looks and behaves correctly.
-5. Catch JS errors: \`browserGetConsoleLogs({ types: ["error"] })\` for issues not visible on screen.
-6. Always close: \`browserClose({})\` when testing is complete.
+5. Catch client-side errors: \`browserGetConsoleLogs({ types: ["error"] })\` for JS issues not visible on screen. Catch server-side errors: \`checkServerLogs({ pid })\` with the PID from step 1 — e.g. after triggering an action in the browser that hits an API route, check here for a server-side stack trace the browser console won't show.
+6. Always clean up: \`serverStop({ pid })\` and \`browserClose({})\` when testing is complete.
 
-Never leave a browser session open between unrelated tasks. \`serverStart\` works for any TCP server, not just web apps.`;
+Never leave a server or browser session running between unrelated tasks. \`serverStart\` works for any TCP server, not just web apps.`;
 }
 
 function getVisualizationSection(): string {

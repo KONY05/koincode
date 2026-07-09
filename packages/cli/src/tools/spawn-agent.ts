@@ -49,14 +49,14 @@ type AgentStepResponse = {
   finishReason: string;
 };
 
-type SubagentDefinition = {
-  name: string;
-  description: string;
-  goalPrompt: string;
-  allowedTools?: string[];
-  maxTurns?: number;
-  timeoutSeconds?: number;
-};
+// type SubagentDefinition = {
+//   name: string;
+//   description: string;
+//   goalPrompt: string;
+//   allowedTools?: string[];
+//   maxTurns?: number;
+//   timeoutSeconds?: number;
+// };
 
 type SpawnAgentInput = {
   name: string;
@@ -69,22 +69,66 @@ type SpawnAgentInput = {
   allowedTools?: string[];
   maxTurns?: number;
   timeoutSeconds?: number;
+  /** Aborts the loop between steps (and the in-flight step request) when triggered. */
+  signal?: AbortSignal;
 };
 
-export const CODE_REVIEWER: SubagentDefinition = {
-  name: "code_reviewer",
-  description:
-    "Reviews code changes and provides feedback on quality, bugs, and improvements",
-  goalPrompt: `You are a code review specialist.
-Your job is to review code and provide constructive feedback.
-Look for bugs, code smells, security issues, and improvement opportunities.
-Use readFile, listDir, grep, writeFile, and editFile to examine and modify the code.
-When you find issues, implement the fixes directly.
-Provide a summary of all changes made at the end.`,
-  allowedTools: ["readFile", "listDirectory", "grep", "writeFile", "editFile"],
-  maxTurns: 10,
-  timeoutSeconds: 300,
-};
+// Compact one-liner for a tool call the sub-agent made but never narrated —
+// e.g. `readFile(src/index.ts)` or `grep(TODO src)` — so a run that hit its
+// limit mid-tool-call-chain still shows *what it was doing*, not just that it
+// stopped.
+function summarizeToolCall(part: { toolName: string; input: unknown }): string {
+  const args =
+    part.input && typeof part.input === "object"
+      ? Object.values(part.input as Record<string, unknown>)
+          .filter((v) => v !== undefined && v !== "")
+          .map(String)
+          .join(" ")
+      : "";
+  return args ? `${part.toolName}(${args})` : part.toolName;
+}
+
+// Gathers every text fragment and tool call the sub-agent produced across all
+// its turns — used as a fallback when it doesn't finish cleanly (timeout / max
+// steps), so that work already done isn't silently discarded in favor of a
+// placeholder string, or just whatever text happened to be attached to the
+// very last (still tool-calling) turn. Tool calls are included, not just text,
+// because a run that ran out of turns mid-research may have made several tool
+// calls with zero narration attached — text-only collection would find
+// nothing to show even though real work happened.
+function collectPartialProgress(messages: AgentMessage[]): string {
+  const parts: string[] = [];
+  for (const m of messages) {
+    if (m.role !== "assistant") continue;
+    if (typeof m.content === "string") {
+      if (m.content) parts.push(m.content);
+      continue;
+    }
+    for (const part of m.content) {
+      if (part.type === "text" && part.text) {
+        parts.push(part.text);
+      } else if (part.type === "tool-call") {
+        parts.push(`→ ${summarizeToolCall(part)}`);
+      }
+    }
+  }
+  return parts.join("\n");
+}
+
+// export const CODE_REVIEWER: SubagentDefinition = {
+//   name: "code_reviewer",
+//   description:
+//     "Reviews code changes and provides feedback on quality, bugs, and improvements",
+//   goalPrompt: `You are a code review specialist.
+// Your job is to review code and provide constructive feedback.
+// Look for bugs, code smells, security issues, and improvement opportunities.
+// Use readFile, listDir, grep, writeFile, and editFile to examine and modify the code.
+// When you find issues, implement the fixes directly.
+// Provide a summary of all changes made at the end.`,
+//   allowedTools: ["readFile", "listDirectory", "grep", "writeFile", "editFile"],
+//   maxTurns: 10,
+//   timeoutSeconds: 300,
+// };
 
 export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
   const {
@@ -97,6 +141,7 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     allowedTools,
     maxTurns,
     timeoutSeconds,
+    signal,
   } = input;
 
   let currentMode: ModeType = startingMode;
@@ -104,6 +149,14 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
 
   // Wrap the task with sub-agent guardrails — keeps the LLM focused on
   // the specific delegation goal and signals it should be concise.
+  const finalOutputInstructions = [
+    `- When finished, give your final response in this shape:`,
+    `  1. One-sentence outcome — what you found or did, and whether it succeeded`,
+    `  2. Key findings or changes as short bullet points — specific file paths, values, or facts the parent agent can act on directly, not a narration of your process`,
+    `  3. Anything the parent should know before proceeding — blockers, uncertainty, files touched`,
+    `- Skip sections that don't apply (e.g. no "changes" section for a pure research task) — don't pad with empty headers`,
+  ];
+
   const subagentPrompt = goalPrompt
     ? [
         goalPrompt,
@@ -114,8 +167,7 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
         `IMPORTANT:`,
         `- Focus only on completing the specified task`,
         `- Do not engage in unrelated actions`,
-        `- Once you have completed the task or have the answer, provide your final response`,
-        `- Be concise and direct in your output`,
+        ...finalOutputInstructions,
       ].join("\n")
     : [
         `You are a specialized sub-agent (${name}) with a specific task to complete.`,
@@ -127,8 +179,7 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
         `IMPORTANT:`,
         `- Focus only on completing the specified task`,
         `- Do not engage in unrelated actions`,
-        `- Once you have completed the task or have the answer, provide your final response`,
-        `- Be concise and direct in your output`,
+        ...finalOutputInstructions,
       ].join("\n");
 
   const messages: AgentMessage[] = [{ role: "user", content: subagentPrompt }];
@@ -139,13 +190,21 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
   for (let step = 0; step < maxSteps; step++) {
     // Check timeout
     if (deadline && Date.now() > deadline) {
-      return "(Sub-agent timed out)";
+      const partial = collectPartialProgress(messages);
+      return partial
+        ? `(Sub-agent timed out before finishing — here's its progress so far:)\n\n${partial}`
+        : "(Sub-agent timed out before producing any output.)";
+    }
+
+    if (signal?.aborted) {
+      throw new Error("Sub-agent cancelled");
     }
 
     const response = await fetchWithRestart(AGENT_STEP_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages, mode: currentMode, model }),
+      signal,
     });
 
     if (!response.ok) {
@@ -321,19 +380,12 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     });
   }
 
-  // Exceeded max steps — return whatever text we have from the last assistant message.
-  const lastAssistant = [...messages]
-    .reverse()
-    .find((m) => m.role === "assistant");
-  if (lastAssistant && lastAssistant.role === "assistant") {
-    const content = lastAssistant.content;
-    if (typeof content === "string") return content;
-    if (Array.isArray(content)) {
-      const textParts = content.filter(
-        (p): p is { type: "text"; text: string } => p.type === "text",
-      );
-      return textParts.map((p) => p.text).join("\n");
-    }
-  }
-  return "(Sub-agent reached maximum steps without producing a final answer.)";
+  // Exceeded max steps without ever naturally concluding — collect everything
+  // it produced across all turns rather than just whatever text (often a
+  // fragment like "let me check X next") happened to be attached to the very
+  // last turn, which by definition also still had tool calls pending.
+  const partial = collectPartialProgress(messages);
+  return partial
+    ? `(Sub-agent hit its step limit (${maxSteps}) before finishing — here's its progress so far:)\n\n${partial}`
+    : "(Sub-agent reached maximum steps without producing any output.)";
 }

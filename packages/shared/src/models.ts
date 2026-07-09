@@ -275,3 +275,5 @@ export type OllamaModelsResponse = {
 };
 
 export const DEFAULT_CHAT_MODEL_ID: SupportedChatModelId = "claude-sonnet-5";
+
+export const FALLBACK_MODEL_ID: SupportedChatModelId = "nvidia/nemotron-3-ultra-550b-a55b:free";

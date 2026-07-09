@@ -15,6 +15,7 @@ import {
 } from "../../utils/configs/global-config";
 import { getModelDisplayName } from "../../lib/custom-models";
 import { trackModelChanged } from "../../lib/analytics";
+import { FALLBACK_MODEL_ID } from "../../../../shared/src/models";
 
 type PromptConfigContextValue = {
   mode: ModeType;
@@ -60,7 +61,7 @@ function resolveInitialModel(): string {
   if (hasAnthropicKey) return firstModelForProvider("anthropic");
   if (hasOpenAIKey) return firstModelForProvider("openai");
   if (hasGoogleKey) return firstModelForProvider("google");
-  if (hasOpenRouterKey) return "openrouter/owl-alpha";
+  if (hasOpenRouterKey) return FALLBACK_MODEL_ID;
 
   return DEFAULT_CHAT_MODEL_ID;
 }

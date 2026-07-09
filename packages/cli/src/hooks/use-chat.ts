@@ -21,11 +21,24 @@ import { hasApiKeyForModel } from "../lib/usage";
 import { estimateSessionCost } from "../lib/cost";
 import { executeLocalTool } from "../tools";
 import { loadSkillsManifest } from "../lib/skills";
-import { getIdeContextForRequest, getIdeSelectionForRequest } from "./use-ide-context";
+import {
+  getIdeContextForRequest,
+  getIdeSelectionForRequest,
+} from "./use-ide-context";
 import { readGlobalConfig } from "../utils/configs/global-config";
 import { isTerminalFocused } from "../lib/terminal-focus";
 import { notifyVsCode } from "../lib/vscode-notify";
 import { runSpawnAgent } from "../tools/spawn-agent";
+import {
+  createBackgroundTask,
+  completeBackgroundTask,
+  failBackgroundTask,
+  onTaskSettled,
+} from "../lib/background/background-tasks";
+import {
+  registerBackgroundWork,
+  cancelAllBackgroundWork,
+} from "../lib/background/session-background-work";
 import { getPermissionInfo } from "../utils/permissions";
 import {
   allowForProject,
@@ -46,6 +59,7 @@ import {
   trackModeSwitched,
   trackFeatureUsed,
 } from "../lib/analytics";
+import { FALLBACK_MODEL_ID } from "../../../shared/src/models";
 
 export type PendingUserQuestion = {
   question: string;
@@ -75,16 +89,61 @@ type ChatTools = {
 
 export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
-export type QueuedMessage = { userText: string; mode: ModeType; model: string };
+export type QueuedMessage = {
+  id: string;
+  userText: string;
+  mode: ModeType;
+  model: string;
+  origin?: ChatMessageMetadata["origin"];
+  backgroundTaskView?: ChatMessageMetadata["backgroundTaskView"];
+};
 
 // Module-level store invisible to React's strict-mode ref tracking.
 // Used by the transport (created inside useMemo) to read the current mode
 // after a mid-turn switchMode without accessing a useRef during render.
 const _activeModes = new Map<string, ModeType>();
 
-export function useChat(sessionId: string, initialMessages: Message[], initialSystemEvents: SystemEvent[] = []) {
-  const { mode, setMode, autoModeSwitch, setAutoModeSwitch, model: currentModel } =
-    usePromptConfig();
+// Pending scheduleWakeup timers keyed by session id — cleared on cancellation
+// (a real user message arrives) or when the session unmounts. Process-lifetime
+// only, same accepted limitation as the background task registry. `unsubscribe`
+// is set when the wakeup is also linked to a background task (waitingOnTaskId)
+// — whichever of the timer or the task settling fires first consumes both, so
+// the other one never double-fires later.
+type PendingWakeup = {
+  timeoutId: ReturnType<typeof setTimeout>;
+  unsubscribe?: () => void;
+};
+const _pendingWakeups = new Map<string, PendingWakeup>();
+
+function clearPendingWakeup(sessionId: string) {
+  const existing = _pendingWakeups.get(sessionId);
+  if (existing) {
+    clearTimeout(existing.timeoutId);
+    existing.unsubscribe?.();
+    _pendingWakeups.delete(sessionId);
+  }
+}
+
+// Default "tell the parent when it's done" listener for every background
+// spawnAgent task, keyed by taskId — registered the moment the task starts, so
+// scheduleWakeup stays optional rather than mandatory pairing. If a
+// scheduleWakeup later links to the same task via waitingOnTaskId, it cancels
+// this default listener first (see the scheduleWakeup branch) so the task only
+// ever delivers once, not twice.
+const _defaultTaskListeners = new Map<string, () => void>();
+
+export function useChat(
+  sessionId: string,
+  initialMessages: Message[],
+  initialSystemEvents: SystemEvent[] = [],
+) {
+  const {
+    mode,
+    setMode,
+    autoModeSwitch,
+    setAutoModeSwitch,
+    model: currentModel,
+  } = usePromptConfig();
   const toast = useToast();
 
   // Opportunistic, throttled cleanup of orphaned snapshot blobs — the server
@@ -108,8 +167,9 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
   const [pendingModeSwitch, setPendingModeSwitch] =
     useState<PendingModeSwitch | null>(null);
 
-  const [systemEvents, setSystemEvents] = useState<SystemEvent[]>(initialSystemEvents);
-  
+  const [systemEvents, setSystemEvents] =
+    useState<SystemEvent[]>(initialSystemEvents);
+
   const [isSubagentRunning, setIsSubagentRunning] = useState(false);
 
   // MCP servers approved for the lifetime of this session (server name → approved).
@@ -151,7 +211,11 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
   const setAutoModeSwitchRef = useRef(setAutoModeSwitch);
 
   useEffect(() => {
-    return () => { _activeModes.delete(sessionId); };
+    return () => {
+      _activeModes.delete(sessionId);
+      clearPendingWakeup(sessionId);
+      cancelAllBackgroundWork(sessionId);
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -161,7 +225,7 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
   useEffect(() => {
     setModeRef.current = setMode;
   }, [setMode]);
-  
+
   useEffect(() => {
     setAutoModeSwitchRef.current = setAutoModeSwitch;
   }, [setAutoModeSwitch]);
@@ -213,6 +277,51 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `mode` excluded: recreating transport mid-stream drops the connection; _activeModes map is the primary source
   }, [sessionId]);
 
+  // Shared by scheduleWakeup and the background-spawnAgent default push below.
+  // These fire from callbacks registered much earlier (a timer, a settle
+  // listener) that may run long after the turn that scheduled them ended — if
+  // chat.status is already "ready" by firing time and stays "ready" (no active
+  // turn to transition away from), pushing onto messageQueue alone leaves it
+  // stuck forever: the auto-drain effect below only re-runs on chat.status
+  // *transitions* (its deps are `[chat.status]`), and a queue push doesn't
+  // change chat.status. So: check the live status (via chatStatusRef, defined
+  // below `chat` — a plain closure read of chat.status here would itself be
+  // stale) and send immediately if idle; only queue if a turn is genuinely in
+  // progress, since that case *does* end in a real transition the drain effect
+  // will catch. chat.sendMessage itself is safe to call from an old closure —
+  // unlike chat.status, it's a stable method, not a snapshotted value.
+  const queueMessage = (
+    userText: string,
+    origin?: ChatMessageMetadata["origin"],
+    backgroundTaskView?: ChatMessageMetadata["backgroundTaskView"],
+  ) => {
+    const activeMode = _activeModes.get(sessionId) ?? mode;
+    const busy =
+      chatStatusRef.current === "submitted" ||
+      chatStatusRef.current === "streaming";
+
+    if (busy) {
+      setMessageQueue((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          userText,
+          mode: activeMode,
+          model: currentModel,
+          origin,
+          backgroundTaskView,
+        },
+      ]);
+      return;
+    }
+
+    setWasInterrupted(false);
+    void chat.sendMessage({
+      text: userText,
+      metadata: { mode: activeMode, model: currentModel, origin, backgroundTaskView },
+    });
+  };
+
   const chat = useAiChat<Message>({
     id: sessionId,
     messages: initialMessages,
@@ -221,14 +330,84 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
       void (async () => {
         // spawnAgent: run a headless sub-agent and return its final text output.
         if (toolCall.toolName === "spawnAgent") {
-          const { name, description, task, startingMode } =
-            toolInputSchemas.spawnAgent.parse(toolCall.input);
+          const {
+            name,
+            description,
+            task,
+            startingMode,
+            runInBackground,
+            maxTurns,
+            timeoutSeconds,
+          } = toolInputSchemas.spawnAgent.parse(toolCall.input);
 
           // Determine the current model from the most recent message metadata.
           const metadata = chat.messages.findLast(
             (m) => m.metadata?.model,
           )?.metadata;
-          const model = metadata?.model ?? "openrouter/owl-alpha";
+          const model = metadata?.model ?? FALLBACK_MODEL_ID;
+
+          // runInBackground: don't block this turn — register the task and return
+          // immediately. scheduleWakeup/checkAgentTask are optional, nice-to-have
+          // ways to check back sooner or with a specific follow-up prompt — this
+          // default listener is what guarantees the result reaches the parent
+          // even if the model never calls either.
+          if (runInBackground) {
+            const taskId = createBackgroundTask(name, description);
+            trackFeatureUsed({ feature: "subagent-background" });
+
+            const controller = new AbortController();
+            const deregister = registerBackgroundWork(sessionId, () =>
+              controller.abort(),
+            );
+
+            const unsubscribeDefault = onTaskSettled(taskId, (task) => {
+              _defaultTaskListeners.delete(taskId);
+
+              const outcome =
+                task.status === "completed"
+                  ? `Sub-agent "${name}" (task ${taskId}) finished.\n\nResult:\n${task.result}`
+                  : `Sub-agent "${name}" (task ${taskId}) errored: ${task.error}`;
+
+              queueMessage(outcome, "background-task", {
+                label: `Sub-agent "${name}"`,
+                taskId,
+                status: task.status === "completed" ? "completed" : "error",
+                output: (task.status === "completed" ? task.result : task.error) ?? "",
+              });
+            });
+
+            _defaultTaskListeners.set(taskId, unsubscribeDefault);
+
+            void runSpawnAgent({
+              name,
+              description,
+              task,
+              startingMode: startingMode ?? "PLAN",
+              model: String(model),
+              signal: controller.signal,
+              maxTurns,
+              timeoutSeconds,
+            })
+              .then((result) => completeBackgroundTask(taskId, result))
+              .catch((error) =>
+                failBackgroundTask(
+                  taskId,
+                  error instanceof Error ? error.message : String(error),
+                ),
+              )
+              .finally(deregister);
+
+            chat.addToolOutput({
+              tool: "spawnAgent" as keyof ChatTools,
+              toolCallId: toolCall.toolCallId,
+              output: {
+                taskId,
+                status: "running",
+                message: `Sub-agent "${name}" started in background (task ${taskId}). Its result will be delivered here automatically once it finishes — no need to poll. Optionally use checkAgentTask to check sooner, or scheduleWakeup with waitingOnTaskId to also resume with a specific follow-up prompt the moment it's done.`,
+              },
+            });
+            return;
+          }
 
           setIsSubagentRunning(true);
           trackFeatureUsed({ feature: "subagent" });
@@ -239,6 +418,8 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
               task,
               startingMode: startingMode ?? "PLAN",
               model: String(model),
+              maxTurns,
+              timeoutSeconds,
             });
             chat.addToolOutput({
               tool: "spawnAgent" as keyof ChatTools,
@@ -255,6 +436,67 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
           } finally {
             setIsSubagentRunning(false);
           }
+          return;
+        }
+
+        // scheduleWakeup: defer this session's next continuation instead of
+        // blocking or polling. Fires by auto-submitting `prompt` (optionally
+        // enriched with a linked task's result) once either the delay elapses
+        // or the linked task settles, whichever comes first.
+        if (toolCall.toolName === "scheduleWakeup") {
+          const { delaySeconds, reason, prompt, waitingOnTaskId } =
+            toolInputSchemas.scheduleWakeup.parse(toolCall.input);
+
+          clearPendingWakeup(sessionId);
+          trackFeatureUsed({ feature: "schedule-wakeup" });
+
+          const fire = (userText: string) => {
+            _pendingWakeups.delete(sessionId);
+            queueMessage(userText, "background-task");
+          };
+
+          const scheduledFor = Date.now() + delaySeconds * 1000;
+
+          const timeoutId = setTimeout(() => {
+            // Timer won first — tear down the task listener too, so a later
+            // settle doesn't also fire a second, orphaned resume.
+            _pendingWakeups.get(sessionId)?.unsubscribe?.();
+            fire(prompt);
+          }, delaySeconds * 1000);
+
+          // Cancel the default "tell the parent when it's done" listener for
+          // this task — this scheduleWakeup's own listener below supersedes it,
+          // so the task only ever delivers once, not twice.
+          if (waitingOnTaskId) {
+            // calling the unsubscribe from a previous registered task to prevent the task from being called twice
+            _defaultTaskListeners.get(waitingOnTaskId)?.();
+            _defaultTaskListeners.delete(waitingOnTaskId);
+          }
+
+          const unsubscribe = waitingOnTaskId
+            ? onTaskSettled(waitingOnTaskId, (task) => {
+                // Task won first — the timer is now redundant.
+                clearTimeout(timeoutId);
+                const outcome =
+                  task.status === "completed"
+                    ? `Task ${task.id} completed. Result:\n${task.result}`
+                    : `Task ${task.id} errored: ${task.error}`;
+                fire(`${prompt}\n\n---\n${outcome}`);
+              })
+            : undefined;
+
+          _pendingWakeups.set(sessionId, { timeoutId, unsubscribe });
+
+          chat.addToolOutput({
+            tool: "scheduleWakeup" as keyof ChatTools,
+            toolCallId: toolCall.toolCallId,
+            output: {
+              scheduledFor: new Date(scheduledFor).toISOString(),
+              delaySeconds,
+              reason,
+              waitingOnTaskId,
+            },
+          });
           return;
         }
 
@@ -395,32 +637,36 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
         // Asks once per server per session; "Allow for session" skips future prompts.
         if (toolCall.toolName.includes("__")) {
           const serverName = toolCall.toolName.split("__")[0]!;
-          
+
           if (!approvedMcpServersRef.current.has(serverName)) {
-            const responsePromise = new Promise<ApprovalResponse>((outerResolve) => {
-              interactionMutexRef.current = interactionMutexRef.current
-                .then(
-                  () =>
-                    new Promise<void>((releaseMutex) => {
-                      resolveApprovalRef.current = (r) => {
-                        outerResolve(r);
-                        releaseMutex();
-                      };
-                      setPendingApproval({
-                        key: `mcp:${serverName}`,
-                        label: `MCP: ${serverName}`,
-                        description: toolCall.toolName.split("__")[1] ?? toolCall.toolName,
-                        tier: "normal",
-                        sessionOnly: true,
-                      });
-                      ringBellIfUnfocused();
-                    }),
-                )
-                .then(() => {
-                  setPendingApproval(null);
-                  resolveApprovalRef.current = null;
-                });
-            });
+            const responsePromise = new Promise<ApprovalResponse>(
+              (outerResolve) => {
+                interactionMutexRef.current = interactionMutexRef.current
+                  .then(
+                    () =>
+                      new Promise<void>((releaseMutex) => {
+                        resolveApprovalRef.current = (r) => {
+                          outerResolve(r);
+                          releaseMutex();
+                        };
+                        setPendingApproval({
+                          key: `mcp:${serverName}`,
+                          label: `MCP: ${serverName}`,
+                          description:
+                            toolCall.toolName.split("__")[1] ??
+                            toolCall.toolName,
+                          tier: "normal",
+                          sessionOnly: true,
+                        });
+                        ringBellIfUnfocused();
+                      }),
+                  )
+                  .then(() => {
+                    setPendingApproval(null);
+                    resolveApprovalRef.current = null;
+                  });
+              },
+            );
 
             const response = await responsePromise;
 
@@ -428,7 +674,10 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
               chat.addToolOutput({
                 tool: toolCall.toolName as keyof ChatTools,
                 toolCallId: toolCall.toolCallId,
-                output: { denied: true, reason: "User rejected this MCP action" },
+                output: {
+                  denied: true,
+                  reason: "User rejected this MCP action",
+                },
               });
               return;
             }
@@ -449,8 +698,14 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
         );
 
         // checks if tool requires approval and is not permitted for this project or session
-        const isSessionApproved = permInfo.requiresApproval && sessionApprovedKeysRef.current.has(permInfo.key);
-        if (permInfo.requiresApproval && !isSessionApproved && !isPermittedForProject(permInfo.key)) {
+        const isSessionApproved =
+          permInfo.requiresApproval &&
+          sessionApprovedKeysRef.current.has(permInfo.key);
+        if (
+          permInfo.requiresApproval &&
+          !isSessionApproved &&
+          !isPermittedForProject(permInfo.key)
+        ) {
           const approval: PendingApproval = {
             key: permInfo.key,
             label: permInfo.label,
@@ -524,8 +779,9 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
         }
 
         const toolInput = toolCall.input;
-        const currentModel = String(
-          chat.messages.findLast((m) => m.metadata?.model)?.metadata?.model ?? "",
+        const lastModelUsed = String(
+          chat.messages.findLast((m) => m.metadata?.model)?.metadata?.model ??
+            "",
         );
 
         try {
@@ -533,17 +789,61 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
             toolCall.toolName,
             toolInput,
             _activeModes.get(sessionId)!,
-            currentModel,
+            lastModelUsed,
             sessionId,
           );
-          trackToolExecuted({ tool: toolCall.toolName, mode: _activeModes.get(sessionId)!, success: true });
+          trackToolExecuted({
+            tool: toolCall.toolName,
+            mode: _activeModes.get(sessionId)!,
+            success: true,
+          });
+
+          // Backgrounded shell commands (shell.ts registers the task and
+          // settles it internally, on proc.exited) still need a default
+          // listener wired up here — same "delivers automatically, no polling
+          // required" guarantee spawnAgent's runInBackground already has,
+          // via the same shared registry (background-tasks.ts).
+          if (
+            toolCall.toolName === "shell" &&
+            output &&
+            typeof output === "object" &&
+            "pid" in output &&
+            !("exitCode" in output)
+          ) {
+            const taskId = String((output as { pid: number }).pid);
+            trackFeatureUsed({ feature: "shell-background" });
+
+            const shellInput = toolInput as
+              | { command?: string; description?: string }
+              | undefined;
+            const label = shellInput?.description || shellInput?.command || "Shell";
+
+            const unsubscribeDefault = onTaskSettled(taskId, (task) => {
+              _defaultTaskListeners.delete(taskId);
+              const outcome =
+                task.status === "completed" ? task.result! : task.error!;
+              queueMessage(outcome, "background-task", {
+                label,
+                taskId,
+                status: task.status === "completed" ? "completed" : "error",
+                output: outcome,
+              });
+            });
+
+            _defaultTaskListeners.set(taskId, unsubscribeDefault);
+          }
+
           chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
             toolCallId: toolCall.toolCallId,
             output,
           });
         } catch (error) {
-          trackToolExecuted({ tool: toolCall.toolName, mode: _activeModes.get(sessionId)!, success: false });
+          trackToolExecuted({
+            tool: toolCall.toolName,
+            mode: _activeModes.get(sessionId)!,
+            success: false,
+          });
           chat.addToolOutput({
             tool: toolCall.toolName as keyof ChatTools,
             toolCallId: toolCall.toolCallId,
@@ -556,21 +856,38 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
   });
 
+  // Live mirror of chat.status for queueMessage (declared above, referencing
+  // this ref) — a plain closure-captured chat.status would reflect whatever it
+  // was back when the firing callback (a timer, a settle listener) was created,
+  // which may be many renders stale; this ref is always read fresh, at the
+  // actual moment of firing.
+  const chatStatusRef = useRef(chat.status);
+  useEffect(() => {
+    chatStatusRef.current = chat.status;
+  }, [chat.status]);
+
   // Auto-drain: when the agent finishes, send the next queued message.
   useEffect(() => {
     if (chat.status !== "ready") return;
     const queue = messageQueueRef.current;
+
     if (queue.length === 0) return;
     const [next, ...rest] = queue;
+
     setMessageQueue(rest);
     if (next) {
       setWasInterrupted(false);
       void chat.sendMessage({
         text: next.userText,
-        metadata: { mode: next.mode, model: next.model },
+        metadata: {
+          mode: next.mode,
+          model: next.model,
+          origin: next.origin,
+          backgroundTaskView: next.backgroundTaskView,
+        },
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.status]);
 
   // Ring the bell when the agent goes idle with nothing queued to auto-send —
@@ -586,21 +903,28 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
     if (chat.status !== "ready") return;
     if (prevStatus !== "streaming" && prevStatus !== "submitted") return;
     if (messageQueueRef.current.length > 0) return;
-    
+
     ringBellIfUnfocused();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.status]);
 
   const contextUsage = useMemo((): ContextUsage | null => {
-    const hasAssistantMessages = chat.messages.some((m) => m.role === "assistant");
+    const hasAssistantMessages = chat.messages.some(
+      (m) => m.role === "assistant",
+    );
     if (!hasAssistantMessages) return null;
 
-    const lastWithUsage = [...chat.messages].reverse().find(
-      (m) => m.role === "assistant" && m.metadata?.usage,
-    );
+    const lastWithUsage = [...chat.messages]
+      .reverse()
+      .find((m) => m.role === "assistant" && m.metadata?.usage);
     if (!lastWithUsage?.metadata?.usage) {
       // Messages exist but the model doesn't report token usage
-      return { tokensUsed: 0, contextWindow: 0, percent: 0, hasUsageData: false };
+      return {
+        tokensUsed: 0,
+        contextWindow: 0,
+        percent: 0,
+        hasUsageData: false,
+      };
     }
 
     const tokensUsed = lastWithUsage.metadata.usage.inputTokens ?? 0;
@@ -610,7 +934,8 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
     // models outside the curated list) is only reusable when that message's model is still selected.
     const contextWindow =
       lastWithUsage.metadata.model === currentModel
-        ? lastWithUsage.metadata.contextWindow ?? getContextWindow(currentModel)
+        ? (lastWithUsage.metadata.contextWindow ??
+          getContextWindow(currentModel))
         : getContextWindow(currentModel);
 
     return {
@@ -641,8 +966,8 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
   const abort = useCallback(() => {
     setMessageQueue([]);
     return chat.stop();
-  // chat.stop is stable (provided by useAiChat), so this callback never changes reference.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // chat.stop is stable (provided by useAiChat), so this callback never changes reference.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
@@ -663,32 +988,39 @@ export function useChat(sessionId: string, initialMessages: Message[], initialSy
     addSystemEvent: (text: string) => {
       setSystemEvents((prev) => [
         ...prev,
-        { id: crypto.randomUUID(), text, afterMessageCount: chat.messages.length },
+        {
+          id: crypto.randomUUID(),
+          text,
+          afterMessageCount: chat.messages.length,
+        },
       ]);
     },
     messageQueue,
     queueLength: messageQueue.length,
-    removeFromQueue: (index: number) => {
-      setMessageQueue((prev) => prev.filter((_, i) => i !== index));
+    removeFromQueue: (id: string) => {
+      setMessageQueue((prev) => prev.filter((m) => m.id !== id));
     },
-    submit: (params: {
-      userText: string;
-      mode: ModeType;
-      model: string;
-    }) => {
+    submit: (params: { userText: string; mode: ModeType; model: string }) => {
+      clearPendingWakeup(sessionId);
+
       if (!hasApiKeyForModel(params.model)) {
         toast.show({
           variant: "error",
-          message: "No API key configured for this model. Run `koincode --openrouter-key <key>` or use /setup.",
+          message:
+            "No API key configured for this model. Run `koincode --openrouter-key <key>` or use /setup.",
         });
         return;
       }
+
       const queued = chat.status === "submitted" || chat.status === "streaming";
+
       trackMessageSent({ model: params.model, mode: params.mode, queued });
+      
       if (queued) {
-        setMessageQueue((prev) => [...prev, params]);
+        setMessageQueue((prev) => [...prev, { id: crypto.randomUUID(), ...params }]);
         return;
       }
+      
       setWasInterrupted(false);
       return chat.sendMessage({
         text: params.userText,

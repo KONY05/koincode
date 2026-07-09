@@ -151,9 +151,74 @@ function renderToolContent({
       name?: string;
       description?: string;
     };
+    const backgroundOutput =
+      !pending && output != null
+        ? (output as { taskId?: string; status?: string }).taskId
+          ? (output as { taskId: string; status: string })
+          : null
+        : null;
     return (
       <text attributes={TextAttributes.DIM}>
         <em fg={colors.info}>Subagent:</em> {name ?? ""} — {description ?? ""}
+        {backgroundOutput
+          ? ` — running in background (task ${backgroundOutput.taskId})`
+          : ""}
+        {pending ? " …" : ""}
+        {errorText ? ` ${errorText}` : ""}
+      </text>
+    );
+  }
+
+  if (toolName === "scheduleWakeup") {
+    const { reason } = (input ?? {}) as { reason?: string };
+    const wakeupOutput =
+      !pending && output != null
+        ? (output as {
+            scheduledFor?: string;
+            delaySeconds?: number;
+            waitingOnTaskId?: string;
+          })
+        : null;
+    const wakeTime = wakeupOutput?.scheduledFor
+      ? new Date(wakeupOutput.scheduledFor).toLocaleTimeString()
+      : null;
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>Wakeup scheduled:</em> {reason ?? ""}
+        {wakeTime
+          ? ` — next check-in at ${wakeTime} (in ${wakeupOutput?.delaySeconds}s)`
+          : pending
+            ? " …"
+            : ""}
+        {wakeupOutput?.waitingOnTaskId
+          ? `, or sooner if task ${wakeupOutput.waitingOnTaskId} finishes first`
+          : ""}
+        {errorText ? ` ${errorText}` : ""}
+      </text>
+    );
+  }
+
+  if (toolName === "checkAgentTask") {
+    const { taskId } = (input ?? {}) as { taskId?: string };
+    const checkOutput =
+      !pending && output != null
+        ? (output as { status?: string; error?: string; result?: string })
+        : null;
+    const statusText = checkOutput
+      ? checkOutput.error && !checkOutput.status
+        ? checkOutput.error
+        : checkOutput.status === "running"
+          ? "still running"
+          : checkOutput.status === "error"
+            ? `error — ${checkOutput.error ?? "unknown"}`
+            : checkOutput.status === "completed"
+              ? "completed"
+              : ""
+      : "";
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>Checked task</em> {taskId ?? ""}
+        {statusText ? `: ${statusText}` : ""}
         {pending ? " …" : ""}
         {errorText ? ` ${errorText}` : ""}
       </text>

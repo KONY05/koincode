@@ -11,6 +11,7 @@ import {
   BotMessage,
   ErrorMessage,
   SystemMessage,
+  BackgroundTaskMessage,
 } from "../components/messages";
 import { useToast } from "../providers/toast";
 import { useChat } from "../hooks/use-chat";
@@ -50,6 +51,31 @@ function ChatMessage({
       .filter((p) => p.type === "text")
       .map((p) => p.text)
       .join("");
+
+    // Background task deliveries are sent as real user turns (required for the
+    // model to react to them), but should read as a structured result the
+    // agent is being handed rather than something the human typed or more
+    // assistant prose. Rendered as a labeled result card when there's a clean
+    // single task to show (backgroundTaskView); scheduleWakeup's fired
+    // `prompt` doesn't set that (it may mix free-form text with an appended
+    // task result), so it falls back to the plain assistant-styled text.
+    if (msg.metadata?.origin === "background-task") {
+      if (msg.metadata.backgroundTaskView) {
+        return (
+          <BackgroundTaskMessage
+            view={msg.metadata.backgroundTaskView}
+            model={msg.metadata?.model ?? "unknown"}
+          />
+        );
+      }
+
+      return (
+        <BotMessage
+          parts={[{ type: "text", text }]}
+          model={msg.metadata?.model ?? "unknown"}
+        />
+      );
+    }
 
     return <UserMessage message={text} mode={msg.metadata?.mode ?? "BUILD"} />;
   }
@@ -145,6 +171,16 @@ function SessionChat({
     interrupt,
     error,
   } = useChat(session.id, initialMessages);
+
+  // Background-task deliveries (spawnAgent runInBackground, backgrounded
+  // shell) share the same underlying queue as real queued user messages —
+  // they still need to auto-drain in original arrival order — but shouldn't
+  // show up in the visible queue panel/count/keyboard-nav, since they're not
+  // something the user is waiting to send; they should just arrive on their
+  // own once ready.
+  const visibleMessageQueue = messageQueue.filter(
+    (m) => m.origin !== "background-task",
+  );
 
   // Stop the pending reply when the user leaves this session.
   useEffect(() => {
@@ -380,7 +416,7 @@ function SessionChat({
       interruptible={
         status === "submitted" || status === "streaming" || isSubagentRunning
       }
-      queue={messageQueue}
+      queue={visibleMessageQueue}
       onRemoveFromQueue={removeFromQueue}
       pendingApproval={pendingApproval}
       onApprovalResponse={resolveApproval}
@@ -390,6 +426,7 @@ function SessionChat({
       onModeSwitchResponse={resolveModeSwitch}
       pendingRevertConfirm={pendingRevertConfirm}
       onRevertConfirmResponse={handleRevertConfirmResponse}
+      messages={messages}
     >
       {transcript.map((item) => {
         if (item.type === "system") {

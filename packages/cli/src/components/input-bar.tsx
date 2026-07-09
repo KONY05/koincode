@@ -11,6 +11,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   type RefObject,
 } from "react";
 import { checkRecorderAvailable, startRecording } from "../lib/voice-recorder";
@@ -34,7 +35,8 @@ import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
 import { useSessionActions } from "../providers/session-actions";
 import { Mode } from "@koincode/shared";
-import type { QueuedMessage } from "../hooks/use-chat";
+import type { Message, QueuedMessage } from "../hooks/use-chat";
+import { cancelAllRegisteredWork } from "../lib/background/session-background-work";
 
 const MAX_VISIBLE_MENTIONS = 8;
 const CURRENT_DIRECTORY = process.cwd();
@@ -42,9 +44,24 @@ const MAX_FALLBACK_MENTION_CANDIDATES = 32;
 const MENTION_QUERY_CHARACTER = /[A-Za-z0-9._/-]/;
 const RECURSIVE_MENTION_IGNORED_DIRECTORIES = new Set(["node_modules"]);
 
-// Persist across unmount/remount so state survives widget overlays
-const persistentHistory: string[] = [];
+// Persist across unmount/remount so an in-progress draft survives widget overlays
 let persistentDraft = "";
+
+/** Recall history is derived from messages actually sent in this session (most recent first) rather than a separate in-memory log, so it survives restarts and reflects what really went out. */
+function getSentHistory(messages: Message[]): string[] {
+  const texts: string[] = [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]!;
+    if (msg.role !== "user") continue;
+    if (msg.metadata?.origin === "background-task") continue;
+    const text = msg.parts
+      .filter((p) => p.type === "text")
+      .map((p) => p.text)
+      .join("");
+    if (text) texts.push(text);
+  }
+  return texts;
+}
 
 type MentionMatch = {
   start: number;
@@ -333,6 +350,7 @@ export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
   { name: "return", action: "submit" },
   { name: "enter", action: "submit" },
 ];
+
 type Props = {
   onSubmit: (text: string) => void;
   onForceNext?: () => void;
@@ -340,9 +358,10 @@ type Props = {
   disabled?: boolean;
   streaming?: boolean;
   queue?: QueuedMessage[];
-  onRemoveFromQueue?: (index: number) => void;
+  onRemoveFromQueue?: (id: string) => void;
   queueFocusedIndex?: number | null;
   onQueueFocusedIndexChange?: (index: number | null) => void;
+  messages?: Message[];
 };
 
 export function InputBar({
@@ -354,7 +373,8 @@ export function InputBar({
   queue = [],
   onRemoveFromQueue,
   queueFocusedIndex = null,
-  onQueueFocusedIndexChange }: Props) {
+  onQueueFocusedIndexChange,
+  messages = [] }: Props) {
   const { mode, model, modelDisplayName, toggleMode, setMode, setModel, voiceInput, toggleVoice, toggleInfoSidebar } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
@@ -362,6 +382,8 @@ export function InputBar({
   const activeMentionRef = useRef<MentionMatch | null>(null);
   const mentionScrollRef = useRef<ScrollBoxRenderable>(null);
   const historyIndexRef = useRef(-1);
+  /** Captures the live draft the moment history navigation starts, so pressing down back past the most recent history entry restores it instead of clearing the input. */
+  const draftBeforeHistoryRef = useRef("");
   const undoStackRef = useRef<string[]>([]);
   const prevTextRef = useRef("");
   /** This is a guard flag that prevents the undo stack from recording programmatic text changes. Without it, operations like setting history text, restoring a draft, or clearing after submit would each push an entry onto the undo stack — so ctrl+z would undo your history navigation or undo a submit clear.  */
@@ -380,6 +402,8 @@ export function InputBar({
   const dialog = useDialog();
   const { colors } = useTheme();
   const { isTopLayer, push, pop, setResponder } = useKeyboardLayer();
+
+  const sentHistory = useMemo(() => getSentHistory(messages), [messages]);
 
   const setQueueFocusedIndex = useCallback((index: number | null) => {
     onQueueFocusedIndexChange?.(index);
@@ -491,10 +515,8 @@ export function InputBar({
 
     clearPastes();
 
-    const filtered = persistentHistory.filter((h) => h !== text);
-    persistentHistory.length = 0;
-    persistentHistory.push(text, ...filtered);
     historyIndexRef.current = -1;
+    draftBeforeHistoryRef.current = "";
     undoStackRef.current = [];
     prevTextRef.current = "";
 
@@ -539,6 +561,11 @@ export function InputBar({
       if (command.action) {
         command.action({
           exit: () => {
+            // process.exit() below never unmounts the Session screen, so the
+            // usual per-session cleanup effect (kills backgrounded shell
+            // processes, aborts in-flight background sub-agents) never runs
+            // on its own — do it explicitly here first.
+            cancelAllRegisteredWork();
             renderer.destroy();
             process.exit(0);
           },
@@ -726,7 +753,8 @@ export function InputBar({
       } else if (key.name === "backspace" || key.name === "delete") {
         key.preventDefault();
         const idx = queueFocusedIndex;
-        onRemoveFromQueue?.(idx);
+        const id = queue[idx]?.id;
+        if (id) onRemoveFromQueue?.(id);
         const newLen = queue.length - 1;
         if (newLen === 0) {
           exitQueueFocus();
@@ -771,18 +799,21 @@ export function InputBar({
         .includes("\n");
       if (!cursorOnFirstLine) return;
 
-      if (persistentHistory.length === 0) return;
+      if (sentHistory.length === 0) return;
 
       key.preventDefault();
+      if (historyIndexRef.current === -1) {
+        draftBeforeHistoryRef.current = text;
+      }
       const nextIndex = Math.min(
         historyIndexRef.current + 1,
-        persistentHistory.length - 1,
+        sentHistory.length - 1,
       );
       historyIndexRef.current = nextIndex;
       skipUndoRef.current = true;
-      textarea.setText(persistentHistory[nextIndex]!);
+      textarea.setText(sentHistory[nextIndex]!);
       skipUndoRef.current = false;
-      textarea.cursorOffset = persistentHistory[nextIndex]!.length;
+      textarea.cursorOffset = sentHistory[nextIndex]!.length;
     } else if (key.name === "down") {
       if (historyIndexRef.current === -1) return;
 
@@ -798,10 +829,12 @@ export function InputBar({
 
       skipUndoRef.current = true;
       if (nextIndex < 0) {
-        textarea.setText("");
+        const draft = draftBeforeHistoryRef.current;
+        textarea.setText(draft);
+        textarea.cursorOffset = draft.length;
       } else {
-        textarea.setText(persistentHistory[nextIndex]!);
-        textarea.cursorOffset = persistentHistory[nextIndex]!.length;
+        textarea.setText(sentHistory[nextIndex]!);
+        textarea.cursorOffset = sentHistory[nextIndex]!.length;
       }
       skipUndoRef.current = false;
     } else if ((key.ctrl || key["super"]) && key.name === "z") {
@@ -846,6 +879,7 @@ export function InputBar({
         skipUndoRef.current = false;
         prevTextRef.current = "";
         historyIndexRef.current = -1;
+        draftBeforeHistoryRef.current = "";
         undoStackRef.current = [];
         return true;
       }
