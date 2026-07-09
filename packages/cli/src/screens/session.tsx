@@ -426,6 +426,7 @@ function SessionChat({
       onModeSwitchResponse={resolveModeSwitch}
       pendingRevertConfirm={pendingRevertConfirm}
       onRevertConfirmResponse={handleRevertConfirmResponse}
+      messages={messages}
     >
       {transcript.map((item) => {
         if (item.type === "system") {
