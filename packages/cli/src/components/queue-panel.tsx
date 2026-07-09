@@ -23,7 +23,7 @@ export function QueuePanel({ queue, focusedIndex }: Props) {
 
         return (
           <box
-            key={index}
+            key={item.id}
             width="100%"
             backgroundColor={isFocused ? colors.selection : colors.surface}
             paddingX={2}

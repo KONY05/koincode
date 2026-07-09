@@ -37,7 +37,7 @@ type Props = {
   loadingAction?: string;
   interruptible?: boolean;
   queue?: QueuedMessage[];
-  onRemoveFromQueue?: (index: number) => void;
+  onRemoveFromQueue?: (id: string) => void;
   pendingApproval?: PendingApproval | null;
   onApprovalResponse?: (response: ApprovalResponse) => void;
   pendingUserQuestion?: PendingUserQuestion | null;

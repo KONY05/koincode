@@ -90,6 +90,7 @@ type ChatTools = {
 export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 
 export type QueuedMessage = {
+  id: string;
   userText: string;
   mode: ModeType;
   model: string;
@@ -302,7 +303,14 @@ export function useChat(
     if (busy) {
       setMessageQueue((prev) => [
         ...prev,
-        { userText, mode: activeMode, model: currentModel, origin, backgroundTaskView },
+        {
+          id: crypto.randomUUID(),
+          userText,
+          mode: activeMode,
+          model: currentModel,
+          origin,
+          backgroundTaskView,
+        },
       ]);
       return;
     }
@@ -989,11 +997,12 @@ export function useChat(
     },
     messageQueue,
     queueLength: messageQueue.length,
-    removeFromQueue: (index: number) => {
-      setMessageQueue((prev) => prev.filter((_, i) => i !== index));
+    removeFromQueue: (id: string) => {
+      setMessageQueue((prev) => prev.filter((m) => m.id !== id));
     },
     submit: (params: { userText: string; mode: ModeType; model: string }) => {
       clearPendingWakeup(sessionId);
+
       if (!hasApiKeyForModel(params.model)) {
         toast.show({
           variant: "error",
@@ -1002,12 +1011,16 @@ export function useChat(
         });
         return;
       }
+
       const queued = chat.status === "submitted" || chat.status === "streaming";
+
       trackMessageSent({ model: params.model, mode: params.mode, queued });
+      
       if (queued) {
-        setMessageQueue((prev) => [...prev, params]);
+        setMessageQueue((prev) => [...prev, { id: crypto.randomUUID(), ...params }]);
         return;
       }
+      
       setWasInterrupted(false);
       return chat.sendMessage({
         text: params.userText,

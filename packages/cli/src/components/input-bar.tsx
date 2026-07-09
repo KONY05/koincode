@@ -341,7 +341,7 @@ type Props = {
   disabled?: boolean;
   streaming?: boolean;
   queue?: QueuedMessage[];
-  onRemoveFromQueue?: (index: number) => void;
+  onRemoveFromQueue?: (id: string) => void;
   queueFocusedIndex?: number | null;
   onQueueFocusedIndexChange?: (index: number | null) => void;
 };
@@ -732,7 +732,8 @@ export function InputBar({
       } else if (key.name === "backspace" || key.name === "delete") {
         key.preventDefault();
         const idx = queueFocusedIndex;
-        onRemoveFromQueue?.(idx);
+        const id = queue[idx]?.id;
+        if (id) onRemoveFromQueue?.(id);
         const newLen = queue.length - 1;
         if (newLen === 0) {
           exitQueueFocus();

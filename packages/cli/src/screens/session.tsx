@@ -172,6 +172,16 @@ function SessionChat({
     error,
   } = useChat(session.id, initialMessages);
 
+  // Background-task deliveries (spawnAgent runInBackground, backgrounded
+  // shell) share the same underlying queue as real queued user messages —
+  // they still need to auto-drain in original arrival order — but shouldn't
+  // show up in the visible queue panel/count/keyboard-nav, since they're not
+  // something the user is waiting to send; they should just arrive on their
+  // own once ready.
+  const visibleMessageQueue = messageQueue.filter(
+    (m) => m.origin !== "background-task",
+  );
+
   // Stop the pending reply when the user leaves this session.
   useEffect(() => {
     return () => {
@@ -406,7 +416,7 @@ function SessionChat({
       interruptible={
         status === "submitted" || status === "streaming" || isSubagentRunning
       }
-      queue={messageQueue}
+      queue={visibleMessageQueue}
       onRemoveFromQueue={removeFromQueue}
       pendingApproval={pendingApproval}
       onApprovalResponse={resolveApproval}
