@@ -26,8 +26,12 @@ import {
   runBrowserType,
   runBrowserGetConsoleLogs,
   runBrowserClose,
-  runServerStart,
 } from "./browser";
+import {
+  runServerStart,
+  runCheckServerLogs,
+  runServerStop,
+} from "./server"
 import { runHooks } from "../utils/hooks";
 
 const PLAN_TOOLS = new Set(Object.keys(readOnlyToolContracts));
@@ -105,7 +109,13 @@ export async function executeLocalTool(
         toolOutput = runCheckAgentTask(input);
         break;
       case "serverStart":
-        toolOutput = await runServerStart(input);
+        toolOutput = await runServerStart(input, sessionId);
+        break;
+      case "checkServerLogs":
+        toolOutput = runCheckServerLogs(input);
+        break;
+      case "serverStop":
+        toolOutput = runServerStop(input);
         break;
       case "browserNavigate":
         toolOutput = await runBrowserNavigate(input, sessionId);

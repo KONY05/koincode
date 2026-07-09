@@ -235,6 +235,12 @@ export const toolInputSchemas = {
     port: z.number().int().describe("Port to poll until the server accepts TCP connections"),
     timeout: z.number().int().default(30).describe("Seconds to wait before giving up"),
   }),
+  checkServerLogs: z.object({
+    pid: z.number().int().describe("The PID returned by serverStart"),
+  }),
+  serverStop: z.object({
+    pid: z.number().int().describe("The PID returned by serverStart"),
+  }),
   manageHook: z.object({
     action: z
       .enum(["add", "update", "remove", "list"])
@@ -381,8 +387,18 @@ export const readOnlyToolContracts = {
 export const browserToolContracts = {
   serverStart: tool({
     description:
-      "Start a server process in the background and wait until the given port accepts TCP connections. Use this before navigating to a locally running app. Works for any TCP server, not just web apps.",
+      "Start a server process in the background and wait until the given port accepts TCP connections. Use this before navigating to a locally running app. Works for any TCP server, not just web apps. Its stdout/stderr are captured continuously (not just at startup) — if it times out, the failure message includes recent output so you can see why it didn't start; once running, use checkServerLogs with the returned PID to inspect logs at any point (e.g. after triggering a request in the browser, check here for a server-side error). Call serverStop with the same PID when you're done testing.",
     inputSchema: toolInputSchemas.serverStart,
+  }),
+  checkServerLogs: tool({
+    description:
+      "Return the stdout/stderr captured so far for a server started with serverStart, identified by its PID. Use this to check for startup or runtime errors while the server is running.",
+    inputSchema: toolInputSchemas.checkServerLogs,
+  }),
+  serverStop: tool({
+    description:
+      "Stop a server previously started with serverStart, identified by its PID. Call this when you're done testing and no longer need it running.",
+    inputSchema: toolInputSchemas.serverStop,
   }),
   browserNavigate: tool({
     description: "Navigate the browser to a URL and wait for the page to load.",
