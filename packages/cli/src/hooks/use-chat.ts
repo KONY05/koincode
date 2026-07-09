@@ -94,6 +94,7 @@ export type QueuedMessage = {
   mode: ModeType;
   model: string;
   origin?: ChatMessageMetadata["origin"];
+  backgroundTaskView?: ChatMessageMetadata["backgroundTaskView"];
 };
 
 // Module-level store invisible to React's strict-mode ref tracking.
@@ -291,6 +292,7 @@ export function useChat(
   const queueMessage = (
     userText: string,
     origin?: ChatMessageMetadata["origin"],
+    backgroundTaskView?: ChatMessageMetadata["backgroundTaskView"],
   ) => {
     const activeMode = _activeModes.get(sessionId) ?? mode;
     const busy =
@@ -300,7 +302,7 @@ export function useChat(
     if (busy) {
       setMessageQueue((prev) => [
         ...prev,
-        { userText, mode: activeMode, model: currentModel, origin },
+        { userText, mode: activeMode, model: currentModel, origin, backgroundTaskView },
       ]);
       return;
     }
@@ -308,7 +310,7 @@ export function useChat(
     setWasInterrupted(false);
     void chat.sendMessage({
       text: userText,
-      metadata: { mode: activeMode, model: currentModel, origin },
+      metadata: { mode: activeMode, model: currentModel, origin, backgroundTaskView },
     });
   };
 
@@ -358,7 +360,12 @@ export function useChat(
                   ? `Sub-agent "${name}" (task ${taskId}) finished.\n\nResult:\n${task.result}`
                   : `Sub-agent "${name}" (task ${taskId}) errored: ${task.error}`;
 
-              queueMessage(outcome, "background-task");
+              queueMessage(outcome, "background-task", {
+                label: `Sub-agent "${name}"`,
+                taskId,
+                status: task.status === "completed" ? "completed" : "error",
+                output: (task.status === "completed" ? task.result : task.error) ?? "",
+              });
             });
 
             _defaultTaskListeners.set(taskId, unsubscribeDefault);
@@ -798,11 +805,21 @@ export function useChat(
             const taskId = String((output as { pid: number }).pid);
             trackFeatureUsed({ feature: "shell-background" });
 
+            const shellInput = toolInput as
+              | { command?: string; description?: string }
+              | undefined;
+            const label = shellInput?.description || shellInput?.command || "Shell";
+
             const unsubscribeDefault = onTaskSettled(taskId, (task) => {
               _defaultTaskListeners.delete(taskId);
               const outcome =
                 task.status === "completed" ? task.result! : task.error!;
-              queueMessage(outcome, "background-task");
+              queueMessage(outcome, "background-task", {
+                label,
+                taskId,
+                status: task.status === "completed" ? "completed" : "error",
+                output: outcome,
+              });
             });
 
             _defaultTaskListeners.set(taskId, unsubscribeDefault);
@@ -854,7 +871,12 @@ export function useChat(
       setWasInterrupted(false);
       void chat.sendMessage({
         text: next.userText,
-        metadata: { mode: next.mode, model: next.model, origin: next.origin },
+        metadata: {
+          mode: next.mode,
+          model: next.model,
+          origin: next.origin,
+          backgroundTaskView: next.backgroundTaskView,
+        },
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

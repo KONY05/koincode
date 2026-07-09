@@ -11,6 +11,7 @@ import {
   BotMessage,
   ErrorMessage,
   SystemMessage,
+  BackgroundTaskMessage,
 } from "../components/messages";
 import { useToast } from "../providers/toast";
 import { useChat } from "../hooks/use-chat";
@@ -52,9 +53,22 @@ function ChatMessage({
       .join("");
 
     // Background task deliveries are sent as real user turns (required for the
-    // model to react to them), but should read as the assistant surfacing its
-    // own findings rather than as something the human typed.
+    // model to react to them), but should read as a structured result the
+    // agent is being handed rather than something the human typed or more
+    // assistant prose. Rendered as a labeled result card when there's a clean
+    // single task to show (backgroundTaskView); scheduleWakeup's fired
+    // `prompt` doesn't set that (it may mix free-form text with an appended
+    // task result), so it falls back to the plain assistant-styled text.
     if (msg.metadata?.origin === "background-task") {
+      if (msg.metadata.backgroundTaskView) {
+        return (
+          <BackgroundTaskMessage
+            view={msg.metadata.backgroundTaskView}
+            model={msg.metadata?.model ?? "unknown"}
+          />
+        );
+      }
+
       return (
         <BotMessage
           parts={[{ type: "text", text }]}
