@@ -6,7 +6,7 @@ import type { ContextUsage } from "../hooks/use-chat";
 import { useMcpServers } from "../hooks/use-mcp-servers";
 import { useModifiedFiles } from "../hooks/use-modified-files";
 
-const SIDEBAR_WIDTH = 34;
+export const SIDEBAR_WIDTH = 34;
 
 function formatNumber(n: number): string {
   return n.toLocaleString("en-US");
