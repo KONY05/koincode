@@ -69,23 +69,23 @@ jobs:
 
       - run: bun install
 
-      - name: Build standalone binary
+      - name: Build standalone binaries (x64 + arm64)
         working-directory: packages/cli
         env:
           MIXPANEL_TOKEN: ${{ secrets.MIXPANEL_TOKEN }}
-        run: bun bin/compile.ts --single
+        run: bun bin/compile.ts --os=linux
 
-      - name: Upload binary
+      - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: koincode-linux-x64
+          name: koincode-linux
           path: packages/cli/dist/koincode-*
           exclude: packages/cli/dist/npm/**
 
-      - name: Upload npm package
+      - name: Upload npm packages
         uses: actions/upload-artifact@v4
         with:
-          name: npm-linux-x64
+          name: npm-linux
           path: packages/cli/dist/npm/@koincode/linux-*
 
   build-windows:
@@ -123,11 +123,16 @@ jobs:
   publish-platform-packages:
     needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Update npm for trusted publishing support
+        run: npm install -g npm@latest
 
       - name: Download all npm packages
         uses: actions/download-artifact@v4
@@ -137,8 +142,6 @@ jobs:
           merge-multiple: true
 
       - name: Publish platform packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           failures=0
           for pkg_dir in npm-packages/*/; do
@@ -196,6 +199,9 @@ jobs:
     # before downloadSelfUpdate() (GitHub Releases) has anything to download.
     needs: [publish-platform-packages, publish-github-release]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -204,8 +210,9 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Update npm for trusted publishing support
+        run: npm install -g npm@latest
+
       - name: Publish to npm
         run: npm publish --access public
         working-directory: packages/cli
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
