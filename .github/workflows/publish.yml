@@ -150,8 +150,13 @@ jobs:
           failures=0
           for pkg_dir in npm-packages/*/; do
             if [ -d "$pkg_dir" ]; then
-              name=$(basename "$pkg_dir")
-              echo "Publishing $name..."
+              name=$(node -p "require('./$pkg_dir/package.json').name")
+              version=$(node -p "require('./$pkg_dir/package.json').version")
+              if npm view "$name@$version" version >/dev/null 2>&1; then
+                echo "Skipping $name@$version — already published"
+                continue
+              fi
+              echo "Publishing $name@$version..."
               if ! npm publish "$pkg_dir" --access public; then
                 echo "::error::Failed to publish $name"
                 failures=$((failures + 1))
@@ -225,5 +230,12 @@ jobs:
         run: npm install -g npm@^11.5.1
 
       - name: Publish to npm
-        run: npm publish --access public
         working-directory: packages/cli
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "Skipping $name@$version — already published"
+          else
+            npm publish --access public
+          fi
