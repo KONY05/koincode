@@ -15,7 +15,7 @@ import {
   type ToolContracts,
   toolInputSchemas,
 } from "@koincode/shared";
-import { apiClient } from "../lib/api-client";
+import { apiClient, fetchWithRestart } from "../lib/api-client";
 import { sweepOrphanSnapshots } from "../lib/snapshots";
 import { hasApiKeyForModel } from "../lib/usage";
 import { estimateSessionCost } from "../lib/cost";
@@ -233,6 +233,11 @@ export function useChat(
   const transport = useMemo(() => {
     return new DefaultChatTransport<Message>({
       api: apiClient.chat.$url().toString(),
+      // Without this, a dead server (crashed, hot-reload hiccup) means every send just
+      // fails with the same connection error forever — nothing else retries this request.
+      // Cast needed: the AI SDK's FetchFunction type is `typeof globalThis.fetch`, which
+      // includes Bun's static `fetch.preconnect` — irrelevant here, just a shape mismatch.
+      fetch: fetchWithRestart as typeof fetch,
       prepareSendMessagesRequest({ messages }) {
         const message = messages[messages.length - 1];
         if (!message) throw new Error("No message to send");

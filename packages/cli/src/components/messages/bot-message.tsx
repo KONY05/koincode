@@ -104,6 +104,7 @@ function renderToolContent({
     return (
       <EditFileDiff
         input={input}
+        output={output}
         pending={pending}
         error={errorText}
         colors={colors}

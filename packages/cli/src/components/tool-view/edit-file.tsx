@@ -6,6 +6,10 @@ import {
 
 import type { ThemeColors } from "../../providers/theme/theme";
 
+// Fallback used only before the tool has actually run (no result to read a real
+// diff from yet): a naive whole-string preview, with no surrounding file context
+// and no real line-level alignment — every old line reads as removed and every
+// new line as added, even where most of the block didn't change.
 function buildUnifiedDiff(
   path: string,
   oldString: string,
@@ -21,6 +25,7 @@ function buildUnifiedDiff(
 
 export default function EditFileDiff({
   input,
+  output,
   pending,
   error,
   colors,
@@ -28,6 +33,7 @@ export default function EditFileDiff({
   treeSitterClient,
 }: {
   input: unknown;
+  output?: unknown;
   pending: boolean;
   error?: string;
   colors: ThemeColors;
@@ -43,10 +49,25 @@ export default function EditFileDiff({
   if (typeof path !== "string") return null;
 
   const filetype = path.split(".").pop();
+
+  // runEditFile already computes a real unified diff via createPatch on the full
+  // before/after file contents (proper line-level diffing, correct file line
+  // numbers, unchanged lines shown once as context) — prefer that over the naive
+  // whole-string preview whenever the tool has actually finished.
+  const realDiff =
+    !error &&
+    output &&
+    typeof output === "object" &&
+    typeof (output as { diff?: unknown }).diff === "string"
+      ? (output as { diff: string }).diff
+      : null;
+
   // Don't render the diff on failure — the edit was never applied, so a green
   // "added" block next to it would misleadingly read as a successful change.
   const hasDiff =
     !error && typeof oldString === "string" && typeof newString === "string";
+  const diffText =
+    realDiff ?? (hasDiff ? buildUnifiedDiff(path, oldString!, newString!) : null);
 
   return (
     <box width="100%">
@@ -63,14 +84,16 @@ export default function EditFileDiff({
         </box>
         {!!error && <text fg={colors.error}>✗</text>}
       </box>
-      {hasDiff && (
+      {diffText && (
         <diff
-          diff={buildUnifiedDiff(path, oldString, newString)}
+          diff={diffText}
           view="unified"
           filetype={filetype}
           syntaxStyle={syntaxStyle}
           treeSitterClient={treeSitterClient}
-          showLineNumbers={false}
+          // Only the real diff's line numbers reflect actual file lines — the naive
+          // pending-state fallback always starts counting at 1, which would mislead.
+          showLineNumbers={!!realDiff}
           addedSignColor={colors.success}
           removedSignColor={colors.error}
           width="100%"
