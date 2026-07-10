@@ -132,7 +132,11 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Update npm for trusted publishing support
-        run: npm install -g npm@latest
+        # Pinned to 11.x, not `latest` — npm 12.0.0's provenance path is
+        # missing its `sigstore` dependency (npm/cli#9722), which breaks
+        # every `npm publish` here. 11.5.1+ is the minimum for trusted
+        # publishing; ^11.5.1 stays on 11.x until that bug is fixed upstream.
+        run: npm install -g npm@^11.5.1
 
       - name: Download all npm packages
         uses: actions/download-artifact@v4
@@ -216,7 +220,9 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Update npm for trusted publishing support
-        run: npm install -g npm@latest
+        # See the matching comment in publish-platform-packages — pinned to
+        # 11.x to avoid npm 12.0.0's broken provenance/sigstore path.
+        run: npm install -g npm@^11.5.1
 
       - name: Publish to npm
         run: npm publish --access public
