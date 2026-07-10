@@ -128,7 +128,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Update npm for trusted publishing support
@@ -160,7 +160,12 @@ jobs:
           fi
 
   publish-github-release:
-    needs: [build-macos, build-linux, build-windows]
+    # Needs publish-platform-packages too (not just the builds) so a failed npm
+    # publish blocks the release from going out — otherwise we can end up with
+    # a public GitHub Release whose npm packages never shipped (see 2026-07-10
+    # incident: platform-packages failed on an npm engine check, but this job
+    # had no dependency on it and published the release anyway).
+    needs: [build-macos, build-linux, build-windows, publish-platform-packages]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -207,7 +212,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Update npm for trusted publishing support
