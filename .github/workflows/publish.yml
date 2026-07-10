@@ -158,7 +158,8 @@ jobs:
               fi
               echo "Publishing $name@$version..."
               if ! npm publish "$pkg_dir" --access public; then
-                echo "::error::Failed to publish $name"
+                echo "::error::Failed to publish $name@$version"
+
                 failures=$((failures + 1))
               fi
             fi
