@@ -18,13 +18,13 @@
     },
     "packages/cli": {
       "name": "koincode",
-      "version": "1.15.1",
+      "version": "1.18.7",
       "bin": {
         "koincode": "bin/npm-wrapper.cjs",
       },
       "dependencies": {
         "@libsql/client": "^0.14.0",
-        "@opentui/core": "^0.1.97",
+        "@opentui/core": "0.1.97",
         "@opentui/react": "^0.1.97",
         "@sentry/bun": "^10.57.0",
         "mammoth": "^1.12.0",
@@ -54,11 +54,11 @@
         "zod": "^4.3.6",
       },
       "optionalDependencies": {
-        "@koincode/darwin-arm64": "1.15.1",
-        "@koincode/darwin-x64": "1.15.1",
-        "@koincode/linux-arm64": "1.15.1",
-        "@koincode/linux-x64": "1.15.1",
-        "@koincode/windows-x64": "1.15.1",
+        "@koincode/darwin-arm64": "1.18.7",
+        "@koincode/darwin-x64": "1.18.7",
+        "@koincode/linux-arm64": "1.18.7",
+        "@koincode/linux-x64": "1.18.7",
+        "@koincode/windows-x64": "1.18.7",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -106,7 +106,7 @@
     },
     "packages/vscode-extension": {
       "name": "koincode-vscode",
-      "version": "0.6.0",
+      "version": "0.8.0",
       "devDependencies": {
         "@types/node": "^20.0.0",
         "@types/vscode": "^1.80.0",
@@ -267,11 +267,19 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
+    "@koincode/darwin-arm64": ["@koincode/darwin-arm64@1.18.7", "", { "os": "darwin", "cpu": "arm64" }, "sha512-BCH+ate6LaoPW5/9QBmQh2/Cn6XnYn0A4d9UTTxP7T+Cy3jlIWykgpVGVl2BtaGa7R9RgYRoH+Xj95rFhOUK6g=="],
+
+    "@koincode/darwin-x64": ["@koincode/darwin-x64@1.18.7", "", { "os": "darwin", "cpu": "x64" }, "sha512-J8Z4+cDRXuFRafb4C6wlwRPI4l3rCKVfkAvXjl1QRLHVGoxpD/hsu4cKk/8/kGl1Za94dphCIXs+dOM1S0DXsw=="],
+
     "@koincode/database": ["@koincode/database@workspace:packages/database"],
+
+    "@koincode/linux-x64": ["@koincode/linux-x64@1.18.7", "", { "os": "linux", "cpu": "x64" }, "sha512-5G0QPBJsdirGQXBe9rJqVL14mV9RY+z0/GybV2e7ygWKLYEeu7rTIBddrZgals6WOMY7Kh4WnOp943Oi/v9KDQ=="],
 
     "@koincode/server": ["@koincode/server@workspace:packages/server"],
 
     "@koincode/shared": ["@koincode/shared@workspace:packages/shared"],
+
+    "@koincode/windows-x64": ["@koincode/windows-x64@1.18.7", "", { "os": "win32", "cpu": "x64" }, "sha512-lnJCBOmqgL9LDZQwb6UU3E/mWvinfFT6S+RQxZZcTTor5irjh8ec7pL4FK0+JnajiO6BsoOboaJnbsM1SPKOXw=="],
 
     "@kurkle/color": ["@kurkle/color@0.3.4", "", {}, "sha512-M5UknZPHRu3DEDWoipU6sE8PdkZ6Z/S+v4dD+Ke8IaNlpdSQah50lz1KtcFBa2vsdOnwbbnxJwVM4wty6udA5w=="],
 
