@@ -152,23 +152,37 @@ export async function ensureServerRunning(): Promise<void> {
   }
 }
 
-export async function restartServer(): Promise<void> {
-  const port = getServerPort();
-  // Kill the existing process if we have a PID on record
-  try {
-    const pid = Number(fs.readFileSync(PID_FILE, "utf8").trim());
-    if (pid) process.kill(pid);
-  } catch {
-    // No PID or already dead — continue to spawn
-  }
+// fetchWithRestart is now wired into every apiClient call plus the chat transport, so several
+// requests can hit a dead server at nearly the same moment — without this guard, each would
+// independently kill-and-respawn, racing to spawn multiple server processes on the same port.
+// Concurrent callers instead share the one in-flight restart.
+let restartInFlight: Promise<void> | null = null;
 
-  killPortIfInUse(port);
-  spawnServer(port);
+export function restartServer(): Promise<void> {
+  if (restartInFlight) return restartInFlight;
 
-  const ready = await waitForServer(port, 30_000);
-  if (!ready) {
-    throw new Error(
-      `Koincode server failed to restart on port ${port} within 30 seconds.`,
-    );
-  }
+  restartInFlight = (async () => {
+    const port = getServerPort();
+    // Kill the existing process if we have a PID on record
+    try {
+      const pid = Number(fs.readFileSync(PID_FILE, "utf8").trim());
+      if (pid) process.kill(pid);
+    } catch {
+      // No PID or already dead — continue to spawn
+    }
+
+    killPortIfInUse(port);
+    spawnServer(port);
+
+    const ready = await waitForServer(port, 30_000);
+    if (!ready) {
+      throw new Error(
+        `Koincode server failed to restart on port ${port} within 30 seconds.`,
+      );
+    }
+  })().finally(() => {
+    restartInFlight = null;
+  });
+
+  return restartInFlight;
 }
