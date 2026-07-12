@@ -25,7 +25,7 @@ async function launchBrowser(): Promise<Browser> {
     pw = await import("playwright");
   } catch {
     throw new Error(
-      "Playwright is not installed. Install it with: bun add playwright",
+      "Browser tools require the playwright package, which isn't available in this build.",
     );
   }
 
