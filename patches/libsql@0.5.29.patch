@@ -1,0 +1,19 @@
+diff --git a/index.js b/index.js
+index e24987954ec427320f51fd8037f9754b60ffa363..ade9e2deab8374448f125737551fe2932eb9cf55 100644
+--- a/index.js
++++ b/index.js
+@@ -7,6 +7,14 @@ function requireNative() {
+   if (process.env.LIBSQL_JS_DEV) {
+     return load(__dirname)
+   }
++  // koincode: standalone `bun build --compile` binaries can't trace the
++  // dynamic `require(`@libsql/${target}`)` below, so the native binding is
++  // silently missing from the compiled executable. bin/compile.ts defines
++  // this as a literal string per build target so Bun's bundler can trace
++  // and embed the matching native module directly at this call site.
++  if (process.env.__KOINCODE_LIBSQL_NATIVE_PKG__) {
++    return require(process.env.__KOINCODE_LIBSQL_NATIVE_PKG__);
++  }
+   let target = currentTarget();
+   // Workaround for Bun, which reports a musl target, but really wants glibc...
+   if (familySync() == GLIBC) {

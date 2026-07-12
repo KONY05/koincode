@@ -35,5 +35,9 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.6.0",
     "typescript-eslint": "^8.60.0"
+  },
+  "patchedDependencies": {
+    "libsql@0.4.7": "patches/libsql@0.4.7.patch",
+    "libsql@0.5.29": "patches/libsql@0.5.29.patch"
   }
 }
