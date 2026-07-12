@@ -4,6 +4,7 @@ import {
   ContextDialogContent,
   HelpDialogContent,
   ModelsDialogContent,
+  ReviewStatusDialogContent,
   SessionsDialogContent,
   SetupDialogContent,
   ThemeDialogContent,
@@ -11,9 +12,25 @@ import {
 import type { Command } from "./types";
 import { loadSkillsManifest } from "../../lib/skills";
 import { restartServer } from "../../lib/server-manager";
-import { readGlobalConfig, updateGlobalConfig } from "../../utils/configs/global-config";
-import { checkForUpdate, runUpdate, currentVersion } from "../../lib/update-cli";
+import {
+  readGlobalConfig,
+  updateGlobalConfig,
+} from "../../utils/configs/global-config";
+import {
+  checkForUpdate,
+  runUpdate,
+  currentVersion,
+} from "../../lib/update-cli";
 import { resolveUsageTarget, openUrl } from "../../lib/usage";
+import { readReviewAuth, writeReviewAuth } from "../../lib/review/review-auth";
+import { resolveCurrentRepo } from "../../lib/review/review-repo";
+import {
+  connectRepo as connectReviewRepo,
+  disconnectRepo as disconnectReviewRepo,
+  getReviewApiUrl,
+  pollDeviceToken,
+  startDeviceAuth,
+} from "../../lib/review/review-api";
 
 export const COMMANDS: Command[] = [
   {
@@ -209,7 +226,7 @@ export const COMMANDS: Command[] = [
       const current = readGlobalConfig().notificationEnabled ?? true;
 
       updateGlobalConfig({ notificationEnabled: !current });
-      
+
       ctx.toast.show({
         message: `Terminal bell notifications ${!current ? "enabled" : "disabled"}`,
         variant: "info",
@@ -226,7 +243,10 @@ export const COMMANDS: Command[] = [
         await restartServer();
         ctx.toast.show({ message: "Server restarted", variant: "success" });
       } catch {
-        ctx.toast.show({ message: "Failed to restart server", variant: "error" });
+        ctx.toast.show({
+          message: "Failed to restart server",
+          variant: "error",
+        });
       }
     },
   },
@@ -237,20 +257,209 @@ export const COMMANDS: Command[] = [
     action: (ctx) => {
       const result = resolveUsageTarget(ctx.model);
       if (result.type === "ollama") {
-        ctx.toast.show({ message: "Local model — no usage page to open", variant: "info" });
+        ctx.toast.show({
+          message: "Local model — no usage page to open",
+          variant: "info",
+        });
         return;
       }
       if (result.type === "custom") {
-        ctx.toast.show({ message: "No usage dashboard registered for custom providers", variant: "info" });
+        ctx.toast.show({
+          message: "No usage dashboard registered for custom providers",
+          variant: "info",
+        });
         return;
       }
       if (result.type === "no-keys") {
-        ctx.toast.show({ message: "No API keys configured. Run /setup to add keys.", variant: "error" });
+        ctx.toast.show({
+          message: "No API keys configured. Run /setup to add keys.",
+          variant: "error",
+        });
         return;
       }
       const suffix = result.via === "openrouter" ? " (via OpenRouter)" : "";
-      ctx.toast.show({ message: `Opening usage dashboard${suffix}...`, variant: "info" });
+      ctx.toast.show({
+        message: `Opening usage dashboard${suffix}...`,
+        variant: "info",
+      });
       openUrl(result.url);
+    },
+  },
+  {
+    name: "review-login",
+    description: "Connect this CLI to your KOINCODE-Review account",
+    value: "/review-login",
+    action: async (ctx) => {
+      if (readReviewAuth()) {
+        ctx.toast.show({
+          message: "Already logged in to KOINCODE-Review",
+          variant: "info",
+        });
+        return;
+      }
+
+      try {
+        const { deviceCode, verificationUrl, expiresIn, interval } =
+          await startDeviceAuth();
+
+        openUrl(
+          `${verificationUrl}?device_code=${encodeURIComponent(deviceCode)}`,
+        );
+
+        ctx.toast.show({
+          message: "Waiting for approval in browser…",
+          variant: "info",
+        });
+
+        const deadline = Date.now() + expiresIn * 1000;
+        while (Date.now() < deadline) {
+          await new Promise<void>((r) => setTimeout(r, interval * 1000));
+          const result = await pollDeviceToken(deviceCode);
+
+          if (result.status === "approved") {
+            writeReviewAuth({ token: result.token, userId: result.userId });
+
+            ctx.toast.show({
+              message: "Logged in to KOINCODE-Review",
+              variant: "success",
+            });
+            return;
+          }
+
+          if (result.status === "denied") {
+            ctx.toast.show({
+              message: "Login request denied",
+              variant: "error",
+            });
+            return;
+          }
+
+          if (result.status === "expired") {
+            ctx.toast.show({
+              message: "Login request expired — run /review-login again",
+              variant: "error",
+            });
+            return;
+          }
+        }
+
+        ctx.toast.show({
+          message: "Login timed out — run /review-login again",
+          variant: "error",
+        });
+      } catch (err) {
+        ctx.toast.show({
+          message: err instanceof Error ? err.message : "Login failed",
+          variant: "error",
+        });
+      }
+    },
+  },
+  {
+    name: "review-connect",
+    description:
+      "Connect the current repo to KOINCODE-Review for automatic PR reviews",
+    value: "/review-connect",
+    action: async (ctx) => {
+      if (!readReviewAuth()) {
+        ctx.toast.show({
+          message: "Not logged in. Run /review-login first.",
+          variant: "error",
+        });
+        return;
+      }
+
+      const resolved = resolveCurrentRepo();
+      if (!resolved.ok) {
+        ctx.toast.show({
+          message:
+            resolved.reason === "no-remote"
+              ? "No git remote found in this directory"
+              : "Only GitHub repositories are supported",
+          variant: "error",
+        });
+        return;
+      }
+
+      try {
+        const result = await connectReviewRepo(
+          resolved.repo.owner,
+          resolved.repo.repo,
+        );
+
+        ctx.toast.show({
+          message: `Connected ${result.repo.fullName} to KOINCODE-Review`,
+          variant: "success",
+        });
+      } catch (err) {
+        ctx.toast.show({
+          message:
+            err instanceof Error ? err.message : "Failed to connect repository",
+          variant: "error",
+        });
+      }
+    },
+  },
+  {
+    name: "review-disconnect",
+    description: "Disconnect the current repo from KOINCODE-Review",
+    value: "/review-disconnect",
+    action: async (ctx) => {
+      if (!readReviewAuth()) {
+        ctx.toast.show({
+          message: "Not logged in. Run /review-login first.",
+          variant: "error",
+        });
+        return;
+      }
+
+      const resolved = resolveCurrentRepo();
+      if (!resolved.ok) {
+        ctx.toast.show({
+          message:
+            resolved.reason === "no-remote"
+              ? "No git remote found in this directory"
+              : "Only GitHub repositories are supported",
+          variant: "error",
+        });
+        return;
+      }
+
+      try {
+        await disconnectReviewRepo(resolved.repo.owner, resolved.repo.repo);
+
+        ctx.toast.show({
+          message: `Disconnected ${resolved.repo.owner}/${resolved.repo.repo} from KOINCODE-Review`,
+          variant: "success",
+        });
+      } catch (err) {
+        ctx.toast.show({
+          message:
+            err instanceof Error
+              ? err.message
+              : "Failed to disconnect repository",
+          variant: "error",
+        });
+      }
+    },
+  },
+  {
+    name: "review-status",
+    description: "Show KOINCODE-Review connection status for the current repo",
+    value: "/review-status",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "Review Status",
+        children: <ReviewStatusDialogContent />,
+      });
+    },
+  },
+  {
+    name: "review-open",
+    description: "Open the KOINCODE-Review dashboard in your browser",
+    value: "/review-open",
+    action: () => {
+      openUrl(`${getReviewApiUrl()}/reviews`);
     },
   },
   {
@@ -276,7 +485,10 @@ export const COMMANDS: Command[] = [
         await new Promise<void>((r) => setTimeout(r, 800));
         runUpdate(ctx.destroyRenderer, newVersion);
       } catch {
-        ctx.toast.show({ message: "Could not check for updates", variant: "error" });
+        ctx.toast.show({
+          message: "Could not check for updates",
+          variant: "error",
+        });
       }
     },
   },

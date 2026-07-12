@@ -44,6 +44,7 @@ export {
   DB_PATH,
   PID_FILE,
   SNAPSHOTS_DIR,
+  REVIEW_AUTH_FILE,
 } from "./paths";
 
 export { parseMcpToolName, isMcpTool } from "./mcp";

@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import type { Browser } from "playwright";
 
 import { toolInputSchemas } from "@koincode/shared";
 
@@ -7,9 +7,18 @@ const MAX_FETCH_SIZE = 300_000;
 export async function runWebFetch(input: unknown) {
   const { url, timeout } = toolInputSchemas.webFetch.parse(input);
 
-  let browser;
+  let browser: Browser | undefined;
   try {
-    browser = await chromium.launch({ headless: true });
+    let pw: typeof import("playwright");
+    try {
+      pw = await import("playwright");
+    } catch {
+      throw new Error(
+        "Browser tools require the playwright package, which isn't available in this build.",
+      );
+    }
+
+    browser = await pw.chromium.launch({ headless: true });
     const context = await browser.newContext({
       viewport: { width: 1920, height: 1080 },
     });

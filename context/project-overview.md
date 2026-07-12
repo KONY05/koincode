@@ -12,6 +12,7 @@ KOINCODE is a local-first, open-source terminal AI coding agent. It runs entirel
 4. Provide PLAN mode (read-only analysis) and BUILD mode (full file editing and bash execution) for safe, staged AI-assisted development.
 5. Persist conversation history locally in SQLite sessions.
 6. Keep the tool open-source and self-hostable with no mandatory external services.
+7. Optionally bridge to KOINCODE-Review (a separate, hosted code-review product) via a `/review` command family, so a user who wants automated PR reviews doesn't have to leave the terminal to connect a repo — entirely opt-in, no impact on the core local-first flow if unused.
 
 ## Core User Flow
 
@@ -59,6 +60,12 @@ KOINCODE is a local-first, open-source terminal AI coding agent. It runs entirel
 - Handles AI model orchestration, system prompt construction, and tool call streaming.
 - Communicates with the CLI over localhost — no network exposure required.
 
+### Review Integration (optional)
+
+- `/review login`, `/review connect`, `/review disconnect`, `/review status`, `/review open` — pairs the CLI with a KOINCODE-Review account via a browser-based device-auth flow and connects/disconnects the current repo for automated PR reviews, without leaving the terminal.
+- Entirely opt-in: nothing in this section runs unless the user invokes a `/review` command, and it makes outbound calls only to the Review API, never to the local server or database.
+- See `context/feature-specs/42-koincode-review-integration.md`.
+
 ## Scope
 
 ### In Scope
@@ -73,8 +80,8 @@ KOINCODE is a local-first, open-source terminal AI coding agent. It runs entirel
 
 ### Out of Scope
 
-- Cloud-hosted server or database
-- User authentication (Clerk or any OAuth flow)
+- Cloud-hosted server or database for KOINCODE itself
+- User authentication for using KOINCODE (Clerk or any OAuth flow) — the local server stays unauthenticated and single-user. This does not cover the opt-in `/review` commands' pairing with the separate KOINCODE-Review product, which is client-side-only from KOINCODE's perspective (an HTTPS API call, same category as the existing update-checker's npm registry fetch) and adds no auth to the local server or database.
 - Credit-based billing (Polar or any metering system)
 - SaaS or multi-tenant deployment
 - Mobile or web clients

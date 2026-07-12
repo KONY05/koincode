@@ -88,6 +88,18 @@ const parserWorker = fs.existsSync(localWorker) ? fs.realpathSync(localWorker) :
 const npmDir = path.resolve(dir, "dist/npm");
 fs.mkdirSync(npmDir, { recursive: true });
 
+// libsql resolves its native binding via a runtime-computed require() that Bun's
+// compiler can't statically trace. node_modules/libsql is patched (see
+// patches/libsql@*.patch) to prefer this literal package name when set, so
+// Bun's bundler can trace and embed the right native module per target.
+const LIBSQL_NATIVE_PKG: Record<string, string> = {
+  "darwin-arm64": "@libsql/darwin-arm64",
+  "darwin-x64": "@libsql/darwin-x64",
+  "linux-x64": "@libsql/linux-x64-gnu",
+  "linux-arm64": "@libsql/linux-arm64-gnu",
+  "win32-x64": "@libsql/win32-x64-msvc",
+};
+
 for (const item of targets) {
   const os = item.os === "win32" ? "windows" : item.os;
   const exeSuffix = item.os === "win32" ? ".exe" : "";
@@ -96,6 +108,11 @@ for (const item of targets) {
   console.log(`Building ${name}...`);
 
   const target = `bun-${os}-${item.arch}` as Bun.Build.CompileTarget;
+  const libsqlPkg = LIBSQL_NATIVE_PKG[`${item.os}-${item.arch}`];
+  if (!libsqlPkg) {
+    console.error(`ERROR: no @libsql native package mapping for ${item.os}-${item.arch}`);
+    process.exit(1);
+  }
 
   const result = await Bun.build({
     entrypoints: ["./bin/koincode.ts", parserWorker],
@@ -110,6 +127,7 @@ for (const item of targets) {
     define: {
       "process.env.NODE_ENV": "'production'",
       "process.env.MIXPANEL_TOKEN": `'${MIXPANEL_TOKEN}'`,
+      "process.env.__KOINCODE_LIBSQL_NATIVE_PKG__": `'${libsqlPkg}'`,
       OTUI_TREE_SITTER_WORKER_PATH:
         (item.os === "win32" ? '"B:/~BUN/root/' : '"/$bunfs/root/') +
         path.relative(dir, parserWorker).replaceAll("\\", "/") +
