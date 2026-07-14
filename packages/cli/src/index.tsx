@@ -22,6 +22,7 @@ const KEY_FLAGS: Array<{ flag: string; apiKey: keyof ApiKeys }> = [
   { flag: "--anthropic-key", apiKey: "anthropic" },
   { flag: "--openai-key", apiKey: "openai" },
   { flag: "--gemini-key", apiKey: "gemini" },
+  { flag: "--xai-key", apiKey: "xai" },
 ];
 
 const args = process.argv.slice(2).map((a) => a.trim());

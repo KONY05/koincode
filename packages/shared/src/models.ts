@@ -7,6 +7,7 @@ export type SupportedProvider =
   | "anthropic"
   | "openai"
   | "google"
+  | "xai"
   | "openrouter"
   | "ollama"
   | "custom";
@@ -165,6 +166,15 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: true,
   },
 
+  // ── xAI (direct XAI_API_KEY or OpenRouter fallback) ────────────────────────
+  {
+    id: "grok-4.5",
+    provider: "xai",
+    pricing: { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 6 },
+    contextWindow: 500_000,
+    vision: true,
+  },
+
   // ── OpenRouter paid (always require OPENROUTER_API_KEY) ────────────────────
   {
     id: "deepseek/deepseek-v4-pro",
@@ -233,6 +243,13 @@ export const SUPPORTED_CHAT_MODELS = [
   // ── OpenRouter free (require OPENROUTER_API_KEY, $0 per token) ────────────
   {
     id: "poolside/laguna-xs-2.1:free",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
+    contextWindow: 262_144,
+    vision: false,
+  },
+  {
+    id: "tencent/hy3:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 262_144,

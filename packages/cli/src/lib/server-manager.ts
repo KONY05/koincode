@@ -105,6 +105,7 @@ function spawnServer(port: number) {
     ...(config.apiKeys?.gemini && {
       GOOGLE_GENERATIVE_AI_API_KEY: config.apiKeys.gemini,
     }),
+    ...(config.apiKeys?.xai && { XAI_API_KEY: config.apiKeys.xai }),
     ...(config.apiKeys?.openrouter && {
       OPENROUTER_API_KEY: config.apiKeys.openrouter,
     }),
