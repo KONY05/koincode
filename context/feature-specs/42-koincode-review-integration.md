@@ -56,8 +56,61 @@ This spans two separate repositories, not two packages in one monorepo — `ai-w
 
 ## Open questions / deferred
 
-- **Key/model sync** (pushing the CLI's active provider key + model into Review's `api_keys` table) — explicitly deferred out of phase 1, see Decision above.
+- **Key/model sync** (pushing the CLI's active provider key + model into Review's `api_keys` table) — designed below as Phase 2, not part of phase 1's implementation.
 - **Multiple Review accounts / logout** — `/review-login` phase 1 assumes one account per machine, no `/review-logout` command yet. Low cost to add later (delete `review-auth.json`), not needed for the initial flow.
 - **Dedicated per-repo page on the Review dashboard** — `/review-open` targets the plain `/repos` list for phase 1 since no such page exists yet (see Design above). Worth revisiting once/if the Review app grows one.
 
 All previously-open questions about command naming, the `/review-status` dialog vs. toast, the `/review-open` target, HTTP client choice, and `reviewApiUrl` resolution are now settled — see Design above.
+
+## Phase 2: Key/Model Sync
+
+### Decision
+
+New command, `/review-sync-keys` — kept separate from `/review-login` rather than an automatic side effect of it, same reasoning as the rest of this command family: explicit and individually invokable, not a surprise. It resolves the CLI's currently active model to a provider + API key, validates both against what KOINCODE-Review actually supports, and pushes the key into the user's Review account — **additively**. It never overwrites which key is currently active on the Review side; it only sets a key active if the user has none active yet (first-time setup). This mirrors `addApiKey`'s existing behavior in KOINCODE-Review's own Settings page (`isDefault: isFirstKey` — confirmed by reading `lib/actions/api-keys.ts`), so sync doesn't introduce new activation semantics, it reuses the ones the dashboard already has.
+
+**Scope is deliberately narrower than "sync whatever model you're using":** only two cases are supported —
+
+1. The active model's provider is a KOINCODE-Review-supported direct provider (`anthropic` | `openai` | `google`) **and** the CLI has a direct key configured for that provider.
+2. The active model's provider is natively `openrouter` (the user picked an OpenRouter-routed model directly, not as a same-model fallback) **and** the CLI has an OpenRouter key.
+
+Explicitly **not** supported, and rejected with a clear error rather than attempted: `ollama/*` and `custom/*` models (Review is a hosted service — it has no path to a local Ollama instance or arbitrary custom endpoint), and the case where a direct-provider model (e.g. a Claude model) is only reachable through the CLI's OpenRouter key because no direct Anthropic key is configured. That last case is deliberately cut, not an oversight — KOINCODE's own model ids for direct providers (e.g. `claude-opus-4-6`) aren't necessarily the same string OpenRouter expects for the equivalent model (e.g. something like `anthropic/claude-opus-4.6`), and getting that translation right is its own piece of work, not something to bolt on here. If the CLI can't cleanly resolve one of the two supported cases, sync fails with a specific reason instead of guessing.
+
+### Design
+
+**Resolution** (new `packages/cli/src/lib/review/review-key-sync.ts`):
+
+```ts
+type SyncableKey =
+  | { ok: true; provider: "anthropic" | "openai" | "google" | "openrouter"; apiKey: string; model: string }
+  | { ok: false; reason: "unsupported-model" | "no-key-for-provider" };
+
+function resolveSyncableKey(modelId: string): SyncableKey { ... }
+```
+
+- Looks up the model via `findSupportedChatModel(modelId)` (already used by `lib/usage.ts`'s `resolveUsageTarget`, same shared registry). If the model isn't found, or its `provider` isn't one of `anthropic | openai | google | openrouter` (i.e. it's `ollama` or `custom`), return `{ ok: false, reason: "unsupported-model" }` — this is the "discard if not supported" check.
+- Reads the matching key straight from `readGlobalConfig().apiKeys` — **note the one naming mismatch to get right**: the local config field for the Google/Gemini key is `apiKeys.gemini`, not `apiKeys.google` (confirmed in `lib/usage.ts`'s existing `hasGoogleKey` check), even though the model registry's `provider` field and KOINCODE-Review's own `LlmProvider` enum both use the string `"google"`. So the provider *sent* to Review is always `model.provider` (already exactly matching Review's enum — no translation table needed there); only the *local config lookup* needs the one-off `google → apiKeys.gemini` mapping. No direct key → `{ ok: false, reason: "no-key-for-provider" }` (this is intentionally stricter than `resolveUsageTarget`'s OpenRouter-fallback behavior, per the Decision above — sync does not fall back to an OpenRouter key for a direct-provider model).
+- `model` in the returned value is passed through as-is — no id translation, consistent with only supporting the two clean cases above.
+
+**Command** (`/review-sync-keys`, added to `commands.tsx`'s `COMMANDS` array like the other five):
+
+- Requires login (same "run /review-login first" toast pattern as `/review-connect`/`/review-disconnect`).
+- Calls `resolveSyncableKey(ctx.model)` — uses the CLI's currently active model (`ctx.model` from `CommandContext`, i.e. `usePromptConfig().model`, not a persisted default) since that's the model actually configured right now, and matches what the user would expect "my current model" to mean.
+- On `{ ok: false, reason: "unsupported-model" }` → toast: "Current model isn't supported by KOINCODE-Review (needs a direct Anthropic/OpenAI/Google key, or a native OpenRouter model)."
+- On `{ ok: false, reason: "no-key-for-provider" }` → toast: "No API key configured for this model's provider."
+- On success → `POST /api/cli/keys/sync` with `{ provider, model, apiKey }` via the Bearer-authed client in `lib/review/review-api.ts` (new `syncApiKey()` function, same shape as `connectRepo`/`disconnectRepo` — Zod-validated response, `ReviewApiError`/`ReviewAuthRequiredError` handling identical to the existing four calls). Success toast confirms the provider + model that was synced; **the API key itself is never included in the toast or any log line** — same discipline already required by `code-standards.md` ("Never log or expose API keys in responses, errors, or terminal output"), now extended to this new outbound call too.
+
+### Package boundaries
+
+Same shape as phase 1: CLI-only within this repo (`lib/review/review-key-sync.ts`, a new function in `lib/review/review-api.ts`, one new `COMMANDS` entry). No `@koincode/shared` or server changes — `findSupportedChatModel` and `readGlobalConfig` are both already-exported, already-used utilities, not new surface.
+
+### Suggested implementation order
+
+1. `resolveSyncableKey()` in isolation — verifiable via the four outcomes (unsupported model, no key, direct-provider success, native-OpenRouter success) without any network call yet.
+2. `syncApiKey()` in `review-api.ts` against the Review-side route (needs `KOINCODE-Review/context/feature-spec/15-cli-key-sync.md` implemented first, or stubbed).
+3. `/review-sync-keys` command wiring + toasts.
+4. Live verification: sync with no active key on the Review side (should activate), sync again after manually activating a different provider in the Review dashboard (should NOT flip activation back), sync with an unsupported model (should reject client-side before any network call).
+
+### Open questions / deferred
+
+- **OpenRouter-fallback case** (a direct-provider model served only via an OpenRouter key) — explicitly out of scope, see Decision. Would need a real id-translation layer between KOINCODE's and OpenRouter's model-id conventions before it could be added safely.
+- **No `/review-sync-keys` "undo"** — syncing adds/refreshes a key on the Review side; removing it again means going to the Review Settings page directly (existing `deleteApiKey` action). Not adding a CLI-side delete command for phase 2 — this feature is additive by design, and deletion is a more consequential action better left to the dashboard's existing UI.

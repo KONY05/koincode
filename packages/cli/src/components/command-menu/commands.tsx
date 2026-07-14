@@ -30,7 +30,9 @@ import {
   getReviewApiUrl,
   pollDeviceToken,
   startDeviceAuth,
+  syncApiKey,
 } from "../../lib/review/review-api";
+import { resolveSyncableKey } from "../../lib/review/review-key-sync";
 
 export const COMMANDS: Command[] = [
   {
@@ -460,6 +462,47 @@ export const COMMANDS: Command[] = [
     value: "/review-open",
     action: () => {
       openUrl(`${getReviewApiUrl()}/reviews`);
+    },
+  },
+  {
+    name: "review-sync-keys",
+    description:
+      "Push the CLI's active provider API key + model into KOINCODE-Review",
+    value: "/review-sync-keys",
+    action: async (ctx) => {
+      if (!readReviewAuth()) {
+        ctx.toast.show({
+          message: "Not logged in. Run /review-login first.",
+          variant: "error",
+        });
+        return;
+      }
+
+      const resolved = resolveSyncableKey(ctx.model);
+      if (!resolved.ok) {
+        ctx.toast.show({
+          message:
+            resolved.reason === "unsupported-model"
+              ? "Current model isn't supported by KOINCODE-Review (needs a direct Anthropic/OpenAI/Google key, or a native OpenRouter model)."
+              : "No API key configured for this model's provider.",
+          variant: "error",
+        });
+        return;
+      }
+
+      try {
+        await syncApiKey(resolved.provider, resolved.model, resolved.apiKey);
+
+        ctx.toast.show({
+          message: `Synced ${resolved.provider} (${resolved.model}) to KOINCODE-Review`,
+          variant: "success",
+        });
+      } catch (err) {
+        ctx.toast.show({
+          message: err instanceof Error ? err.message : "Failed to sync API key",
+          variant: "error",
+        });
+      }
     },
   },
   {
