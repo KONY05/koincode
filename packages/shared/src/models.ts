@@ -7,6 +7,7 @@ export type SupportedProvider =
   | "anthropic"
   | "openai"
   | "google"
+  | "xai"
   | "openrouter"
   | "ollama"
   | "custom";
@@ -162,6 +163,15 @@ export const SUPPORTED_CHAT_MODELS = [
     provider: "google",
     pricing: { inputUsdPerMillionTokens: 1.25, outputUsdPerMillionTokens: 10 },
     contextWindow: 1_048_576,
+    vision: true,
+  },
+
+  // ── xAI (direct XAI_API_KEY or OpenRouter fallback) ────────────────────────
+  {
+    id: "grok-4.5",
+    provider: "xai",
+    pricing: { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 6 },
+    contextWindow: 500_000,
     vision: true,
   },
 

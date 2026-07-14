@@ -192,6 +192,11 @@ Fix: `ringBellIfUnfocused` now skips its own focus check entirely when `TERM_PRO
   - Verified with a standalone script exercising the real `runWriteFile`/`runEditFile`/`collectMutations`/`planRevert`/`applyRevert` functions against real files on disk (not a reimplementation): 18 assertions covering restore, delete, multi-edit LIFO chains, external-modification conflict, and missing-snapshot-blob conflict, all passing, fully self-cleaning. `bun run typecheck` clean across all four packages. **Not verified live in-agent** — no real TTY session to drive an actual writeFile → esc-esc → confirm-dialog round trip.
   - Spec: `context/feature-specs/39-revert-mutations-on-turn-delete.md`.
 
+- **xAI provider support** — Added `xai` as a first-class `SupportedProvider`, alongside anthropic/openai/google, with `grok-4.5` ($2/$6 per million tokens, 500k context, vision) as the first model in `packages/shared/src/models.ts`.
+  - **Server** (`packages/server/src/lib/models.ts`): `resolveXaiModel` follows the same direct-key-or-OpenRouter-fallback pattern as `resolveGoogleModel`/`resolveOpenAIModel`, keyed on `XAI_API_KEY` / global config's `apiKeys.xai`. Added `@ai-sdk/xai@^3.0.99` to `packages/server/package.json` (pinned to the `3.x` line to match the other `@ai-sdk/*` packages, which track `ai@^6`, not the package's own `latest` `4.x` tag). OpenRouter's slug for xAI is `x-ai`, not `xai` — `resolveViaOpenRouter`'s provider-prefix logic special-cases this rather than assuming the OpenRouter slug always matches our internal provider name.
+  - **CLI**: `xai` key wired into `/setup` dialog's provider list, `--xai-key` CLI flag, `XAI_API_KEY` env passthrough in `server-manager.ts`, initial-model resolution priority in `prompt-config`, and the `/usage` dashboard link (`console.x.ai`) in `lib/usage.ts`.
+  - Verified via `bunx tsc --noEmit` across shared/server/cli — clean. **Not verified live** — no real xAI API key exercised in this pass.
+
 ## Deferred (Future Implementation)
 
 These were scoped out and should be revisited:

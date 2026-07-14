@@ -41,7 +41,7 @@ type PromptConfigProviderProps = {
   children: ReactNode;
 };
 
-function firstModelForProvider(provider: "anthropic" | "openai" | "google"): string {
+function firstModelForProvider(provider: "anthropic" | "openai" | "google" | "xai"): string {
   return SUPPORTED_CHAT_MODELS.find((m) => m.provider === provider)!.id;
 }
 
@@ -56,11 +56,13 @@ function resolveInitialModel(): string {
   const hasAnthropicKey = !!(process.env.ANTHROPIC_API_KEY || keys.anthropic);
   const hasOpenAIKey = !!(process.env.OPENAI_API_KEY || keys.openai);
   const hasGoogleKey = !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || keys.gemini);
+  const hasXaiKey = !!(process.env.XAI_API_KEY || keys.xai);
   const hasOpenRouterKey = !!(process.env.OPENROUTER_API_KEY || keys.openrouter);
 
   if (hasAnthropicKey) return firstModelForProvider("anthropic");
   if (hasOpenAIKey) return firstModelForProvider("openai");
   if (hasGoogleKey) return firstModelForProvider("google");
+  if (hasXaiKey) return firstModelForProvider("xai");
   if (hasOpenRouterKey) return FALLBACK_MODEL_ID;
 
   return DEFAULT_CHAT_MODEL_ID;

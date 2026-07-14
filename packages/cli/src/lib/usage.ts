@@ -7,6 +7,7 @@ const USAGE_URLS = {
   anthropic: "https://console.anthropic.com/settings/usage",
   openai: "https://platform.openai.com/usage",
   google: "https://aistudio.google.com/apikey",
+  xai: "https://console.x.ai/",
   openrouter: "https://openrouter.ai/activity",
 } as const;
 
@@ -32,6 +33,7 @@ export function resolveUsageTarget(modelId: string): UsageTarget {
   const hasGoogleKey = !!(
     process.env.GOOGLE_GENERATIVE_AI_API_KEY || keys.gemini
   );
+  const hasXaiKey = !!(process.env.XAI_API_KEY || keys.xai);
   const hasOpenRouterKey = !!(
     process.env.OPENROUTER_API_KEY || keys.openrouter
   );
@@ -43,7 +45,7 @@ export function resolveUsageTarget(modelId: string): UsageTarget {
       : { type: "no-keys" };
   }
 
-  // For anthropic/openai/google: prefer the direct key, fall back to OpenRouter
+  // For anthropic/openai/google/xai: prefer the direct key, fall back to OpenRouter
   const [hasDirectKey, directUrl] = (() => {
     switch (model.provider) {
       case "anthropic":
@@ -52,6 +54,8 @@ export function resolveUsageTarget(modelId: string): UsageTarget {
         return [hasOpenAIKey, USAGE_URLS.openai] as const;
       case "google":
         return [hasGoogleKey, USAGE_URLS.google] as const;
+      case "xai":
+        return [hasXaiKey, USAGE_URLS.xai] as const;
       default:
         return [false, ""] as const;
     }

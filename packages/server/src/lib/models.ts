@@ -4,6 +4,7 @@ import { openai } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createOllama } from "ollama-ai-provider-v2";
 import { google } from "@ai-sdk/google";
+import { xai } from "@ai-sdk/xai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
@@ -25,6 +26,7 @@ import { resolveOllamaBaseURL } from "./ollama";
 type AnthropicModelId = Extract<SupportedChatModel, { provider: "anthropic" }>["id"];
 type OpenAIModelId = Extract<SupportedChatModel, { provider: "openai"    }>["id"];
 type GoogleModelId = Extract<SupportedChatModel, { provider: "google"    }>["id"];
+type XaiModelId = Extract<SupportedChatModel, { provider: "xai"       }>["id"];
 
 export type ResolvedModel = {
   model: LanguageModel;
@@ -99,8 +101,10 @@ function resolveViaOpenRouter(
 ): ResolvedModel {
   const openrouter = createOpenRouter({ apiKey: requireOpenRouterKey() });
   // openrouter-native models already carry their full provider/name ID.
-  // anthropic/openai/google models get the provider prefix prepended.
-  const routerModelId = provider === "openrouter" ? modelId : `${provider}/${modelId}`;
+  // anthropic/openai/google/xai models get the provider prefix prepended.
+  // xAI's OpenRouter slug is "x-ai", not "xai" — everyone else matches our provider name.
+  const openRouterProviderSlug = provider === "xai" ? "x-ai" : provider;
+  const routerModelId = provider === "openrouter" ? modelId : `${openRouterProviderSlug}/${modelId}`;
   // OpenRouter's automatic prompt caching (top-level `cache_control`, auto-advancing
   // breakpoint) only applies to Anthropic models — confirmed against OpenRouter's docs
   // and this package's own types. OpenAI models cache automatically on OpenRouter with
@@ -157,6 +161,17 @@ function resolveGoogleModel(modelId: GoogleModelId): ResolvedModel {
   return resolveViaOpenRouter(modelId, "google");
 }
 
+function resolveXaiModel(modelId: XaiModelId): ResolvedModel {
+  if (!process.env.XAI_API_KEY) {
+    const key = readConfigKey("xai");
+    if (key) process.env.XAI_API_KEY = key;
+  }
+  if (process.env.XAI_API_KEY) {
+    return { model: xai(modelId), provider: "xai", modelId };
+  }
+  return resolveViaOpenRouter(modelId, "xai");
+}
+
 function resolveSupportedChatModel(model: SupportedChatModel): ResolvedModel {
   const provider = model.provider;
   switch (provider) {
@@ -166,6 +181,8 @@ function resolveSupportedChatModel(model: SupportedChatModel): ResolvedModel {
       return resolveOpenAIModel(model.id);
     case "google":
       return resolveGoogleModel(model.id);
+    case "xai":
+      return resolveXaiModel(model.id);
     case "openrouter":
       return resolveViaOpenRouter(model.id, "openrouter");
     default:

@@ -34,6 +34,7 @@ const PROVIDERS: ProviderEntry[] = [
   { key: "anthropic", label: "Anthropic" },
   { key: "openai", label: "OpenAI" },
   { key: "gemini", label: "Gemini" },
+  { key: "xai", label: "xAI" },
 ];
 
 const UNDO_DURATION_MS = 5000;

@@ -28,6 +28,7 @@ export type ApiKeys = {
   anthropic?: string;
   openai?: string;
   gemini?: string;
+  xai?: string;
 };
 
 export type CustomProviderConfig = {
