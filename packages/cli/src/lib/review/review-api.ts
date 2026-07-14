@@ -198,3 +198,24 @@ export async function getRepoStatus(owner: string, repo: string): Promise<RepoSt
 
   return parseResponse(repoStatusSchema, res, "fetch repository status");
 }
+
+// --- Key sync ---
+
+const syncApiKeySchema = z.object({ success: z.literal(true) });
+
+export async function syncApiKey(
+  provider: "anthropic" | "openai" | "google" | "openrouter",
+  model: string,
+  apiKey: string,
+): Promise<void> {
+  const res = await authedFetch("/api/cli/keys/sync", {
+    method: "POST",
+    body: JSON.stringify({ provider, model, apiKey }),
+  });
+
+  if (!res.ok) {
+    throw new ReviewApiError(await errorMessageFrom(res, "Failed to sync API key"), res.status);
+  }
+
+  await parseResponse(syncApiKeySchema, res, "sync API key");
+}

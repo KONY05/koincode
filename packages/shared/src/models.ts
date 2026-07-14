@@ -71,6 +71,27 @@ export const SUPPORTED_CHAT_MODELS = [
 
   // ── OpenAI (direct OPENAI_API_KEY or OpenRouter fallback) ──────────────────
   {
+    id: "gpt-5.6-sol",
+    provider: "openai",
+    pricing: { inputUsdPerMillionTokens: 5, outputUsdPerMillionTokens: 30 },
+    contextWindow: 1_050_000,
+    vision: true,
+  },
+  {
+    id: "gpt-5.6-terra",
+    provider: "openai",
+    pricing: { inputUsdPerMillionTokens: 2.50, outputUsdPerMillionTokens: 15 },
+    contextWindow: 1_050_000,
+    vision: true,
+  },
+  {
+    id: "gpt-5.6-luna",
+    provider: "openai",
+    pricing: { inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 6 },
+    contextWindow: 1_050_000,
+    vision: true,
+  },
+  {
     id: "gpt-5.5",
     provider: "openai",
     pricing: { inputUsdPerMillionTokens: 5, outputUsdPerMillionTokens: 30 },
