@@ -239,6 +239,13 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
   },
   {
+    id: "tencent/hy3:free",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
+    contextWindow: 262_144,
+    vision: false,
+  },
+  {
     id: "cohere/north-mini-code:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
