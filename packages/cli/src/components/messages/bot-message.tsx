@@ -17,6 +17,7 @@ import { Mode, isMcpTool } from "@koincode/shared";
 import { createMarkdownSyntaxStyle } from "../../utils/syntax-style";
 import EditFileDiff from "../tool-view/edit-file";
 import WriteFilePreview from "../tool-view/write-file";
+import PathToolView from "../tool-view/path-view";
 import TodoList from "../tool-view/todo-list";
 import ShellView from "../tool-view/shell";
 import McpToolView, { ManageMcpView } from "../tool-view/mcp-tool";
@@ -114,10 +115,24 @@ function renderToolContent({
     );
   }
 
+  if (toolName === "readFile" || toolName === "listDirectory") {
+    return (
+      <PathToolView
+        label={toolName === "readFile" ? "Read File" : "List Directory"}
+        input={input}
+        output={output}
+        pending={pending}
+        error={errorText}
+        colors={colors}
+      />
+    );
+  }
+
   if (toolName === "writeFile") {
     return (
       <WriteFilePreview
         input={input}
+        output={output}
         pending={pending}
         error={errorText}
         colors={colors}

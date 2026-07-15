@@ -14,6 +14,7 @@ import {
   type ModeType,
   type ToolContracts,
   toolInputSchemas,
+  type WorkspaceRoot,
 } from "@koincode/shared";
 import { apiClient, fetchWithRestart } from "../lib/api-client";
 import { sweepOrphanSnapshots } from "../lib/snapshots";
@@ -103,6 +104,11 @@ export type QueuedMessage = {
 // after a mid-turn switchMode without accessing a useRef during render.
 const _activeModes = new Map<string, ModeType>();
 
+// Same pattern as _activeModes — lets executeLocalTool read the session's
+// current workspace roots (which can change mid-session via /add-dir) without
+// a useRef during render.
+const _activeRoots = new Map<string, WorkspaceRoot[]>();
+
 // Pending scheduleWakeup timers keyed by session id — cleared on cancellation
 // (a real user message arrives) or when the session unmounts. Process-lifetime
 // only, same accepted limitation as the background task registry. `unsubscribe`
@@ -136,6 +142,7 @@ export function useChat(
   sessionId: string,
   initialMessages: Message[],
   initialSystemEvents: SystemEvent[] = [],
+  roots: WorkspaceRoot[] = [],
 ) {
   const {
     mode,
@@ -206,6 +213,7 @@ export function useChat(
   }, []);
 
   _activeModes.set(sessionId, mode);
+  _activeRoots.set(sessionId, roots);
   const autoModeSwitchRef = useRef(autoModeSwitch);
   const setModeRef = useRef(setMode);
   const setAutoModeSwitchRef = useRef(setAutoModeSwitch);
@@ -213,6 +221,7 @@ export function useChat(
   useEffect(() => {
     return () => {
       _activeModes.delete(sessionId);
+      _activeRoots.delete(sessionId);
       clearPendingWakeup(sessionId);
       cancelAllBackgroundWork(sessionId);
     };
@@ -700,6 +709,7 @@ export function useChat(
           toolCall.toolName,
           toolCall.input,
           extraPatterns,
+          _activeRoots.get(sessionId) ?? [],
         );
 
         // checks if tool requires approval and is not permitted for this project or session
@@ -796,6 +806,7 @@ export function useChat(
             _activeModes.get(sessionId)!,
             lastModelUsed,
             sessionId,
+            _activeRoots.get(sessionId) ?? [],
           );
           trackToolExecuted({
             tool: toolCall.toolName,

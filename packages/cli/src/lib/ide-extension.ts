@@ -35,6 +35,7 @@ const KNOWN_EXTENSION_DIRS = [
   path.join(homedir(), ".vscode-oss", "extensions"),    // VSCodium (Linux)
   path.join(homedir(), ".vscodium", "extensions"),       // VSCodium (macOS)
   path.join(homedir(), ".windsurf", "extensions"),       // Windsurf
+  path.join(homedir(), ".devin", "extensions"),       // Windsurf -> Devin
   path.join(homedir(), ".positron", "extensions"),       // Positron
 ];
 

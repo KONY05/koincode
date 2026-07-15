@@ -41,12 +41,20 @@ export default function EditFileDiff({
   treeSitterClient: TreeSitterClient;
 }) {
   if (!input || typeof input !== "object") return null;
-  const { path, oldString, newString } = input as {
+  const { path: inputPath, oldString, newString } = input as {
     path?: string;
     oldString?: string;
     newString?: string;
   };
-  if (typeof path !== "string") return null;
+  if (typeof inputPath !== "string") return null;
+
+  // Prefer the tool's own returned path (already formatted as <root-label>/<path>
+  // for a secondary-root file) over the raw argument the model typed.
+  const outputPath =
+    !error && output && typeof output === "object"
+      ? (output as { path?: string }).path
+      : undefined;
+  const path = outputPath ?? inputPath;
 
   const filetype = path.split(".").pop();
 

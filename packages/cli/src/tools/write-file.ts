@@ -1,13 +1,14 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
-import { dirname, relative } from "path";
+import { dirname } from "path";
 
-import { toolInputSchemas } from "@koincode/shared";
-import { resolveFromCwd } from "./utils";
+import { toolInputSchemas, type WorkspaceRoot } from "@koincode/shared";
+import { formatWorkspacePath, resolveFromCwd } from "./utils";
 import { captureSnapshot, hashContent } from "../lib/snapshots";
 
-export async function runWriteFile(input: unknown) {
+export async function runWriteFile(input: unknown, roots: WorkspaceRoot[]) {
   const { path, content } = toolInputSchemas.writeFile.parse(input);
-  const { cwd, resolved } = resolveFromCwd(path);
+  const { resolved } = resolveFromCwd(path);
+  const displayPath = formatWorkspacePath(resolved, roots);
 
   let beforeContent: string | null = null;
   try {
@@ -23,10 +24,10 @@ export async function runWriteFile(input: unknown) {
 
   return {
     success: true as const,
-    path: relative(cwd, resolved),
+    path: displayPath,
     bytesWritten: Buffer.byteLength(content, "utf-8"),
     snapshot: {
-      path: relative(cwd, resolved),
+      path: displayPath,
       beforeHash,
       afterHash: hashContent(content),
     },

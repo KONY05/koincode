@@ -34,7 +34,7 @@ import { useDialog } from "../providers/dialog";
 import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
 import { useSessionActions } from "../providers/session-actions";
-import { Mode } from "@koincode/shared";
+import { Mode, type WorkspaceRoot } from "@koincode/shared";
 import type { Message, QueuedMessage } from "../hooks/use-chat";
 import { cancelAllRegisteredWork } from "../lib/background/session-background-work";
 
@@ -72,6 +72,10 @@ type MentionMatch = {
 type MentionCandidate = {
   path: string;
   kind: "file" | "directory";
+  /** Absolute path to insert on selection instead of `path` — set only for secondary-workspace-root
+   * files, since `path` there is a display-only `<root-label>/...` pseudo-path, not a real filesystem
+   * path relative to the primary root. */
+  insertPath?: string;
 };
 
 function isWithinCurrentDirectory(targetPath: string) {
@@ -134,8 +138,25 @@ function findActiveMention(
   };
 }
 
+/** Whether `directoryPart` addresses a secondary workspace root by its label (e.g. "koincode-review" or "koincode-review/src"). */
+function findWorkspaceRootForQuery(
+  directoryPart: string,
+  extraRoots: WorkspaceRoot[],
+): { root: WorkspaceRoot; withinRootPart: string } | null {
+  for (const root of extraRoots) {
+    if (directoryPart === root.label) {
+      return { root, withinRootPart: "" };
+    }
+    if (directoryPart.startsWith(`${root.label}/`)) {
+      return { root, withinRootPart: directoryPart.slice(root.label.length + 1) };
+    }
+  }
+  return null;
+}
+
 async function getMentionCandidates(
   query: string,
+  extraRoots: WorkspaceRoot[] = [],
 ): Promise<MentionCandidate[]> {
   const normalizedQuery = query.startsWith("./") ? query.slice(2) : query;
   if (normalizedQuery.startsWith("/")) {
@@ -159,6 +180,56 @@ async function getMentionCandidates(
       ? normalizedQuery
       : normalizedQuery.slice(lastSlashIndex + 1);
 
+  const lowercasePrefix = namePrefix.toLowerCase();
+  const showHiddenEntries = namePrefix.startsWith(".");
+
+  // Addressing a secondary workspace root directly — resolve against its real absolute
+  // path instead of CURRENT_DIRECTORY, deliberately skipping isWithinCurrentDirectory:
+  // this is one of the session's own explicitly-added roots, not an arbitrary escape.
+  const rootMatch = findWorkspaceRootForQuery(directoryPart, extraRoots);
+  if (rootMatch) {
+    const { root, withinRootPart } = rootMatch;
+    const absoluteDirectory = resolve(root.path, withinRootPart || ".");
+
+    try {
+      const entries = await readdir(absoluteDirectory, { withFileTypes: true });
+
+      return entries
+        .filter((entry) => showHiddenEntries || !entry.name.startsWith("."))
+        .filter(
+          (entry) =>
+            !(
+              entry.isDirectory() &&
+              RECURSIVE_MENTION_IGNORED_DIRECTORIES.has(entry.name)
+            ),
+        )
+        .filter(
+          (entry) =>
+            lowercasePrefix === "" ||
+            entry.name.toLowerCase().startsWith(lowercasePrefix),
+        )
+        .sort((left, right) => {
+          if (left.isDirectory() !== right.isDirectory()) {
+            return left.isDirectory() ? -1 : 1;
+          }
+          return left.name.localeCompare(right.name);
+        })
+        .map((entry) => {
+          const displayPath = `${root.label}/${withinRootPart ? `${withinRootPart}/` : ""}${entry.name}`;
+          if (entry.isDirectory()) {
+            return { path: `${displayPath}/`, kind: "directory" as const };
+          }
+          return {
+            path: displayPath,
+            kind: "file" as const,
+            insertPath: resolve(absoluteDirectory, entry.name),
+          };
+        });
+    } catch {
+      return [];
+    }
+  }
+
   const absoluteDirectory = resolve(CURRENT_DIRECTORY, directoryPart || ".");
   if (!isWithinCurrentDirectory(absoluteDirectory)) {
     return [];
@@ -166,8 +237,6 @@ async function getMentionCandidates(
 
   try {
     const entries = await readdir(absoluteDirectory, { withFileTypes: true });
-    const lowercasePrefix = namePrefix.toLowerCase();
-    const showHiddenEntries = namePrefix.startsWith(".");
 
     const directMatches = entries
       .filter((entry) => showHiddenEntries || !entry.name.startsWith("."))
@@ -203,13 +272,33 @@ async function getMentionCandidates(
         };
       });
 
+    // Top level only: also offer each secondary workspace root as a navigable
+    // entry, alongside the primary root's own subdirectories.
+    const rootEntries: MentionCandidate[] =
+      directoryPart === ""
+        ? extraRoots
+            .filter(
+              (r) =>
+                lowercasePrefix === "" ||
+                r.label.toLowerCase().startsWith(lowercasePrefix),
+            )
+            .map((r) => ({ path: `${r.label}/`, kind: "directory" as const }))
+        : [];
+
+    const combined = [...rootEntries, ...directMatches].sort((left, right) => {
+      if ((left.kind === "directory") !== (right.kind === "directory")) {
+        return left.kind === "directory" ? -1 : 1;
+      }
+      return left.path.localeCompare(right.path);
+    });
+
     if (
-      directMatches.length > 0 ||
+      combined.length > 0 ||
       directoryPart !== "" ||
       namePrefix === "" ||
       namePrefix.length < 2
     ) {
-      return directMatches;
+      return combined;
     }
 
     const fallbackMatches: MentionCandidate[] = [];
@@ -258,6 +347,63 @@ async function getMentionCandidates(
     };
 
     await visit(CURRENT_DIRECTORY, "");
+
+    // Same bounded walk, extended into each secondary root — still one shared cap
+    // across every root combined, so attaching more directories to the workspace
+    // doesn't make fuzzy mention search slower or return more results than intended.
+    for (const root of extraRoots) {
+      if (fallbackMatches.length >= MAX_FALLBACK_MENTION_CANDIDATES) break;
+
+      const visitSecondaryRoot = async (
+        absoluteDir: string,
+        withinRootPart: string,
+      ): Promise<void> => {
+        const dirEntries = await readdir(absoluteDir, { withFileTypes: true });
+
+        for (const entry of dirEntries) {
+          if (!showHiddenEntries && entry.name.startsWith(".")) continue;
+          if (
+            entry.isDirectory() &&
+            RECURSIVE_MENTION_IGNORED_DIRECTORIES.has(entry.name)
+          ) {
+            continue;
+          }
+
+          const withinRootNext = withinRootPart
+            ? `${withinRootPart}/${entry.name}`
+            : entry.name;
+          const displayPath = `${root.label}/${withinRootNext}`;
+          const kind: MentionCandidate["kind"] = entry.isDirectory()
+            ? "directory"
+            : "file";
+
+          if (entry.name.toLowerCase().startsWith(lowercasePrefix)) {
+            fallbackMatches.push(
+              kind === "directory"
+                ? { path: `${displayPath}/`, kind }
+                : {
+                    path: displayPath,
+                    kind,
+                    insertPath: resolve(absoluteDir, entry.name),
+                  },
+            );
+            if (fallbackMatches.length >= MAX_FALLBACK_MENTION_CANDIDATES) return;
+          }
+
+          if (entry.isDirectory()) {
+            await visitSecondaryRoot(resolve(absoluteDir, entry.name), withinRootNext);
+            if (fallbackMatches.length >= MAX_FALLBACK_MENTION_CANDIDATES) return;
+          }
+        }
+      };
+
+      try {
+        await visitSecondaryRoot(root.path, "");
+      } catch {
+        // Root might be unreadable or removed — skip it, don't fail the whole search.
+      }
+    }
+
     return fallbackMatches.sort((left, right) =>
       left.path.localeCompare(right.path),
     );
@@ -376,7 +522,7 @@ export function InputBar({
   onQueueFocusedIndexChange,
   messages = [] }: Props) {
   const { mode, model, modelDisplayName, toggleMode, setMode, setModel, voiceInput, toggleVoice, toggleInfoSidebar } = usePromptConfig();
-  const { invokeSkill, clearSession, handoff, compact } = useSessionActions();
+  const { invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => { });
   const activeMentionRef = useRef<MentionMatch | null>(null);
@@ -535,7 +681,9 @@ export function InputBar({
       if (!textarea || !mention || !candidate) return;
 
       const insertion =
-        candidate.kind === "directory" ? candidate.path : `${candidate.path} `;
+        candidate.kind === "directory"
+          ? candidate.path
+          : `${candidate.insertPath ?? candidate.path} `;
 
       const nextText = `${textarea.plainText.slice(0, mention.start)}@${insertion}${textarea.plainText.slice(mention.end)}`;
 
@@ -582,6 +730,8 @@ export function InputBar({
           clearSession,
           handoff,
           compact,
+          addWorkspaceRoot,
+          workspaceRoots,
           toggleVoice,
           toggleInfoSidebar,
           contextUsage: contextUsage ?? null,
@@ -592,7 +742,7 @@ export function InputBar({
         skipUndoRef.current = false;
       }
     },
-    [renderer, toast, dialog, navigate, mode, model, modelDisplayName, setMode, setModel, invokeSkill, clearSession, handoff, compact, contextUsage, toggleVoice, toggleInfoSidebar],
+    [renderer, toast, dialog, navigate, mode, model, modelDisplayName, setMode, setModel, invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots, contextUsage, toggleVoice, toggleInfoSidebar],
   );
 
   const handleCommandExecute = useCallback(
@@ -612,8 +762,9 @@ export function InputBar({
     }
 
     let ignore = false;
+    const secondaryRoots = workspaceRoots.slice(1);
     const loadCandidates = async () => {
-      const nextCandidates = await getMentionCandidates(activeMention.query);
+      const nextCandidates = await getMentionCandidates(activeMention.query, secondaryRoots);
       if (ignore) return;
 
       setMentionCandidates(nextCandidates);
@@ -633,7 +784,7 @@ export function InputBar({
       ignore = true;
       clearTimeout(handle);
     };
-  }, [activeMention]);
+  }, [activeMention, workspaceRoots]);
 
   // Wire up textarea submit handler once so it always reads the latest state.
   // Also restore any draft text that was saved before unmount.

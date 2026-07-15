@@ -266,12 +266,26 @@ export const SessionsDialogContent = () => {
           items={activeSessions}
           onSelect={handleSelect}
           onHighlight={handleHighlight}
-          filterFn={(s, query) => s.title.toLowerCase().includes(query.toLowerCase())}
+          filterFn={(s, query) => {
+            const q = query.toLowerCase();
+            const titleMatch = s.title.toLowerCase().includes(q);
+            const workspaceMatch = q === "workspace" && s.roots.length > 1;
+            return titleMatch || workspaceMatch;
+          }}
           renderItem={(session, isSelected) => (
             <>
               <text selectable={false} fg={isSelected ? "black" : "white"}>
                 {session.title}
               </text>
+              {session.roots.length > 1 && (
+                <text
+                  selectable={false}
+                  fg={isSelected ? "black" : colors.dimSeparator}
+                  attributes={TextAttributes.DIM}
+                >
+                  {"  "}+{session.roots.length - 1} dirs
+                </text>
+              )}
               <box flexGrow={1} />
               {activeTab === "all" && session.cwd && (
                 <text

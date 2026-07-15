@@ -1,11 +1,11 @@
 import { readdir, stat } from "fs/promises";
-import { join, relative } from "path";
-import { toolInputSchemas } from "@koincode/shared";
-import { resolveFromCwd } from "./utils";
+import { join } from "path";
+import { toolInputSchemas, type WorkspaceRoot } from "@koincode/shared";
+import { formatWorkspacePath, resolveFromCwd } from "./utils";
 
-export async function runListDirectory(input: unknown) {
+export async function runListDirectory(input: unknown, roots: WorkspaceRoot[] = []) {
   const { path } = toolInputSchemas.listDirectory.parse(input);
-  const { cwd, resolved } = resolveFromCwd(path);
+  const { resolved } = resolveFromCwd(path);
   const entries = await readdir(resolved);
   const results: { name: string; type: "file" | "directory" }[] = [];
 
@@ -18,5 +18,5 @@ export async function runListDirectory(input: unknown) {
   results.sort((a, b) =>
     a.type !== b.type ? (a.type === "directory" ? -1 : 1) : a.name.localeCompare(b.name),
   );
-  return { path: relative(cwd, resolved) || ".", entries: results };
+  return { path: formatWorkspacePath(resolved, roots) || ".", entries: results };
 }

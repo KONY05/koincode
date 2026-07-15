@@ -2,6 +2,7 @@ import { SUPPORTED_CHAT_MODELS } from "@koincode/shared";
 import {
   AgentsDialogContent,
   ContextDialogContent,
+  DirectoryPickerDialogContent,
   HelpDialogContent,
   ModelsDialogContent,
   ReviewStatusDialogContent,
@@ -250,6 +251,17 @@ export const COMMANDS: Command[] = [
           variant: "error",
         });
       }
+    },
+  },
+  {
+    name: "add-dir",
+    description: "Add another directory to this session's workspace",
+    value: "/add-dir",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "Add Directory",
+        children: <DirectoryPickerDialogContent onSelect={ctx.addWorkspaceRoot} />,
+      });
     },
   },
   {

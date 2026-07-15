@@ -1,6 +1,6 @@
 import type { DialogContextValue } from "../../providers/dialog";
 import type { ToastContextValue } from "../../providers/toast";
-import type { ModeType } from "@koincode/shared";
+import type { ModeType, WorkspaceRoot } from "@koincode/shared";
 import type { ContextUsage } from "../../hooks/use-chat";
 
 export type CommandContext = {
@@ -18,6 +18,8 @@ export type CommandContext = {
   clearSession: () => Promise<void>;
   handoff: () => Promise<void>;
   compact: () => Promise<void>;
+  addWorkspaceRoot: (path: string) => Promise<void>;
+  workspaceRoots: WorkspaceRoot[];
   toggleVoice: () => void;
   toggleInfoSidebar: () => void;
   contextUsage: ContextUsage | null;

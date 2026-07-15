@@ -4,7 +4,7 @@ import { useKeyboard } from "@opentui/react";
 import type { InferResponseType } from "hono/client";
 import { z } from "zod";
 
-import { modeSchema, BOUNDARY_ROLES } from "@koincode/shared";
+import { modeSchema, BOUNDARY_ROLES, type WorkspaceRoot } from "@koincode/shared";
 import { SessionShell } from "../components/session-shell";
 import {
   UserMessage,
@@ -144,6 +144,9 @@ function SessionChat({
   const { mode, model } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
   const toast = useToast();
+  const [workspaceRoots, setWorkspaceRoots] = useState<WorkspaceRoot[]>(
+    () => session.roots,
+  );
   const lastEscapePressRef = useRef<number>(0);
   const hasAutoSubmittedRef = useRef(false);
   const [pendingRevertConfirm, setPendingRevertConfirm] =
@@ -170,7 +173,7 @@ function SessionChat({
     abort,
     interrupt,
     error,
-  } = useChat(session.id, initialMessages);
+  } = useChat(session.id, initialMessages, [], workspaceRoots);
 
   // Background-task deliveries (spawnAgent runInBackground, backgrounded
   // shell) share the same underlying queue as real queued user messages —
@@ -381,6 +384,37 @@ function SessionChat({
     setLocalClearMsgCount(messages.length);
   };
 
+  const handleAddWorkspaceRoot = async (path: string) => {
+    try {
+      const res = await apiClient.sessions[":id"]["add-root"].$post({
+        param: { id: session.id },
+        json: { path },
+      });
+
+      if (!res.ok) {
+        toast.show({
+          variant: "error",
+          message: (await getErrorMessage(res)) || "Failed to add directory",
+        });
+        return;
+      }
+
+      const { roots } = await res.json();
+      setWorkspaceRoots(roots);
+
+      const added = roots[roots.length - 1];
+      toast.show({
+        variant: "success",
+        message: `Added ${added?.label ?? path} to this workspace`,
+      });
+    } catch (err) {
+      toast.show({
+        variant: "error",
+        message: err instanceof Error ? err.message : "Failed to add directory",
+      });
+    }
+  };
+
   const handleCompact = () => runCompact("manual");
 
   const handleHandoffWithLoading = async () => {
@@ -398,6 +432,8 @@ function SessionChat({
       clearSession={handleClearSession}
       handoff={handleHandoffWithLoading}
       compact={handleCompact}
+      addWorkspaceRoot={handleAddWorkspaceRoot}
+      workspaceRoots={workspaceRoots}
     >
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model })}
@@ -405,6 +441,7 @@ function SessionChat({
       contextUsage={contextUsage}
       sessionCost={sessionCost}
       sessionTitle={session.title}
+      workspaceRoots={workspaceRoots}
       streaming={
         status === "submitted" || status === "streaming" || isSubagentRunning || isCompacting || isHandingOff
       }
