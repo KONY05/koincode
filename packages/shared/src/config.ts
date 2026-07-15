@@ -27,7 +27,7 @@ export type ApiKeys = {
   openrouter?: string;
   anthropic?: string;
   openai?: string;
-  gemini?: string;
+  google?: string;
   xai?: string;
 };
 

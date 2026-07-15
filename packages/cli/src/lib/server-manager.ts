@@ -102,8 +102,8 @@ function spawnServer(port: number) {
       ANTHROPIC_API_KEY: config.apiKeys.anthropic,
     }),
     ...(config.apiKeys?.openai && { OPENAI_API_KEY: config.apiKeys.openai }),
-    ...(config.apiKeys?.gemini && {
-      GOOGLE_GENERATIVE_AI_API_KEY: config.apiKeys.gemini,
+    ...(config.apiKeys?.google && {
+      GOOGLE_GENERATIVE_AI_API_KEY: config.apiKeys.google,
     }),
     ...(config.apiKeys?.xai && { XAI_API_KEY: config.apiKeys.xai }),
     ...(config.apiKeys?.openrouter && {

@@ -55,7 +55,7 @@ function resolveInitialModel(): string {
   const keys = config.apiKeys ?? {};
   const hasAnthropicKey = !!(process.env.ANTHROPIC_API_KEY || keys.anthropic);
   const hasOpenAIKey = !!(process.env.OPENAI_API_KEY || keys.openai);
-  const hasGoogleKey = !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || keys.gemini);
+  const hasGoogleKey = !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || keys.google);
   const hasXaiKey = !!(process.env.XAI_API_KEY || keys.xai);
   const hasOpenRouterKey = !!(process.env.OPENROUTER_API_KEY || keys.openrouter);
 

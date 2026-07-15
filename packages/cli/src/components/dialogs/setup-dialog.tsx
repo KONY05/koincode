@@ -33,7 +33,7 @@ const PROVIDERS: ProviderEntry[] = [
   { key: "openrouter", label: "OpenRouter" },
   { key: "anthropic", label: "Anthropic" },
   { key: "openai", label: "OpenAI" },
-  { key: "gemini", label: "Gemini" },
+  { key: "google", label: "Google" },
   { key: "xai", label: "xAI" },
 ];
 
