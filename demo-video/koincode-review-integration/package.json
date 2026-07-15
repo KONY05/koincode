@@ -23,6 +23,7 @@
   "scripts": {
     "dev": "remotionb studio",
     "build": "remotionb bundle",
+    "still:workspaces": "remotionb still WorkspacesAnnounce out/workspaces-announce.png",
     "upgrade": "remotionb upgrade",
     "lint": "eslint src && tsc"
   },

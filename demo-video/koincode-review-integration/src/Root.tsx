@@ -1,10 +1,11 @@
 import "./index.css";
-import { DemoLaunchComposition } from "./Composition";
+import { DemoLaunchComposition, WorkspacesAnnounceStill } from "./Composition";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <DemoLaunchComposition />
+      <WorkspacesAnnounceStill />
     </>
   );
 };
