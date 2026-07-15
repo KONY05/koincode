@@ -16,6 +16,7 @@ model Session {
   id              String    @id @default(cuid())
   title           String
   cwd             String?
+  roots           String    @default("[]")
   gitBranch       String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { z } from "zod";
 import { useNavigate, useLocation } from "react-router";
 
+import { basename } from "path";
 import { modeSchema } from "@koincode/shared";
 import { SessionShell } from "../components/session-shell";
 import { UserMessage } from "../components/messages";
@@ -11,10 +12,13 @@ import { getErrorMessage } from "../lib/http-errors";
 import { getGitBranch } from "../utils/helper";
 import { trackSessionCreated } from "../lib/analytics";
 
+const workspaceRootSchema = z.object({ label: z.string(), path: z.string() });
+
 const newSessionStateSchema = z.object({
   message: z.string(),
   mode: modeSchema,
   model: z.string(),
+  pendingRoots: z.array(workspaceRootSchema).optional().default([]),
 });
 
 export function NewSession() {
@@ -46,10 +50,12 @@ export function NewSession() {
       try {
         const gitBranch = getGitBranch();
 
+        const cwd = process.cwd();
         const res = await apiClient.sessions.$post({
           json: {
             title: state.message.slice(0, 100),
-            cwd: process.cwd(),
+            cwd,
+            roots: [{ label: basename(cwd), path: cwd }, ...state.pendingRoots],
             model: state.model,
             ...(gitBranch ? { gitBranch } : {}),
           },

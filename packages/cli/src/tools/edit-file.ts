@@ -1,9 +1,8 @@
 import { readFile, writeFile } from "fs/promises";
-import { relative } from "path";
 import { createPatch } from "diff";
 
-import { toolInputSchemas } from "@koincode/shared";
-import { resolveFromCwd } from "./utils";
+import { toolInputSchemas, type WorkspaceRoot } from "@koincode/shared";
+import { formatWorkspacePath, resolveFromCwd } from "./utils";
 import { captureSnapshot, hashContent } from "../lib/snapshots";
 
 const normalize = (s: string) => s.replace(/\r\n/g, "\n").trimEnd();
@@ -11,12 +10,13 @@ const normalize = (s: string) => s.replace(/\r\n/g, "\n").trimEnd();
 // Some models (e.g. free/small models) emit literal \n instead of real newlines in JSON strings.
 const unescape = (s: string) => s.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "");
 
-export async function runEditFile(input: unknown) {
+export async function runEditFile(input: unknown, roots: WorkspaceRoot[]) {
   const parsed = toolInputSchemas.editFile.parse(input);
   const path = parsed.path;
   const oldString = unescape(parsed.oldString);
   const newString = unescape(parsed.newString);
-  const { cwd, resolved } = resolveFromCwd(path);
+  const { resolved } = resolveFromCwd(path);
+  const displayPath = formatWorkspacePath(resolved, roots);
   const content = await readFile(resolved, "utf-8");
 
   // Try exact match first
@@ -48,10 +48,10 @@ export async function runEditFile(input: unknown) {
 
   return {
     success: true as const,
-    path: relative(cwd, resolved),
+    path: displayPath,
     diff: patch,
     snapshot: {
-      path: relative(cwd, resolved),
+      path: displayPath,
       beforeHash,
       afterHash: hashContent(newContent),
     },

@@ -21,7 +21,7 @@ const KEY_FLAGS: Array<{ flag: string; apiKey: keyof ApiKeys }> = [
   { flag: "--openrouter-key", apiKey: "openrouter" },
   { flag: "--anthropic-key", apiKey: "anthropic" },
   { flag: "--openai-key", apiKey: "openai" },
-  { flag: "--gemini-key", apiKey: "gemini" },
+  { flag: "--google-key", apiKey: "google" },
   { flag: "--xai-key", apiKey: "xai" },
 ];
 

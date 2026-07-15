@@ -1,8 +1,8 @@
 import { readFile } from "fs/promises";
 import { extname } from "path";
 
-import { MAX_FILE_SIZE, resolveFromCwd } from "./utils";
-import { toolInputSchemas } from "@koincode/shared";
+import { formatWorkspacePath, MAX_FILE_SIZE, resolveFromCwd } from "./utils";
+import { toolInputSchemas, type WorkspaceRoot } from "@koincode/shared";
 
 /**
  * PDF/DOCX are extracted to plain text rather than sent to the model as raw
@@ -39,18 +39,19 @@ async function extractFileContent(resolved: string): Promise<string> {
   return readFile(resolved, "utf-8");
 }
 
-export async function runReadFile(input: unknown) {
+export async function runReadFile(input: unknown, roots: WorkspaceRoot[] = []) {
   const { path, offset = 0, limit = MAX_FILE_SIZE } = toolInputSchemas.readFile.parse(input);
 
   const { resolved } = resolveFromCwd(path);
+  const displayPath = formatWorkspacePath(resolved, roots);
 
   const content = await extractFileContent(resolved);
 
   const chunk = content.slice(offset, offset + limit);
 
   const hasMore = offset + limit < content.length;
-  
+
   return hasMore
-    ? { content: chunk, truncated: true, totalLength: content.length, nextOffset: offset + limit }
-    : { content: chunk, totalLength: content.length };
+    ? { path: displayPath, content: chunk, truncated: true, totalLength: content.length, nextOffset: offset + limit }
+    : { path: displayPath, content: chunk, totalLength: content.length };
 }

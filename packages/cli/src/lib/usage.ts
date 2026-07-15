@@ -31,7 +31,7 @@ export function resolveUsageTarget(modelId: string): UsageTarget {
   const hasAnthropicKey = !!(process.env.ANTHROPIC_API_KEY || keys.anthropic);
   const hasOpenAIKey = !!(process.env.OPENAI_API_KEY || keys.openai);
   const hasGoogleKey = !!(
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY || keys.gemini
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY || keys.google
   );
   const hasXaiKey = !!(process.env.XAI_API_KEY || keys.xai);
   const hasOpenRouterKey = !!(

@@ -1,4 +1,4 @@
-import { Mode, readOnlyToolContracts, type ModeType } from "@koincode/shared";
+import { Mode, readOnlyToolContracts, type ModeType, type WorkspaceRoot } from "@koincode/shared";
 import { runShellCommand } from "./shell";
 import { runEditFile } from "./edit-file";
 import { runGlob } from "./glob";
@@ -42,6 +42,7 @@ export async function executeLocalTool(
   mode: ModeType,
   modelId?: string,
   sessionId?: string,
+  roots: WorkspaceRoot[] = [],
 ) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.has(toolName)) {
     throw new Error(`Tool ${toolName} is not available in PLAN mode`);
@@ -51,22 +52,22 @@ export async function executeLocalTool(
   try {
     switch (toolName) {
       case "readFile":
-        toolOutput = await runReadFile(input);
+        toolOutput = await runReadFile(input, roots);
         break;
       case "listDirectory":
-        toolOutput = await runListDirectory(input);
+        toolOutput = await runListDirectory(input, roots);
         break;
       case "glob":
-        toolOutput = await runGlob(input);
+        toolOutput = await runGlob(input, roots);
         break;
       case "grep":
         toolOutput = await runGrep(input);
         break;
       case "writeFile":
-        toolOutput = await runWriteFile(input);
+        toolOutput = await runWriteFile(input, roots);
         break;
       case "editFile":
-        toolOutput = await runEditFile(input);
+        toolOutput = await runEditFile(input, roots);
         break;
       case "shell":
         toolOutput = await runShellCommand(input, sessionId);

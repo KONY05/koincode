@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { TextAttributes } from "@opentui/core";
+import type { WorkspaceRoot } from "@koincode/shared";
 
 import { useTheme } from "../providers/theme";
 import type { ContextUsage } from "../hooks/use-chat";
 import { useMcpServers } from "../hooks/use-mcp-servers";
 import { useModifiedFiles } from "../hooks/use-modified-files";
+import type { ModifiedFile } from "../lib/git-status";
 
 export const SIDEBAR_WIDTH = 34;
 
@@ -21,18 +23,50 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
+function ModifiedFilesList({ files }: { files: ModifiedFile[] }) {
+  const { colors } = useTheme();
+
+  if (files.length === 0) {
+    return <text attributes={TextAttributes.DIM}>No changes</text>;
+  }
+
+  return (
+    <scrollbox flexGrow={1} width="100%">
+      <box flexDirection="column" width="100%">
+        {files.map((f) => (
+          <box key={f.path} flexDirection="row" justifyContent="space-between" gap={1}>
+            <text attributes={TextAttributes.DIM} wrapMode="none">
+              {f.path}
+            </text>
+            <box flexDirection="row" gap={1} flexShrink={0}>
+              {f.added > 0 && <text fg={colors.success}>+{f.added}</text>}
+              {f.removed > 0 && <text fg={colors.error}>-{f.removed}</text>}
+            </box>
+          </box>
+        ))}
+      </box>
+    </scrollbox>
+  );
+}
+
 type Props = {
   sessionTitle?: string;
   contextUsage?: ContextUsage | null;
   sessionCost: number;
   visible: boolean;
+  workspaceRoots?: WorkspaceRoot[];
 };
 
-export function InfoSidebar({ sessionTitle, contextUsage, sessionCost, visible }: Props) {
+export function InfoSidebar({ sessionTitle, contextUsage, sessionCost, visible, workspaceRoots = [] }: Props) {
   const { colors } = useTheme();
   const mcpServers = useMcpServers();
-  const modifiedFiles = useModifiedFiles(visible);
+  const modifiedFilesGroups = useModifiedFiles(visible, workspaceRoots);
   const [filesExpanded, setFilesExpanded] = useState(true);
+  // Per-root expand state for the multi-root case, keyed by root path — missing
+  // entries default to expanded, so a newly-added root doesn't need its own init.
+  const [expandedRoots, setExpandedRoots] = useState<Record<string, boolean>>({});
+  const toggleRoot = (path: string) =>
+    setExpandedRoots((prev) => ({ ...prev, [path]: !(prev[path] ?? true) }));
 
   if (!visible) return null;
 
@@ -84,38 +118,48 @@ export function InfoSidebar({ sessionTitle, contextUsage, sessionCost, visible }
         )}
       </box>
 
-      <box
-        flexDirection="row"
-        gap={1}
-        height={1}
-        flexShrink={0}
-        onMouseDown={() => setFilesExpanded((v) => !v)}
-      >
-        <SectionLabel>Modified Files</SectionLabel>
-        <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
-          {filesExpanded ? "▾" : "▸"}
-        </text>
-      </box>
-      {filesExpanded && (
-        modifiedFiles.length === 0 ? (
-          <text attributes={TextAttributes.DIM}>No changes</text>
-        ) : (
-          <scrollbox flexGrow={1} width="100%">
-            <box flexDirection="column" width="100%">
-              {modifiedFiles.map((f) => (
-                <box key={f.path} flexDirection="row" justifyContent="space-between" gap={1}>
-                  <text attributes={TextAttributes.DIM} wrapMode="none">
-                    {f.path}
+      {modifiedFilesGroups.length <= 1 ? (
+        <box flexDirection="column" flexShrink={0}>
+          <box
+            flexDirection="row"
+            gap={1}
+            height={1}
+            flexShrink={0}
+            onMouseDown={() => setFilesExpanded((v) => !v)}
+          >
+            <SectionLabel>Modified Files</SectionLabel>
+            <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+              {filesExpanded ? "▾" : "▸"}
+            </text>
+          </box>
+          {filesExpanded && (
+            <ModifiedFilesList files={modifiedFilesGroups[0]?.files ?? []} />
+          )}
+        </box>
+      ) : (
+        <box flexDirection="column" flexShrink={0} gap={1}>
+          <SectionLabel>Modified Files</SectionLabel>
+          {modifiedFilesGroups.map((group) => {
+            const isExpanded = expandedRoots[group.root.path] ?? true;
+            return (
+              <box key={group.root.path} flexDirection="column" flexShrink={0}>
+                <box
+                  flexDirection="row"
+                  gap={1}
+                  height={1}
+                  flexShrink={0}
+                  onMouseDown={() => toggleRoot(group.root.path)}
+                >
+                  <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
+                    {isExpanded ? "▾" : "▸"}
                   </text>
-                  <box flexDirection="row" gap={1} flexShrink={0}>
-                    {f.added > 0 && <text fg={colors.success}>+{f.added}</text>}
-                    {f.removed > 0 && <text fg={colors.error}>-{f.removed}</text>}
-                  </box>
+                  <text attributes={TextAttributes.BOLD}>{group.root.label}</text>
                 </box>
-              ))}
-            </box>
-          </scrollbox>
-        )
+                {isExpanded && <ModifiedFilesList files={group.files} />}
+              </box>
+            );
+          })}
+        </box>
       )}
     </box>
   );

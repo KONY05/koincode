@@ -1,10 +1,10 @@
-import { relative, resolve } from "path";
-import { toolInputSchemas } from "@koincode/shared";
-import { MAX_RESULTS, resolveFromCwd } from "./utils";
+import { resolve } from "path";
+import { toolInputSchemas, type WorkspaceRoot } from "@koincode/shared";
+import { formatWorkspacePath, MAX_RESULTS, resolveFromCwd } from "./utils";
 
-export async function runGlob(input: unknown) {
+export async function runGlob(input: unknown, roots: WorkspaceRoot[]) {
   const { pattern, path } = toolInputSchemas.glob.parse(input);
-  const { cwd, resolved } = resolveFromCwd(path);
+  const { resolved } = resolveFromCwd(path);
   const glob = new Bun.Glob(pattern);
   const files: string[] = [];
   let truncated = false;
@@ -15,7 +15,7 @@ export async function runGlob(input: unknown) {
       truncated = true;
       break;
     }
-    files.push(relative(cwd, resolve(resolved, match)));
+    files.push(formatWorkspacePath(resolve(resolved, match), roots));
   }
 
   files.sort();

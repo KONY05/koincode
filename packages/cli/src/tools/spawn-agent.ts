@@ -344,7 +344,9 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
         continue;
       }
 
-      // Execute the tool locally.
+      // Execute the tool locally. Sub-agents have no parent session/workspace
+      // context here, so paths always display as absolute (formatWorkspacePath's
+      // fallback for an empty roots list) rather than root-labeled.
       try {
         const toolOutput = await executeLocalTool(
           tc.toolName,

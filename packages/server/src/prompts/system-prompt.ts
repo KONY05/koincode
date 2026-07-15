@@ -7,6 +7,7 @@ import {
   Mode,
   type ModeType,
   readOnlyToolContracts,
+  type WorkspaceRoot,
 } from "@koincode/shared";
 
 type SkillManifestEntry = {
@@ -28,6 +29,7 @@ type SystemPromptParams = {
   userMemory?: string;
   skillsManifest?: SkillManifestEntry[];
   mcpServers?: McpServerStatus[];
+  roots?: WorkspaceRoot[];
 };
 
 /**
@@ -40,11 +42,11 @@ type SystemPromptParams = {
  * user's active editor file) is injected directly into the newest message instead
  * — see `appendIdeContext` in `lib/prompt-caching.ts`.
  */
-export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers }: SystemPromptParams): string {
+export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers, roots }: SystemPromptParams): string {
   const parts: string[] = [];
 
   parts.push(getIdentitySection());
-  parts.push(getEnvironmentSection());
+  parts.push(getEnvironmentSection(roots));
   parts.push(getAgentsMdSection());
   parts.push(getModeSection(mode));
   parts.push(getToolUsageSection(mode, mcpServers, browserTools));
@@ -86,7 +88,7 @@ Your capabilities:
 You are pair programming with the user to help them accomplish their goals. Be proactive, thorough, and focused on delivering high-quality results.`;
 }
 
-function getEnvironmentSection(): string {
+function getEnvironmentSection(roots?: WorkspaceRoot[]): string {
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-US", {
     weekday: "long",
@@ -99,11 +101,21 @@ function getEnvironmentSection(): string {
     process.env.SHELL ??
     (process.platform === "win32" ? "PowerShell/cmd.exe" : "/bin/sh");
 
+  const workingDirectoryLine =
+    roots && roots.length > 0
+      ? roots.length === 1
+        ? `- **Working Directory**: ${roots[0]!.path}`
+        : [
+            "- **Working Directories** (this session spans multiple roots — use the full absolute path when addressing a file outside the primary root):",
+            ...roots.map((r, i) => `  - ${r.label}${i === 0 ? " (primary)" : ""}: ${r.path}`),
+          ].join("\n")
+      : `- **Working Directory**: ${process.cwd()}`;
+
   return `# Environment
 
 - **Current Date**: ${dateStr}
 - **Operating System**: ${platform}
-- **Working Directory**: ${process.cwd()}
+${workingDirectoryLine}
 - **Shell**: ${shell}
 
 The user has granted you access to run tools in service of their request. Use them when needed.`;

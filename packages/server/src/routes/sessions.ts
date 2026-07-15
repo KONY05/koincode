@@ -8,6 +8,8 @@ import { db } from "@koincode/database/client";
 import { logger, getLastBoundaryIndex, generateTextWithFallback } from "../lib/helpers";
 import { buildCompactionPrompt } from "../prompts/compaction-prompt";
 import { buildHandoffPrompt } from "../prompts/handoff-prompt";
+import { parseWorkspaceRoots, serializeWorkspaceRoots, makeRootLabel, findRootConflict } from "@koincode/shared";
+
 
 /** One-shot title generation using the model user is currently using **/
 async function generateTitleFromMessage(message: string, model:string): Promise<string> {
@@ -29,10 +31,13 @@ async function generateTitleFromMessage(message: string, model:string): Promise<
   }
 }
 
+const workspaceRootSchema = z.object({ label: z.string(), path: z.string() });
+
 const createSessionSchema = z.object({
   title: z.string(),
   model: z.string(),
   cwd: z.string().optional(),
+  roots: z.array(workspaceRootSchema).optional(),
   gitBranch: z.string().optional(),
 });
 
@@ -61,6 +66,20 @@ const listSessionsValidator = zValidator(
   },
 );
 
+const addRootSchema = z.object({
+  path: z.string(),
+});
+
+const addRootValidator = zValidator(
+  "json",
+  addRootSchema,
+  (result, c) => {
+    if (!result.success) {
+      return c.json({ error: "Invalid request body" }, 400);
+    }
+  },
+);
+
 const app = new Hono()
   .get("/", listSessionsValidator, async (c) => {
     const { cwd, gitBranch } = c.req.valid("query");
@@ -76,10 +95,13 @@ const app = new Hono()
         title: true,
         updatedAt: true,
         cwd: true,
+        roots: true,
       },
     });
 
-    return c.json(sessions);
+    return c.json(
+      sessions.map((s) => ({ ...s, roots: parseWorkspaceRoots(s.roots) })),
+    );
   })
   .get("/:id", async (c) => {
     // MOCK: Uncomment to simulate slow session loading
@@ -118,7 +140,7 @@ const app = new Hono()
       })
       .filter((m) => m !== null);
 
-    return c.json({ ...session, messages });
+    return c.json({ ...session, roots: parseWorkspaceRoots(session.roots), messages });
   })
   .post("/", createSessionValidator, async (c) => {
     // MOCK: Uncomment to simulate slow session loading
@@ -130,10 +152,15 @@ const app = new Hono()
     //   { message: "Mock error: session loading failed" }
     // )
 
-    const { title, cwd, model, gitBranch } = c.req.valid("json");
+    const { title, cwd, model, roots, gitBranch } = c.req.valid("json");
 
     const session = await db.session.create({
-      data: { title, cwd, gitBranch },
+      data: {
+        title,
+        cwd,
+        gitBranch,
+        ...(roots ? { roots: serializeWorkspaceRoots(roots) } : {}),
+      },
     });
 
     // Generate better title in background without blocking
@@ -148,7 +175,39 @@ const app = new Hono()
         logger.error(`Failed to update title for session ${session.id}:`, err);
       });
 
-    return c.json(session, 201);
+    return c.json({ ...session, roots: parseWorkspaceRoots(session.roots) }, 201);
+  })
+  .post("/:id/add-root", addRootValidator, async (c) => {
+    const id = c.req.param("id");
+    const { path } = c.req.valid("json");
+
+    const session = await db.session.findUnique({ where: { id } });
+
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    const existingRoots = parseWorkspaceRoots(session.roots);
+    const conflict = findRootConflict(path, existingRoots);
+
+    if (conflict) {
+      return c.json(
+        { error: `"${path}" overlaps with the existing "${conflict.label}" root` },
+        409,
+      );
+    }
+
+    const updatedRoots = [
+      ...existingRoots,
+      { label: makeRootLabel(path, existingRoots), path },
+    ];
+
+    await db.session.update({
+      where: { id },
+      data: { roots: serializeWorkspaceRoots(updatedRoots) },
+    });
+
+    return c.json({ roots: updatedRoots });
   })
   .delete("/:id", async (c) => {
     const id = c.req.param("id");
@@ -361,6 +420,7 @@ const app = new Hono()
         data: {
           title: `Continued: ${session.title}`,
           cwd: session.cwd ?? undefined,
+          roots: session.roots,
           gitBranch: session.gitBranch ?? undefined,
         },
       });
@@ -368,7 +428,7 @@ const app = new Hono()
     }
 
     // Extract model and mode from last assistant message metadata
-    let model = "claude-sonnet-4-6";
+    let model;
     let mode = "BUILD";
     const lastAssistant = assistantMessages[assistantMessages.length - 1]!;
     try {
@@ -416,6 +476,7 @@ const app = new Hono()
       data: {
         title: `Continued: ${session.title}`,
         cwd: session.cwd ?? undefined,
+        roots: session.roots,
         gitBranch: session.gitBranch ?? undefined,
       },
     });

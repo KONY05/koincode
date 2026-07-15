@@ -41,7 +41,8 @@ Add your API keys directly from the command line:
 ```bash
 koincode --anthropic-key <your-key>
 koincode --openai-key <your-key>
-koincode --gemini-key <your-key>
+koincode --google-key <your-key>
+koincode --xai-key <your-key>
 koincode --openrouter-key <your-key>
 ```
 

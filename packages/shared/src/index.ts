@@ -58,6 +58,14 @@ export {
 
 export { SENTRY_DSN } from "./sentry-dsn";
 
+export {
+  parseWorkspaceRoots,
+  serializeWorkspaceRoots,
+  makeRootLabel,
+  findRootConflict,
+  type WorkspaceRoot,
+} from "./workspace";
+
 export type {
   KoincodeGlobalConfig,
   BrowserConfig,

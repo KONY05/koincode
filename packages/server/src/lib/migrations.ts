@@ -31,12 +31,23 @@ const LEGACY_MIGRATIONS = new Set([
 //
 // Add new migrations here in chronological order:
 //   "20260801000000_add_some_column": `ALTER TABLE "Foo" ADD COLUMN "bar" TEXT;`,
-const MIGRATIONS: Record<string, string> = {};
+const MIGRATIONS: Record<string, string> = {
+  "20260715120000_add_session_roots": `ALTER TABLE "Session" ADD COLUMN "roots" TEXT NOT NULL DEFAULT '[]';`,
+};
 
 export async function runMigrations(): Promise<void> {
   const client = createClient({ url: `file:${DB_PATH}` });
 
   try {
+    // A fresh install has no tracking table yet — check before creating it below,
+    // so we know whether to baseline every embedded migration (fresh install already
+    // has the final schema via the CREATE TABLE statements) or actually run the ones
+    // an existing install hasn't seen yet.
+    const trackingTable = await client.execute(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name = '_koincode_migrations'`,
+    );
+    const isFreshInstall = trackingTable.rows.length === 0;
+
     // Base schema — always idempotent, handles new installs and upgrades.
     // When adding a migration that changes table structure, update these
     // statements too so fresh installs get the final schema directly.
@@ -49,6 +60,7 @@ export async function runMigrations(): Promise<void> {
         "id" TEXT NOT NULL PRIMARY KEY,
         "title" TEXT NOT NULL,
         "cwd" TEXT,
+        "roots" TEXT NOT NULL DEFAULT '[]',
         "gitBranch" TEXT,
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -84,10 +96,21 @@ export async function runMigrations(): Promise<void> {
       });
     }
 
-    // Run embedded migrations in order
+    // Run embedded migrations in order — except on a fresh install, where the base
+    // CREATE TABLE statements above already produced the final schema, so applying
+    // these too would just re-run (and fail on) changes that already exist.
     const migrationNames = Object.keys(MIGRATIONS).sort();
     for (const name of migrationNames) {
       if (appliedNames.has(name)) continue;
+
+      if (isFreshInstall) {
+        await client.execute({
+          sql: `INSERT OR IGNORE INTO "_koincode_migrations" ("name") VALUES (?)`,
+          args: [name],
+        });
+        continue;
+      }
+
       await client.executeMultiple(MIGRATIONS[name]!);
       await client.execute({
         sql: `INSERT INTO "_koincode_migrations" ("name") VALUES (?)`,

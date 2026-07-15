@@ -147,7 +147,7 @@ function resolveOpenAIModel(modelId: OpenAIModelId): ResolvedModel {
 
 function resolveGoogleModel(modelId: GoogleModelId): ResolvedModel {
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-    const key = readConfigKey("gemini");
+    const key = readConfigKey("google");
     if (key) process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
   }
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {

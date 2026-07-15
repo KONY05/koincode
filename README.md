@@ -65,7 +65,7 @@ Or download a binary directly from [GitHub Releases](https://github.com/KONY05/k
 ## Getting Started
 
 ```bash
-koincode --anthropic-key <your-key>   # or --openai-key / --gemini-key / --openrouter-key
+koincode --anthropic-key <your-key>   # or --openai-key / --google-key / --xai-key / --openrouter-key
 koincode                              # Start coding
 ```
 

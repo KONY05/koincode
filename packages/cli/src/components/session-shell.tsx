@@ -27,6 +27,7 @@ import type {
 import { CWD, getGitBranch } from "../utils/helper";
 import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
+import type { WorkspaceRoot } from "@koincode/shared";
 
 type Props = {
   children?: ReactNode;
@@ -50,6 +51,7 @@ type Props = {
   sessionTitle?: string;
   sessionCost?: number;
   messages?: Message[];
+  workspaceRoots?: WorkspaceRoot[];
 };
 
 const GIT_BRANCH = getGitBranch();
@@ -76,6 +78,7 @@ export function SessionShell({
   sessionTitle,
   sessionCost = 0,
   messages = [],
+  workspaceRoots = [],
 }: Props) {
   const scrollAccel = useMemo(() => new MacOSScrollAccel(), []);
   const scrollRef = useRef<ScrollBoxRenderable>(null);
@@ -218,6 +221,9 @@ export function SessionShell({
           <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
             {CWD}
             {GIT_BRANCH ? `:${GIT_BRANCH}` : ""}
+            {workspaceRoots.length > 1
+              ? ` +${workspaceRoots.length - 1} dir${workspaceRoots.length > 2 ? "s" : ""}`
+              : ""}
           </text>
         </box>
       </box>
@@ -227,6 +233,7 @@ export function SessionShell({
       sessionTitle={sessionTitle}
       contextUsage={contextUsage}
       sessionCost={sessionCost}
+      workspaceRoots={workspaceRoots}
     />
     </box>
   );

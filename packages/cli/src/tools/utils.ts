@@ -1,4 +1,5 @@
-import { resolve } from "path";
+import { relative, resolve } from "path";
+import type { WorkspaceRoot } from "@koincode/shared";
 
 export const MAX_FILE_SIZE = 10_000;
 export const MAX_RESULTS = 200;
@@ -11,6 +12,22 @@ export function resolveFromCwd(path: string) {
   const cwd = process.cwd();
   const resolved = resolve(cwd, path);
   return { cwd, resolved };
+}
+
+/**
+ * Formats a resolved absolute path for display: bare relative-to-primary-root when the
+ * path is under the session's primary (first) root — unchanged from single-root behavior —
+ * or `<root-label>/<relative-path>` when it's under a secondary root. Falls back to the raw
+ * absolute path if it's under none of the known roots at all.
+ */
+export function formatWorkspacePath(resolved: string, roots: WorkspaceRoot[]): string {
+  for (const [index, root] of roots.entries()) {
+    const rel = relative(root.path, resolved);
+    if (!rel.startsWith("..")) {
+      return index === 0 ? rel : `${root.label}/${rel}`;
+    }
+  }
+  return resolved;
 }
 
 export function truncate(value: string, limit: number) {

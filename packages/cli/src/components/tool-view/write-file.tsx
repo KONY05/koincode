@@ -10,18 +10,29 @@ function clipLine(line: string) {
 
 export default function WriteFilePreview({
   input,
+  output,
   pending,
   error,
   colors,
 }: {
   input: unknown;
+  output?: unknown;
   pending: boolean;
   error?: string;
   colors: ThemeColors;
 }) {
   if (!input || typeof input !== "object") return null;
-  const { path, content } = input as { path?: string; content?: string };
-  if (typeof path !== "string") return null;
+  const { path: inputPath, content } = input as { path?: string; content?: string };
+  if (typeof inputPath !== "string") return null;
+
+  // Prefer the tool's own returned path (already formatted as <root-label>/<path>
+  // for a secondary-root file) over the raw argument the model typed — matches
+  // what the model itself sees, instead of always showing a full absolute path.
+  const outputPath =
+    !error && output && typeof output === "object"
+      ? (output as { path?: string }).path
+      : undefined;
+  const path = outputPath ?? inputPath;
 
   const lines = typeof content === "string" ? content.split("\n") : [];
   const preview = lines.slice(0, 3);

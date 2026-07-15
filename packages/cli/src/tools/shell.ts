@@ -44,8 +44,9 @@ function findBlockedPattern(command: string): string | null {
 }
 
 export async function runShellCommand(input: unknown, sessionId?: string) {
-  const { command, description, timeout, run_in_background } =
+  const { command, description, cwd, timeout, run_in_background } =
     toolInputSchemas.shell.parse(input);
+  const spawnCwd = resolveFromCwd(cwd ?? ".").resolved;
 
   const blocked = findBlockedPattern(command);
   if (blocked) {
@@ -62,7 +63,7 @@ export async function runShellCommand(input: unknown, sessionId?: string) {
 
   if (run_in_background) {
     const proc = Bun.spawn(shellArgs, {
-      cwd: resolveFromCwd(".").resolved,
+      cwd: spawnCwd,
       stdout: "pipe",
       stderr: "pipe",
       env: { ...process.env },
@@ -135,7 +136,7 @@ export async function runShellCommand(input: unknown, sessionId?: string) {
   }
 
   const proc = Bun.spawn(shellArgs, {
-    cwd: resolveFromCwd(".").resolved,
+    cwd: spawnCwd,
     stdout: "pipe",
     stderr: "pipe",
     env: { ...process.env, TERM: "dumb" },

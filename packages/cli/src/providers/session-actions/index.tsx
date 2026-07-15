@@ -1,11 +1,14 @@
 import { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
+import type { WorkspaceRoot } from "@koincode/shared";
 
 export type SessionActionsContextValue = {
   invokeSkill: (skillName: string) => Promise<void>;
   clearSession: () => Promise<void>;
   handoff: () => Promise<void>;
   compact: () => Promise<void>;
+  addWorkspaceRoot: (path: string) => Promise<void>;
+  workspaceRoots: WorkspaceRoot[];
 };
 
 const noop = () => Promise.resolve();
@@ -15,6 +18,8 @@ const SessionActionsContext = createContext<SessionActionsContextValue>({
   clearSession: noop,
   handoff: noop,
   compact: noop,
+  addWorkspaceRoot: noop,
+  workspaceRoots: [],
 });
 
 type SessionActionsProviderProps = {
@@ -23,6 +28,8 @@ type SessionActionsProviderProps = {
   clearSession: () => Promise<void>;
   handoff: () => Promise<void>;
   compact: () => Promise<void>;
+  addWorkspaceRoot: (path: string) => Promise<void>;
+  workspaceRoots: WorkspaceRoot[];
 };
 
 export function SessionActionsProvider({
@@ -31,10 +38,12 @@ export function SessionActionsProvider({
   clearSession,
   handoff,
   compact,
+  addWorkspaceRoot,
+  workspaceRoots,
 }: SessionActionsProviderProps) {
   const value = useMemo(
-    () => ({ invokeSkill, clearSession, handoff, compact }),
-    [invokeSkill, clearSession, handoff, compact],
+    () => ({ invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots }),
+    [invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots],
   );
 
   return (

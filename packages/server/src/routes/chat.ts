@@ -19,6 +19,7 @@ import {
   getToolContracts,
   modeSchema,
   IMAGE_PLACEHOLDER_RE,
+  parseWorkspaceRoots,
   type ChatMessageMetadata,
   type ToolContracts,
 } from "@koincode/shared";
@@ -247,7 +248,8 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   }
 
   const promptCaching = resolvedModel.promptCaching === true;
-  const systemPrompt = buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus });
+  const roots = parseWorkspaceRoots(session.roots);
+  const systemPrompt = buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus, roots });
   // Order matters: append the volatile IDE context to the newest message's content
   // *before* marking that message as this turn's cache breakpoint, so the breakpoint's
   // hash covers the final content, not a stale pre-append snapshot.

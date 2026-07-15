@@ -27,12 +27,7 @@ export function resolveSyncableKey(modelId: string): SyncableKey {
   }
 
   const keys = readGlobalConfig().apiKeys ?? {};
-  // Local config stores the Google/Gemini key under `apiKeys.gemini`, not
-  // `apiKeys.google` — see lib/usage.ts's hasGoogleKey check. The provider
-  // string sent to Review is always model.provider (already matching
-  // Review's LlmProvider enum); only this local lookup needs the mapping.
-  const apiKey =
-    model.provider === "google" ? keys.gemini : keys[model.provider];
+  const apiKey = keys[model.provider];
 
   if (!apiKey) {
     return { ok: false, reason: "no-key-for-provider" };

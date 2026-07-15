@@ -1,5 +1,7 @@
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import type { WorkspaceRoot } from "@koincode/shared";
 
 export type ModifiedFile = {
   path: string;
@@ -8,8 +10,13 @@ export type ModifiedFile = {
   status: "modified" | "added" | "deleted" | "untracked";
 };
 
-function run(cmd: string): string {
-  return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+export type ModifiedFilesGroup = {
+  root: WorkspaceRoot;
+  files: ModifiedFile[];
+};
+
+function run(cmd: string, cwd?: string): string {
+  return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], cwd });
 }
 
 function countLines(path: string): number {
@@ -21,11 +28,10 @@ function countLines(path: string): number {
   }
 }
 
-/** Reads the working tree's current dirty state via git — not scoped to this session, just whatever's uncommitted right now. */
-export function getModifiedFiles(): ModifiedFile[] {
+function getModifiedFilesForRoot(rootPath: string): ModifiedFile[] {
   let porcelain: string;
   try {
-    porcelain = run("git status --porcelain");
+    porcelain = run("git status --porcelain", rootPath);
   } catch {
     return [];
   }
@@ -35,7 +41,7 @@ export function getModifiedFiles(): ModifiedFile[] {
 
   let numstat = "";
   try {
-    numstat = run("git diff --numstat HEAD");
+    numstat = run("git diff --numstat HEAD", rootPath);
   } catch {
     // No commits yet (no HEAD) — tracked-file line stats unavailable, fall back to zeros.
   }
@@ -57,16 +63,36 @@ export function getModifiedFiles(): ModifiedFile[] {
     if (!path) continue;
 
     if (code === "??") {
-      results.push({ path, added: countLines(path), removed: 0, status: "untracked" });
+      results.push({ path, added: countLines(resolve(rootPath, path)), removed: 0, status: "untracked" });
       continue;
     }
 
     const stat = statByPath.get(path) ?? { added: 0, removed: 0 };
-    
+
     const status = code.includes("D") ? "deleted" : code.includes("A") ? "added" : "modified";
 
     results.push({ path, added: stat.added, removed: stat.removed, status });
   }
 
   return results;
+}
+
+/**
+ * Reads the working tree's current dirty state via git — not scoped to this session, just
+ * whatever's uncommitted right now. Runs once per workspace root when more than one is
+ * attached (each is typically its own git repo), returned as one group per root rather than
+ * merged, so the UI can render each root as its own separate, independently collapsible
+ * section instead of one combined list.
+ */
+export function getModifiedFiles(roots: WorkspaceRoot[] = []): ModifiedFilesGroup[] {
+  if (roots.length === 0) {
+    return [
+      {
+        root: { label: "", path: process.cwd() },
+        files: getModifiedFilesForRoot(process.cwd()),
+      },
+    ];
+  }
+
+  return roots.map((root) => ({ root, files: getModifiedFilesForRoot(root.path) }));
 }

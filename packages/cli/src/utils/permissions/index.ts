@@ -1,4 +1,5 @@
 import { dirname, resolve } from "path";
+import type { WorkspaceRoot } from "@koincode/shared";
 import { isOutsideProject, isSensitivePath } from "./file";
 import getShellPermissionInfo from "./shell";
 
@@ -43,6 +44,7 @@ export function getPermissionInfo(
   toolName: string,
   input: unknown,
   extraSensitivePatterns: string[] = [],
+  roots: WorkspaceRoot[] = [],
 ): PermissionInfo {
   switch (toolName) {
     case "shell": {
@@ -62,7 +64,7 @@ export function getPermissionInfo(
     case "writeFile":
     case "editFile": {
       const { path } = input as { path: string };
-      if (isSensitivePath(path, extraSensitivePatterns)) {
+      if (isSensitivePath(path, extraSensitivePatterns, roots)) {
         return {
           requiresApproval: true,
           key: "file:sensitive",
@@ -71,7 +73,7 @@ export function getPermissionInfo(
           tier: "destructive",
         };
       }
-      if (isOutsideProject(path)) {
+      if (isOutsideProject(path, roots)) {
         const targetDir = dirname(resolve(path));
         return {
           requiresApproval: true,
@@ -86,7 +88,7 @@ export function getPermissionInfo(
     }
     case "readFile": {
       const { path } = input as { path: string };
-      if (isOutsideProject(path)) {
+      if (isOutsideProject(path, roots)) {
         const targetDir = dirname(resolve(path));
         return {
           requiresApproval: true,

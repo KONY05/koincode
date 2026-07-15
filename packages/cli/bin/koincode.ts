@@ -13,7 +13,8 @@ Options:
   --port <number>           Run the server on a custom port (default: 37420)
   --anthropic-key <key>     Save an Anthropic API key
   --openai-key <key>        Save an OpenAI API key
-  --gemini-key <key>        Save a Google Gemini API key
+  --google-key <key>        Save a Google Gemini API key
+  --xai-key <key>           Save an xAI API key
   --openrouter-key <key>    Save an OpenRouter API key
   --enable-browser-tools    Enable Playwright-based browser tools
   --disable-browser-tools   Disable browser tools

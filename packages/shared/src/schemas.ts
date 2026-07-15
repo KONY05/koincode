@@ -20,16 +20,16 @@ export type TodoItem = z.infer<typeof todoItemSchema>;
 
 export const toolInputSchemas = {
   readFile: z.object({
-    path: z.string().describe("Relative path to the file to read"),
+    path: z.string().describe("Relative path to the file to read, or an absolute path to address a secondary workspace root"),
     offset: z.number().int().min(0).optional().describe("Character offset to start reading from (for paginating large files)"),
     limit: z.number().int().min(1).optional().describe("Maximum number of characters to read"),
   }),
   listDirectory: z.object({
-    path: z.string().default(".").describe("Relative directory path to list"),
+    path: z.string().default(".").describe("Relative directory path to list, or an absolute path to address a secondary workspace root"),
   }),
   glob: z.object({
     pattern: z.string().describe("Glob pattern to match files"),
-    path: z.string().default(".").describe("Directory to search from"),
+    path: z.string().default(".").describe("Directory to search from — relative, or an absolute path to address a secondary workspace root"),
   }),
   grep: z.object({
     pattern: z.string().describe("Regex pattern to search for"),
@@ -40,11 +40,11 @@ export const toolInputSchemas = {
       .describe("Optional glob for files to include"),
   }),
   writeFile: z.object({
-    path: z.string().describe("Relative path to write"),
+    path: z.string().describe("Relative path to write, or an absolute path to address a secondary workspace root"),
     content: z.string().describe("File contents"),
   }),
   editFile: z.object({
-    path: z.string().describe("Relative path to edit"),
+    path: z.string().describe("Relative path to edit, or an absolute path to address a secondary workspace root"),
     oldString: z.string().describe("Exact text to replace; must be unique"),
     newString: z.string().describe("Replacement text"),
   }),
@@ -53,6 +53,12 @@ export const toolInputSchemas = {
     description: z
       .string()
       .describe("Short human-readable description of what this command does"),
+    cwd: z
+      .string()
+      .optional()
+      .describe(
+        "Absolute path to run this command in — one of the workspace's roots (see Working Directory/Directories in the environment section) or a subdirectory of one. Defaults to the primary root.",
+      ),
     timeout: z
       .number()
       .optional()
@@ -442,7 +448,7 @@ export const buildToolContracts = {
   }),
   shell: tool({
     description:
-      "Run a shell command in the current project directory. Pass run_in_background: true to avoid blocking this turn on a long-running build/test/watch command — its result is delivered here automatically once it exits, no polling needed. scheduleWakeup (with waitingOnTaskId set to the process's PID, as a string) is optional if you want to resume with a specific follow-up prompt the moment it's done. For starting a dev server, use serverStart instead, which waits for the port to accept connections.",
+      "Run a shell command in the primary project directory, or pass cwd to target a different workspace root. Pass run_in_background: true to avoid blocking this turn on a long-running build/test/watch command — its result is delivered here automatically once it exits, no polling needed. scheduleWakeup (with waitingOnTaskId set to the process's PID, as a string) is optional if you want to resume with a specific follow-up prompt the moment it's done. For starting a dev server, use serverStart instead, which waits for the port to accept connections.",
     inputSchema: toolInputSchemas.shell,
   }),
   scheduleWakeup: tool({
