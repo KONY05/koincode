@@ -30,5 +30,7 @@ export type Command = {
   description: string;
   value: string;
   isSkill?: boolean;
+  /** Alternate names this command should also match under (e.g. "resume" for "sessions"). */
+  aliases?: string[];
   action?: (ctx: CommandContext) => void | Promise<void>;
 };

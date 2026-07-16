@@ -72,6 +72,7 @@ export const COMMANDS: Command[] = [
     name: "models",
     description: "Select AI model for generation",
     value: "/models",
+    aliases: ["model"],
     action: (ctx) => {
       ctx.dialog.open({
         title: "Select Model",
@@ -88,6 +89,7 @@ export const COMMANDS: Command[] = [
     name: "sessions",
     description: "Browse past sessions",
     value: "/sessions",
+    aliases: ["resume"],
     action: (ctx) => {
       ctx.dialog.open({
         title: "Sessions",
@@ -110,6 +112,7 @@ export const COMMANDS: Command[] = [
     name: "setup",
     description: "Configure API keys (OpenRouter, Anthropic, OpenAI, Gemini)",
     value: "/setup",
+    aliases: ["keys", "login"],
     action: (ctx) => {
       ctx.dialog.open({
         title: "API Key Setup",
@@ -148,6 +151,7 @@ export const COMMANDS: Command[] = [
     name: "info",
     description: "Toggle the info sidebar (context, cost, mcp, modified files)",
     value: "/info",
+    aliases: ["status"],
     action: (ctx) => {
       ctx.toggleInfoSidebar();
     },
@@ -182,6 +186,7 @@ export const COMMANDS: Command[] = [
     name: "enable-browser-tools",
     description: "Toggle browser tools (serverStart, browserNavigate, etc.)",
     value: "/enable-browser-tools",
+    aliases: ["browser"],
     action: (ctx) => {
       const current = readGlobalConfig().browser?.enabled ?? false;
       updateGlobalConfig({ browser: { enabled: !current } });
@@ -225,6 +230,7 @@ export const COMMANDS: Command[] = [
     name: "notifications",
     description: "Toggle terminal bell when the agent needs your attention",
     value: "/notifications",
+    aliases: ["bell", "notify"],
     action: (ctx) => {
       const current = readGlobalConfig().notificationEnabled ?? true;
 
@@ -240,6 +246,7 @@ export const COMMANDS: Command[] = [
     name: "restart-server",
     description: "Restart the background server process",
     value: "/restart-server",
+    aliases: ["restart"],
     action: async (ctx) => {
       ctx.toast.show({ message: "Restarting server...", variant: "info" });
       try {
@@ -268,6 +275,7 @@ export const COMMANDS: Command[] = [
     name: "usage",
     description: "Open API usage dashboard for your current provider",
     value: "/usage",
+    aliases: ["cost"],
     action: (ctx) => {
       const result = resolveUsageTarget(ctx.model);
       if (result.type === "ollama") {
@@ -521,6 +529,7 @@ export const COMMANDS: Command[] = [
     name: "update",
     description: "Check for updates and install the latest version",
     value: "/update",
+    aliases: ["upgrade"],
     action: async (ctx) => {
       ctx.toast.show({ message: "Checking for updates...", variant: "info" });
       try {
@@ -551,6 +560,7 @@ export const COMMANDS: Command[] = [
     name: "exit",
     description: "Quit the application",
     value: "/exit",
+    aliases: ["quit"],
     action: (ctx) => {
       ctx.exit();
     },
