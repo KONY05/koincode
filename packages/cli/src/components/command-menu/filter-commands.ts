@@ -4,7 +4,13 @@ import { getAllCommands } from "./commands";
 export function getFilteredCommands(query: string): Command[] {
   const all = getAllCommands();
   if (query.length === 0) return all;
-  return all.filter((cmd) =>
-    cmd.name.toLowerCase().startsWith(query.toLowerCase()) || cmd.name.toLowerCase().includes(query.toLowerCase()),
-  );
+
+  const q = query.toLowerCase();
+  return all.filter((cmd) => {
+    const names = [cmd.name, ...(cmd.aliases ?? [])];
+    return names.some((name) => {
+      const n = name.toLowerCase();
+      return n.startsWith(q) || n.includes(q);
+    });
+  });
 }
