@@ -579,6 +579,16 @@ export function loadSkillCommands(): Command[] {
   }));
 }
 
+// Cached until the underlying skills manifest reference changes (see invalidateSkillsCache),
+// so re-filtering on every keystroke doesn't reallocate the combined list each time.
+let cachedSkillsManifest: ReturnType<typeof loadSkillsManifest> | null = null;
+let cachedAllCommands: Command[] = [];
+
 export function getAllCommands(): Command[] {
-  return [...COMMANDS, ...loadSkillCommands()];
+  const manifest = loadSkillsManifest();
+  if (manifest !== cachedSkillsManifest) {
+    cachedSkillsManifest = manifest;
+    cachedAllCommands = [...COMMANDS, ...loadSkillCommands()];
+  }
+  return cachedAllCommands;
 }
