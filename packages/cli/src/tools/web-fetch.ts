@@ -71,8 +71,13 @@ async function fetchWithBrowser(url: string, timeout: number) {
 
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeout * 1000 });
 
-    // Wait for client-side rendering to complete (Next.js hydration, etc.)
-    await page.waitForTimeout(5000);
+    // Best-effort wait for client-side rendering (Next.js hydration, etc.):
+    // resolve early if the page goes network-idle, but don't wait past the
+    // same 5s budget the old flat wait used — plenty of real pages (analytics
+    // beacons, websockets, polling) never go idle, and `networkidle` would
+    // otherwise burn the full request timeout waiting for something that
+    // never happens.
+    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
 
     const html = await page.content();
     await context.close();
