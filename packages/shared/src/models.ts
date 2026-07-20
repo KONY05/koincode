@@ -177,31 +177,10 @@ export const SUPPORTED_CHAT_MODELS = [
 
   // ── OpenRouter paid (always require OPENROUTER_API_KEY) ────────────────────
   {
-    id: "deepseek/deepseek-v4-pro",
+    id: "moonshotai/kimi-k3",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.435, outputUsdPerMillionTokens: 0.87 },
+    pricing: { inputUsdPerMillionTokens: 3, outputUsdPerMillionTokens: 15 },
     contextWindow: 1_048_576,
-    vision: false,
-  },
-  {
-    id: "deepseek/deepseek-v4-flash",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.089, outputUsdPerMillionTokens: 0.18 },
-    contextWindow: 1_048_576,
-    vision: false,
-  },
-  {
-    id: "moonshotai/kimi-k2.7-code",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.74, outputUsdPerMillionTokens: 3.50 },
-    contextWindow: 262_144,
-    vision: true,
-  },
-  {
-    id: "moonshotai/kimi-k2.6",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.66, outputUsdPerMillionTokens: 3.41 },
-    contextWindow: 262_144,
     vision: true,
   },
   {
@@ -212,10 +191,10 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
   },
   {
-    id: "qwen/qwen3.7-plus",
+    id: "meta/muse-spark-1.1",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.32, outputUsdPerMillionTokens: 1.28 },
-    contextWindow: 1_000_000,
+    pricing: { inputUsdPerMillionTokens: 1.25, outputUsdPerMillionTokens: 4.25 },
+    contextWindow: 1_048_576,
     vision: true,
   },
   {
@@ -232,14 +211,41 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_000_000,
     vision: true,
   },
-   {
-    id: "nex-agi/nex-n2-pro",
+  {
+    id: "deepseek/deepseek-v4-pro",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.25, outputUsdPerMillionTokens: 1 },
+    pricing: { inputUsdPerMillionTokens: 0.435, outputUsdPerMillionTokens: 0.87 },
+    contextWindow: 1_048_576,
+    vision: false,
+  },
+  {
+    id: "moonshotai/kimi-k2.6",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.66, outputUsdPerMillionTokens: 3.41 },
     contextWindow: 262_144,
     vision: true,
   },
-
+  {
+    id: "deepseek/deepseek-v4-flash",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.089, outputUsdPerMillionTokens: 0.18 },
+    contextWindow: 1_048_576,
+    vision: false,
+  },
+  {
+    id: "moonshotai/kimi-k2.7-code",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.74, outputUsdPerMillionTokens: 3.50 },
+    contextWindow: 262_144,
+    vision: true,
+  },
+  {
+    id: "qwen/qwen3.7-plus",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.32, outputUsdPerMillionTokens: 1.28 },
+    contextWindow: 1_000_000,
+    vision: true,
+  },
   // ── OpenRouter free (require OPENROUTER_API_KEY, $0 per token) ────────────
   {
     id: "poolside/laguna-xs-2.1:free",

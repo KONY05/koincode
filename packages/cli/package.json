@@ -1,6 +1,6 @@
 {
   "name": "koincode",
-  "version": "1.21.1",
+  "version": "1.21.2",
   "module": "src/index.tsx",
   "type": "module",
   "files": [
@@ -33,11 +33,11 @@
     "koincode": "bin/npm-wrapper.cjs"
   },
   "optionalDependencies": {
-    "@koincode/darwin-arm64": "1.21.1",
-    "@koincode/darwin-x64": "1.21.1",
-    "@koincode/linux-x64": "1.21.1",
-    "@koincode/linux-arm64": "1.21.1",
-    "@koincode/windows-x64": "1.21.1"
+    "@koincode/darwin-arm64": "1.21.2",
+    "@koincode/darwin-x64": "1.21.2",
+    "@koincode/linux-x64": "1.21.2",
+    "@koincode/linux-arm64": "1.21.2",
+    "@koincode/windows-x64": "1.21.2"
   },
   "scripts": {
     "version": "node bin/sync-platform-versions.cjs",
@@ -56,6 +56,7 @@
     "@opentui/react": "^0.1.97",
     "@types/bun": "latest",
     "@types/react": "^19.2.14",
+    "@types/turndown": "^5.0.5",
     "ai": "^6.0.184",
     "date-fns": "^4.1.0",
     "diff": "^9.0.0",
@@ -80,6 +81,7 @@
     "playwright": "^1.49.1",
     "react": "^19.2.4",
     "react-router": "^7.14.0",
+    "turndown": "^7.2.0",
     "unpdf": "^1.6.2"
   }
 }
