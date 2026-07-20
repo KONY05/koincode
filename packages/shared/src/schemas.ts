@@ -328,7 +328,7 @@ export const readOnlyToolContracts = {
   }),
   webFetch: tool({
     description:
-      "Fetch the content of a URL using a headless browser and return the rendered HTML as text. Can handle JavaScript-rendered content from modern frameworks like Next.js and React.",
+      "Fetch the content of a URL and return it as markdown. Uses a fast plain HTTP request by default; automatically falls back to a headless browser when the page looks like an unrendered client-side app shell, so JavaScript-rendered content from frameworks like Next.js and React is still handled.",
     inputSchema: toolInputSchemas.webFetch,
   }),
   webSearch: tool({
