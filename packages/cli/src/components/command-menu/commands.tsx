@@ -397,7 +397,7 @@ export const COMMANDS: Command[] = [
           message:
             resolved.reason === "no-remote"
               ? "No git remote found in this directory"
-              : "Only GitHub repositories are supported",
+              : "Unsupported git host — GitHub, GitLab, and Azure DevOps are supported",
           variant: "error",
         });
         return;
@@ -405,6 +405,7 @@ export const COMMANDS: Command[] = [
 
       try {
         const result = await connectReviewRepo(
+          resolved.repo.provider,
           resolved.repo.owner,
           resolved.repo.repo,
         );
@@ -441,14 +442,18 @@ export const COMMANDS: Command[] = [
           message:
             resolved.reason === "no-remote"
               ? "No git remote found in this directory"
-              : "Only GitHub repositories are supported",
+              : "Unsupported git host — GitHub, GitLab, and Azure DevOps are supported",
           variant: "error",
         });
         return;
       }
 
       try {
-        await disconnectReviewRepo(resolved.repo.owner, resolved.repo.repo);
+        await disconnectReviewRepo(
+          resolved.repo.provider,
+          resolved.repo.owner,
+          resolved.repo.repo,
+        );
 
         ctx.toast.show({
           message: `Disconnected ${resolved.repo.owner}/${resolved.repo.repo} from KOINCODE-Review`,

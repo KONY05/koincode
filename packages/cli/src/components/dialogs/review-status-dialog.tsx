@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { TextAttributes } from "@opentui/core";
 
 import { useTheme } from "../../providers/theme";
-import { resolveCurrentRepo } from "../../lib/review/review-repo";
+import { resolveCurrentRepo, type GitProviderId } from "../../lib/review/review-repo";
 import { readReviewAuth } from "../../lib/review/review-auth";
 import {
   getRepoStatus,
@@ -17,24 +17,29 @@ import {
 type PreCheck =
   | { kind: "not-logged-in" }
   | { kind: "no-remote" }
-  | { kind: "not-github" }
-  | { kind: "ready"; owner: string; repo: string };
+  | { kind: "unsupported-host" }
+  | { kind: "ready"; provider: GitProviderId; owner: string; repo: string };
 
 function resolvePreCheck(): PreCheck {
   if (!readReviewAuth()) return { kind: "not-logged-in" };
 
   const resolved = resolveCurrentRepo();
   if (!resolved.ok) {
-    return { kind: resolved.reason === "no-remote" ? "no-remote" : "not-github" };
+    return { kind: resolved.reason === "no-remote" ? "no-remote" : "unsupported-host" };
   }
 
-  return { kind: "ready", owner: resolved.repo.owner, repo: resolved.repo.repo };
+  return {
+    kind: "ready",
+    provider: resolved.repo.provider,
+    owner: resolved.repo.owner,
+    repo: resolved.repo.repo,
+  };
 }
 
 type LoadState =
   | { kind: "loading" }
   | { kind: "no-remote" }
-  | { kind: "not-github" }
+  | { kind: "unsupported-host" }
   | { kind: "not-logged-in" }
   | { kind: "error"; message: string }
   | { kind: "loaded"; owner: string; repo: string; status: RepoStatus };
@@ -53,11 +58,11 @@ export function ReviewStatusDialogContent() {
 
     let cancelled = false;
 
-    const { owner, repo } = preCheck;
+    const { provider, owner, repo } = preCheck;
 
     async function loadStatus() {
       try {
-        const status = await getRepoStatus(owner, repo);
+        const status = await getRepoStatus(provider, owner, repo);
         if (cancelled) return;
         setState({ kind: "loaded", owner, repo, status });
       } catch (err) {
@@ -99,13 +104,13 @@ export function ReviewStatusDialogContent() {
     );
   }
 
-  if (state.kind === "no-remote" || state.kind === "not-github") {
+  if (state.kind === "no-remote" || state.kind === "unsupported-host") {
     return (
       <box flexDirection="column" gap={1} paddingX={1} paddingY={1}>
         <text fg={colors.error}>
           {state.kind === "no-remote"
             ? "No git remote found in this directory."
-            : "Only GitHub repositories are supported."}
+            : "Unsupported git host — GitHub, GitLab, and Azure DevOps are supported."}
         </text>
       </box>
     );

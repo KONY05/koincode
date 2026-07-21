@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { readReviewAuth, clearReviewAuth } from "./review-auth";
+import type { GitProviderId } from "./review-repo";
 
 // NODE_ENV-gated, same mechanism already used in lib/sentry.ts and
 // lib/analytics.ts — no env var or config field, matches KOINCODE-Review's
@@ -146,10 +147,14 @@ const connectRepoSchema = z.object({
 
 export type ConnectRepoResult = z.infer<typeof connectRepoSchema>;
 
-export async function connectRepo(owner: string, repo: string): Promise<ConnectRepoResult> {
+export async function connectRepo(
+  provider: GitProviderId,
+  owner: string,
+  repo: string,
+): Promise<ConnectRepoResult> {
   const res = await authedFetch("/api/cli/repos/connect", {
     method: "POST",
-    body: JSON.stringify({ owner, repo }),
+    body: JSON.stringify({ provider, owner, repo }),
   });
 
   if (!res.ok) {
@@ -159,10 +164,14 @@ export async function connectRepo(owner: string, repo: string): Promise<ConnectR
   return parseResponse(connectRepoSchema, res, "connect repository");
 }
 
-export async function disconnectRepo(owner: string, repo: string): Promise<void> {
+export async function disconnectRepo(
+  provider: GitProviderId,
+  owner: string,
+  repo: string,
+): Promise<void> {
   const res = await authedFetch("/api/cli/repos/disconnect", {
     method: "POST",
-    body: JSON.stringify({ owner, repo }),
+    body: JSON.stringify({ provider, owner, repo }),
   });
 
   if (!res.ok) {
@@ -188,8 +197,12 @@ const repoStatusSchema = z.discriminatedUnion("connected", [
 
 export type RepoStatus = z.infer<typeof repoStatusSchema>;
 
-export async function getRepoStatus(owner: string, repo: string): Promise<RepoStatus> {
-  const query = `owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`;
+export async function getRepoStatus(
+  provider: GitProviderId,
+  owner: string,
+  repo: string,
+): Promise<RepoStatus> {
+  const query = `owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}&provider=${encodeURIComponent(provider)}`;
   const res = await authedFetch(`/api/cli/repos/status?${query}`);
 
   if (!res.ok) {
