@@ -43,9 +43,10 @@ function truncateText(text: string, maxWidth: number): string {
 
 type Props = {
   contextUsage?: ContextUsage | null;
+  showUpdateStatus?: boolean;
 };
 
-export function StatusBar({ contextUsage }: Props) {
+export function StatusBar({ contextUsage, showUpdateStatus = true }: Props) {
   const { mode, modelDisplayName, voiceInput, infoSidebarVisible } = usePromptConfig();
   const { colors } = useTheme();
   const updateInfo = useUpdateCheck();
@@ -67,8 +68,9 @@ export function StatusBar({ contextUsage }: Props) {
   const modeLabel = mode === Mode.PLAN ? "Plan" : "Build";
   const voiceLabel = voiceInput ? "voice" : null;
   const mcpLabel = mcpServerCount > 0 ? `${mcpServerCount} mcp` : null;
-  const updateLabel =
-    updateInfo.status === "downloaded"
+  const updateLabel = !showUpdateStatus
+    ? null
+    : updateInfo.status === "downloaded"
       ? "restart for update"
       : updateInfo.status !== "current"
         ? "update available · /update"

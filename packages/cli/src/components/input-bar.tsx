@@ -508,6 +508,7 @@ type Props = {
   queueFocusedIndex?: number | null;
   onQueueFocusedIndexChange?: (index: number | null) => void;
   messages?: Message[];
+  showUpdateStatus?: boolean;
 };
 
 export function InputBar({
@@ -520,7 +521,8 @@ export function InputBar({
   onRemoveFromQueue,
   queueFocusedIndex = null,
   onQueueFocusedIndexChange,
-  messages = [] }: Props) {
+  messages = [],
+  showUpdateStatus = true }: Props) {
   const { mode, model, modelDisplayName, toggleMode, setMode, setModel, voiceInput, toggleVoice, toggleInfoSidebar } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
@@ -1173,7 +1175,7 @@ export function InputBar({
             onContentChange={handleTextareaContentChange}
             placeholder={getInputBarPlaceholder(disabled, streaming, queue.length, voiceInput, voiceState)}
           />
-          <StatusBar contextUsage={contextUsage} />
+          <StatusBar contextUsage={contextUsage} showUpdateStatus={showUpdateStatus} />
         </box>
       </box>
     </box>
