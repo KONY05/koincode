@@ -44,6 +44,8 @@ function extractBodyText(html: string): string {
 }
 
 function looksUnrendered(html: string): boolean {
+  // Heuristic: if the visible text in the <body> is below this threshold, assume
+  // it's an unrendered client-side app shell and use a browser for full rendering.
   return extractBodyText(html).length < UNRENDERED_TEXT_THRESHOLD;
 }
 

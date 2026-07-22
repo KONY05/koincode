@@ -39,8 +39,29 @@ if ($UserPath -notlike "*$InstallDir*") {
 }
 
 Write-Host ""
-Write-Host "koincode $Tag installed successfully!" -ForegroundColor Green
+
+# Colored ASCII wordmark — matches the "tiny" ascii-font used in the TUI header
+# (packages/cli/src/components/header.tsx), so the install splash and the app's
+# own splash screen read as the same brand.
+$Koin = @(
+    "█▄▀ █▀█ █ █▄ █ "
+    "█ █ █▄█ █ █ ▀█ "
+)
+$Code = @(
+    "█▀▀ █▀█ █▀▄ █▀▀ "
+    "█▄▄ █▄█ █▄▀ ██▄ "
+)
+for ($i = 0; $i -lt $Koin.Length; $i++) {
+    Write-Host $Koin[$i] -ForegroundColor White -NoNewline
+    Write-Host $Code[$i] -ForegroundColor DarkYellow
+}
+
 Write-Host ""
-Write-Host "Get started:" -ForegroundColor Cyan
-Write-Host "  koincode --setup        # Configure your API keys"
-Write-Host "  koincode                # Start coding"
+Write-Host "koincode $Tag installed successfully!" -ForegroundColor Green
+Write-Host "Koincode gives access to free/frontier models, get started:" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  cd <project-folder>        # open your project folder/directory"
+Write-Host "  koincode --setup           # Configure your API keys"
+Write-Host "  koincode                   # Start coding"
+Write-Host ""
+Write-Host "For more information visit https://github.com/$Repo"

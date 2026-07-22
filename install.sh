@@ -89,8 +89,28 @@ if [ "$os" = "darwin" ]; then
 fi
 
 echo ""
-echo "koincode ${LATEST_TAG} installed successfully!"
+
+# Colored ASCII wordmark — matches the "tiny" ascii-font used in the TUI header
+# (packages/cli/src/components/header.tsx), so the install splash and the app's
+# own splash screen read as the same brand.
+if [ -t 1 ]; then
+  WHITE='\033[97m'
+  ORANGE='\033[38;5;208m'
+  DIM='\033[2m'
+  RESET='\033[0m'
+else
+  WHITE=''; ORANGE=''; DIM=''; RESET=''
+fi
+
 echo ""
-echo "Get started:"
-echo "  koincode --setup        # Configure your API keys"
-echo "  koincode                # Start coding"
+printf "%b\n" "${WHITE}█▄▀ █▀█ █ █▄ █ ${ORANGE}█▀▀ █▀█ █▀▄ █▀▀ ${RESET}"
+printf "%b\n" "${WHITE}█ █ █▄█ █ █ ▀█ ${ORANGE}█▄▄ █▄█ █▄▀ ██▄ ${RESET}"
+echo ""
+printf "%b\n" "${DIM}koincode ${LATEST_TAG} installed successfully!${RESET}"
+echo ""
+echo "Koincode gives access to free/frontier models, get started:"
+echo "  cd <project-folder>        # open your project folder/directory"
+echo "  koincode --setup           # Configure your API keys"
+echo "  koincode                   # Start coding"
+echo ""
+echo "For more information visit https://github.com/${REPO}"
