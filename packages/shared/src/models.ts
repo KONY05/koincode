@@ -248,7 +248,7 @@ export const SUPPORTED_CHAT_MODELS = [
   },
   // ── OpenRouter free (require OPENROUTER_API_KEY, $0 per token) ────────────
   {
-    id: "poolside/laguna-xs-2.1:free",
+    id: "poolside/laguna-s-2.1:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 262_144,
