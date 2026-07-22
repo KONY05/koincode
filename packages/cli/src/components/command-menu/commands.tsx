@@ -112,7 +112,7 @@ export const COMMANDS: Command[] = [
     name: "setup",
     description: "Configure API keys (OpenRouter, Anthropic, OpenAI, Gemini)",
     value: "/setup",
-    aliases: ["keys", "login"],
+    aliases: ["keys", "login", "provider"],
     action: (ctx) => {
       ctx.dialog.open({
         title: "API Key Setup",
