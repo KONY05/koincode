@@ -1,11 +1,12 @@
 import { type LanguageModelUsage } from "ai";
 
-import type { SupportedChatModelId } from "./models";
+import type { ReasoningEffortLevel, SupportedChatModelId } from "./models";
 import type { ModeType } from "./schemas";
 
 export type ChatMessageMetadata = {
   mode?: ModeType;
   model?: SupportedChatModelId | string;
+  reasoningEffort?: ReasoningEffortLevel;
   /** Known only for models outside the curated list (Ollama's real num_ctx, a custom model's configured value). */
   contextWindow?: number;
   durationMs?: number;

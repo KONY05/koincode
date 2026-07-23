@@ -476,17 +476,29 @@ function FileMentionMenu({
 
 
 
+const PLACEHOLDER_EXAMPLES = [
+  "Fix a bug in the database",
+  "let's work on the auth flow",
+  "refactor this component",
+  "add tests for the payment flow",
+  "why is this endpoint so slow?",
+  "clean up the unused imports",
+  "add a dark mode toggle",
+  "help me debug this crash",
+];
+
 function getInputBarPlaceholder(
   disabled: boolean,
   streaming: boolean,
   queueLength: number,
   voiceInput: boolean,
   voiceState: "idle" | "recording" | "transcribing",
+  placeholderExample: string,
 ): string {
   if (disabled) return "Agent is thinking… press esc to interrupt";
   if (streaming && queueLength > 0) return `${queueLength} queued — press enter to skip ahead`;
   if (streaming) return `Type to queue a message…`;
-  if (!voiceInput) return `Ask anything... "Fix a bug in the database"`;
+  if (!voiceInput) return `Ask anything... "${placeholderExample}"`;
   if (voiceState === "recording") return "Recording… ctrl+r to stop";
   if (voiceState === "transcribing") return "Transcribing…";
   return "ctrl+r to record… or type normally";
@@ -508,6 +520,7 @@ type Props = {
   queueFocusedIndex?: number | null;
   onQueueFocusedIndexChange?: (index: number | null) => void;
   messages?: Message[];
+  showUpdateStatus?: boolean;
 };
 
 export function InputBar({
@@ -520,8 +533,9 @@ export function InputBar({
   onRemoveFromQueue,
   queueFocusedIndex = null,
   onQueueFocusedIndexChange,
-  messages = [] }: Props) {
-  const { mode, model, modelDisplayName, toggleMode, setMode, setModel, voiceInput, toggleVoice, toggleInfoSidebar } = usePromptConfig();
+  messages = [],
+  showUpdateStatus = true }: Props) {
+  const { mode, model, modelDisplayName, toggleMode, setMode, setModel, reasoningEffort, setReasoningEffort, voiceInput, toggleVoice, toggleInfoSidebar } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => { });
@@ -536,6 +550,9 @@ export function InputBar({
   const skipUndoRef = useRef(false);
   const recorderRef = useRef<RecorderHandle | null>(null);
   const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribing">("idle");
+  const [placeholderExample] = useState(
+    () => PLACEHOLDER_EXAMPLES[Math.floor(Math.random() * PLACEHOLDER_EXAMPLES.length)]!,
+  );
 
   const { expandPastes, clearPastes } = usePasteHandler({ textareaRef });
   const { detectAndReplaceImagePaths, hasImageTags, checkVisionModel } = useImageAttachment({ textareaRef, skipUndoRef });
@@ -726,6 +743,8 @@ export function InputBar({
           modelDisplayName,
           setMode,
           setModel,
+          reasoningEffort,
+          setReasoningEffort,
           invokeSkill,
           clearSession,
           handoff,
@@ -742,7 +761,7 @@ export function InputBar({
         skipUndoRef.current = false;
       }
     },
-    [renderer, toast, dialog, navigate, mode, model, modelDisplayName, setMode, setModel, invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots, contextUsage, toggleVoice, toggleInfoSidebar],
+    [renderer, toast, dialog, navigate, mode, model, modelDisplayName, setMode, setModel, reasoningEffort, setReasoningEffort, invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots, contextUsage, toggleVoice, toggleInfoSidebar],
   );
 
   const handleCommandExecute = useCallback(
@@ -1171,9 +1190,9 @@ export function InputBar({
             }
             keyBindings={TEXTAREA_KEY_BINDINGS}
             onContentChange={handleTextareaContentChange}
-            placeholder={getInputBarPlaceholder(disabled, streaming, queue.length, voiceInput, voiceState)}
+            placeholder={getInputBarPlaceholder(disabled, streaming, queue.length, voiceInput, voiceState, placeholderExample)}
           />
-          <StatusBar contextUsage={contextUsage} />
+          <StatusBar contextUsage={contextUsage} showUpdateStatus={showUpdateStatus} />
         </box>
       </box>
     </box>

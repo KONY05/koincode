@@ -43,10 +43,11 @@ function truncateText(text: string, maxWidth: number): string {
 
 type Props = {
   contextUsage?: ContextUsage | null;
+  showUpdateStatus?: boolean;
 };
 
-export function StatusBar({ contextUsage }: Props) {
-  const { mode, modelDisplayName, voiceInput, infoSidebarVisible } = usePromptConfig();
+export function StatusBar({ contextUsage, showUpdateStatus = true }: Props) {
+  const { mode, modelDisplayName, voiceInput, infoSidebarVisible, reasoningEffort } = usePromptConfig();
   const { colors } = useTheme();
   const updateInfo = useUpdateCheck();
   const { width: terminalWidth } = useTerminalDimensions();
@@ -67,8 +68,10 @@ export function StatusBar({ contextUsage }: Props) {
   const modeLabel = mode === Mode.PLAN ? "Plan" : "Build";
   const voiceLabel = voiceInput ? "voice" : null;
   const mcpLabel = mcpServerCount > 0 ? `${mcpServerCount} mcp` : null;
-  const updateLabel =
-    updateInfo.status === "downloaded"
+  const effortLabel = reasoningEffort;
+  const updateLabel = !showUpdateStatus
+    ? null
+    : updateInfo.status === "downloaded"
       ? "restart for update"
       : updateInfo.status !== "current"
         ? "update available · /update"
@@ -82,30 +85,46 @@ export function StatusBar({ contextUsage }: Props) {
       RIGHT_SECTION_ESTIMATE,
   );
 
-  function fixedWidthWith(voice: string | null, mcp: string | null): number {
-    const count = 2 + (voice ? 1 : 0) + (mcp ? 1 : 0) + (updateLabel ? 1 : 0);
-    return modeLabel.length + (voice?.length ?? 0) + (mcp?.length ?? 0) + (count - 1) * SEPARATOR_WIDTH;
+  function fixedWidthWith(voice: string | null, mcp: string | null, effort: string | null): number {
+    const count = 2 + (voice ? 1 : 0) + (mcp ? 1 : 0) + (effort ? 1 : 0) + (updateLabel ? 1 : 0);
+    return (
+      modeLabel.length +
+      (voice?.length ?? 0) +
+      (mcp?.length ?? 0) +
+      (effort?.length ?? 0) +
+      (count - 1) * SEPARATOR_WIDTH
+    );
   }
 
   // "Build" itself always fits (availableForLeft has a floor above the length of any mode label),
-  // but voice/mcp are decorative extras — shed the lowest-priority one first (mcp, then voice)
-  // rather than let a too-narrow terminal hard-clip them mid-word.
+  // but voice/mcp/effort are decorative extras — shed the lowest-priority one first
+  // (effort, then mcp, then voice) rather than let a too-narrow terminal hard-clip them mid-word.
   let effectiveVoiceLabel = voiceLabel;
   let effectiveMcpLabel = mcpLabel;
-  if (fixedWidthWith(effectiveVoiceLabel, effectiveMcpLabel) > availableForLeft) {
+  let effectiveEffortLabel = effortLabel;
+  if (fixedWidthWith(effectiveVoiceLabel, effectiveMcpLabel, effectiveEffortLabel) > availableForLeft) {
+    effectiveEffortLabel = null;
+  }
+  if (fixedWidthWith(effectiveVoiceLabel, effectiveMcpLabel, effectiveEffortLabel) > availableForLeft) {
     effectiveMcpLabel = null;
   }
-  if (fixedWidthWith(effectiveVoiceLabel, effectiveMcpLabel) > availableForLeft) {
+  if (fixedWidthWith(effectiveVoiceLabel, effectiveMcpLabel, effectiveEffortLabel) > availableForLeft) {
     effectiveVoiceLabel = null;
   }
 
   // Everything but the model name and update text is short and fixed-length, so only those two
   // compete for the leftover space once the fixed segments and their separators are accounted for.
-  const segmentCount = 2 + (effectiveVoiceLabel ? 1 : 0) + (effectiveMcpLabel ? 1 : 0) + (updateLabel ? 1 : 0);
+  const segmentCount =
+    2 +
+    (effectiveVoiceLabel ? 1 : 0) +
+    (effectiveMcpLabel ? 1 : 0) +
+    (effectiveEffortLabel ? 1 : 0) +
+    (updateLabel ? 1 : 0);
   const fixedWidth =
     modeLabel.length +
     (effectiveVoiceLabel?.length ?? 0) +
     (effectiveMcpLabel?.length ?? 0) +
+    (effectiveEffortLabel?.length ?? 0) +
     (segmentCount - 1) * SEPARATOR_WIDTH;
 
   // No floor here on purpose: when space is critically tight these should shrink all the way to
@@ -135,6 +154,15 @@ export function StatusBar({ contextUsage }: Props) {
               ›
             </text>
             <text wrapMode="none">{displayModel}</text>
+          </>
+        )}
+
+        {effectiveEffortLabel && (
+          <>
+            <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>›</text>
+            <text wrapMode="none" attributes={TextAttributes.DIM} fg={colors.info}>
+              {effectiveEffortLabel}
+            </text>
           </>
         )}
 

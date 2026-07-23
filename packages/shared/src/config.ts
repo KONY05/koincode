@@ -1,4 +1,4 @@
-import type { ModelPricing } from "./models";
+import type { ModelPricing, ReasoningEffortLevel } from "./models";
 
 export type McpServerConfig = {
   /** Stdio transport: the executable to run (e.g. "npx"). Mutually exclusive with `url`. */
@@ -130,6 +130,7 @@ export type KoincodeGlobalConfig = {
   defaultModel?: string;
   apiKeys?: ApiKeys;
   autoModeSwitch?: "confirm" | "auto";
+  reasoningEffort?: ReasoningEffortLevel;
   hooks?: HooksConfig;
   port?: number;
   ollamaBaseURL?: string;

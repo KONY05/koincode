@@ -1,8 +1,9 @@
-import { SUPPORTED_CHAT_MODELS } from "@koincode/shared";
+import { SUPPORTED_CHAT_MODELS, getReasoningEffortLevels } from "@koincode/shared";
 import {
   AgentsDialogContent,
   ContextDialogContent,
   DirectoryPickerDialogContent,
+  EffortDialogContent,
   HelpDialogContent,
   ModelsDialogContent,
   ReviewStatusDialogContent,
@@ -86,6 +87,31 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: "effort",
+    description: "Set reasoning effort for the current model",
+    value: "/effort",
+    action: (ctx) => {
+      const levels = getReasoningEffortLevels(ctx.model);
+      if (!levels) {
+        ctx.toast.show({
+          variant: "error",
+          message: "This model doesn't support reasoning effort control.",
+        });
+        return;
+      }
+      ctx.dialog.open({
+        title: `${ctx.modelDisplayName} - Reasoning Effort`,
+        children: (
+          <EffortDialogContent
+            levels={levels}
+            currentEffort={ctx.reasoningEffort}
+            onSelectEffort={ctx.setReasoningEffort}
+          />
+        ),
+      });
+    },
+  },
+  {
     name: "sessions",
     description: "Browse past sessions",
     value: "/sessions",
@@ -112,7 +138,7 @@ export const COMMANDS: Command[] = [
     name: "setup",
     description: "Configure API keys (OpenRouter, Anthropic, OpenAI, Gemini)",
     value: "/setup",
-    aliases: ["keys", "login"],
+    aliases: ["keys", "login", "provider"],
     action: (ctx) => {
       ctx.dialog.open({
         title: "API Key Setup",

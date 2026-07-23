@@ -1,6 +1,6 @@
 import type { DialogContextValue } from "../../providers/dialog";
 import type { ToastContextValue } from "../../providers/toast";
-import type { ModeType, WorkspaceRoot } from "@koincode/shared";
+import type { ModeType, ReasoningEffortLevel, WorkspaceRoot } from "@koincode/shared";
 import type { ContextUsage } from "../../hooks/use-chat";
 
 export type CommandContext = {
@@ -14,6 +14,8 @@ export type CommandContext = {
   modelDisplayName: string;
   setMode: (mode: ModeType) => void;
   setModel: (model: string) => void;
+  reasoningEffort: ReasoningEffortLevel | null;
+  setReasoningEffort: (effort: ReasoningEffortLevel) => void;
   invokeSkill: (skillName: string) => Promise<void>;
   clearSession: () => Promise<void>;
   handoff: () => Promise<void>;

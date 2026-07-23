@@ -15,6 +15,13 @@ import { hasApiKeyForModel } from "../lib/usage";
 import { version } from "../../package.json";
 import { useUpdateCheck } from "../hooks/use-update-check";
 
+const HOME_TIPS = [
+  "Press tab to toggle between Plan and Build mode",
+  "Type @ to mention a file and add it as context",
+  "Run /add-dir to work across multiple workspace roots",
+  "Run /setup to configure or switch AI providers",
+];
+
 const GIT_BRANCH = getGitBranch();
 // process.cwd() (not the display-shortened CWD from utils/helper) — this needs to be
 // a real filesystem path, since it's compared against candidate directories below.
@@ -35,6 +42,7 @@ export function Home() {
   // spanning multiple roots, instead of always starting single-root and needing
   // /add-dir again afterward.
   const [pendingRoots, setPendingRoots] = useState<WorkspaceRoot[]>([]);
+  const [tip] = useState(() => HOME_TIPS[Math.floor(Math.random() * HOME_TIPS.length)]);
 
   const handleSubmit = useCallback(
     (text: string) => {
@@ -101,10 +109,15 @@ export function Home() {
       >
         <Header />
         <box width="100%" maxWidth={78} paddingX={2} flexDirection="column" gap={1}>
-          <InputBar onSubmit={handleSubmit} />
+          <InputBar onSubmit={handleSubmit} showUpdateStatus={false} />
           <box flexDirection="row" gap={1} flexShrink={0} marginLeft="auto">
             <text>tab</text>
             <text attributes={TextAttributes.DIM}>agents</text>
+          </box>
+          <box flexDirection="row" gap={1} flexShrink={0} width="100%" justifyContent="center">
+            <text fg={colors.dimSeparator}>•</text>
+            <text fg={colors.primary}>Tip</text>
+            <text attributes={TextAttributes.DIM}>{tip}</text>
           </box>
         </box>
         <box position="absolute" bottom={1} left={0} width="100%" paddingX={1} flexDirection="row" justifyContent="space-between">

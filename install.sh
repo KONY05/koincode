@@ -66,11 +66,12 @@ fi
 chmod +x "$TMPFILE"
 
 # Install — prefer /usr/local/bin, fall back to ~/.local/bin
-if [ -w "$INSTALL_DIR" ]; then
+if [ -d "$INSTALL_DIR" ] && [ -w "$INSTALL_DIR" ]; then
   mv "$TMPFILE" "$INSTALL_DIR/koincode"
   echo "Installed to $INSTALL_DIR/koincode"
 elif command -v sudo >/dev/null 2>&1; then
   echo "Installing to $INSTALL_DIR (requires sudo)..."
+  sudo mkdir -p "$INSTALL_DIR"
   sudo mv "$TMPFILE" "$INSTALL_DIR/koincode"
   echo "Installed to $INSTALL_DIR/koincode"
 else

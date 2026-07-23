@@ -20,6 +20,7 @@ import {
   modeSchema,
   IMAGE_PLACEHOLDER_RE,
   parseWorkspaceRoots,
+  REASONING_EFFORT_LEVELS,
   type ChatMessageMetadata,
   type ToolContracts,
 } from "@koincode/shared";
@@ -58,6 +59,7 @@ const submitSchema = z.object({
     .min(1),
   mode: modeSchema,
   model: z.string().refine(isSupportedChatModel, "Unsupported model"),
+  reasoningEffort: z.enum(REASONING_EFFORT_LEVELS).optional(),
   browserTools: z.boolean().optional().default(false),
   skillsManifest: z.array(skillManifestEntrySchema).optional().default([]),
   ideActiveFile: z.string().nullable().optional(),
@@ -91,7 +93,7 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 
 
 const app = new Hono().post("/", submitValidator, async (c) => {
-  const { id, messages, mode, model, browserTools, skillsManifest, ideActiveFile, ideSelection } = c.req.valid("json");
+  const { id, messages, mode, model, reasoningEffort, browserTools, skillsManifest, ideActiveFile, ideSelection } = c.req.valid("json");
 
   const session = await db.session.findUnique({
     where: { id },
@@ -105,7 +107,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   const startTime = Date.now();
   const tools = { ...getToolContracts(mode, browserTools), ...getMcpTools() };
   const mcpStatus = getMcpServerStatus();
-  const resolvedModel = await resolveChatModel(model);
+  const resolvedModel = await resolveChatModel(model, reasoningEffort);
   const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
   const userMemory =
     memories.length > 0
