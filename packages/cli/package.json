@@ -1,6 +1,6 @@
 {
   "name": "koincode",
-  "version": "1.22.1",
+  "version": "1.23.1",
   "module": "src/index.tsx",
   "type": "module",
   "files": [
@@ -33,11 +33,11 @@
     "koincode": "bin/npm-wrapper.cjs"
   },
   "optionalDependencies": {
-    "@koincode/darwin-arm64": "1.22.1",
-    "@koincode/darwin-x64": "1.22.1",
-    "@koincode/linux-x64": "1.22.1",
-    "@koincode/linux-arm64": "1.22.1",
-    "@koincode/windows-x64": "1.22.1"
+    "@koincode/darwin-arm64": "1.23.1",
+    "@koincode/darwin-x64": "1.23.1",
+    "@koincode/linux-x64": "1.23.1",
+    "@koincode/linux-arm64": "1.23.1",
+    "@koincode/windows-x64": "1.23.1"
   },
   "scripts": {
     "version": "node bin/sync-platform-versions.cjs",
@@ -52,8 +52,8 @@
     "@ai-sdk/react": "^3.0.186",
     "@koincode/server": "workspace:*",
     "@koincode/shared": "workspace:*",
-    "@opentui/core": "^0.1.97",
-    "@opentui/react": "^0.1.97",
+    "@opentui/core": "^0.4.5",
+    "@opentui/react": "^0.4.5",
     "@types/bun": "latest",
     "@types/react": "^19.2.14",
     "@types/turndown": "^5.0.5",
@@ -73,8 +73,8 @@
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
-    "@opentui/core": "^0.1.97",
-    "@opentui/react": "^0.1.97",
+    "@opentui/core": "^0.4.5",
+    "@opentui/react": "^0.4.5",
     "@sentry/bun": "^10.57.0",
     "mammoth": "^1.12.0",
     "mixpanel": "^0.22.0",

@@ -10,6 +10,8 @@ export type ResolvedSkill = {
   name: string;
   description: string;
   tools: string[];
+  /** Alternate names this skill's command should also match under in the command menu (e.g. "review" for "code-review"). */
+  aliases: string[];
   scope: SkillScope;
   skillDir: string;
   files: string[];
@@ -20,6 +22,7 @@ type SkillMeta = {
   name?: string;
   description?: string;
   tools?: string[];
+  aliases?: string[];
   scope?: string;
 };
 
@@ -86,6 +89,7 @@ function readSkillDir(skillDir: string, scope: SkillScope): ResolvedSkill | null
     name,
     description: meta.description ?? "",
     tools: meta.tools ?? [],
+    aliases: meta.aliases ?? [],
     scope,
     skillDir,
     files,
@@ -128,6 +132,7 @@ export function loadSkillsManifest(): ResolvedSkill[] {
     name: s.name,
     description: s.description,
     tools: s.tools,
+    aliases: s.aliases ?? [],
     scope: "builtin" as const,
     skillDir: "",
     files: [],

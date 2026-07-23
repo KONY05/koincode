@@ -5,6 +5,7 @@ import {
   DirectoryPickerDialogContent,
   EffortDialogContent,
   HelpDialogContent,
+  McpStatusDialogContent,
   ModelsDialogContent,
   ReviewStatusDialogContent,
   SessionsDialogContent,
@@ -503,6 +504,17 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: "mcp",
+    description: "Show configured MCP servers and toggle them on/off",
+    value: "/mcp",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "MCP Servers",
+        children: <McpStatusDialogContent />,
+      });
+    },
+  },
+  {
     name: "review-open",
     description: "Open the KOINCODE-Review dashboard in your browser",
     value: "/review-open",
@@ -599,6 +611,11 @@ export function loadSkillCommands(): Command[] {
     description: `[${skill.scope}] ${skill.description}`,
     value: `/${skill.name}`,
     isSkill: true,
+    // Every skill also matches the universal "skills" keyword regardless of whatever
+    // aliases it declares itself — typing "/skill" or "/skills" should always surface every
+    // skill. ("skills".startsWith("skill") is true, so the plural alias alone covers both
+    // the singular and plural typed forms under filter-commands.ts's prefix match.)
+    aliases: [...skill.aliases, "skills"],
     action: async (ctx) => {
       await ctx.invokeSkill(skill.name);
     },

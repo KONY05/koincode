@@ -369,17 +369,6 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort: undefined,
   },
   {
-    id: "tencent/hy3:free",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-    contextWindow: 262_144,
-    vision: false,
-    label: "Hunyuan 3",
-    // Real Tencent Hunyuan splits reasoning into a separate "Hunyuan-T1" model — base
-    // Hunyuan's reasoning status is unconfirmed, left unsupported rather than guessed.
-    reasoningEffort: undefined,
-  },
-  {
     id: "cohere/north-mini-code:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },

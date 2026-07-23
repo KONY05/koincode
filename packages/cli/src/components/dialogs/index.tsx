@@ -8,3 +8,4 @@ export { HelpDialogContent } from "./help-dialog";
 export { ContextDialogContent } from "./context-dialog";
 export { ReviewStatusDialogContent } from "./review-status-dialog";
 export { DirectoryPickerDialogContent } from "./directory-picker-dialog";
+export { McpStatusDialogContent } from "./mcp-status-dialog";

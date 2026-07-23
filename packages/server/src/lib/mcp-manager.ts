@@ -5,33 +5,54 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
-import { GLOBAL_CONFIG_FILE, PROJECT_CONFIG_FILE, parseMcpToolName, type McpServerConfig } from "@koincode/shared";
+import {
+  GLOBAL_CONFIG_DIR,
+  GLOBAL_CONFIG_FILE,
+  PROJECT_CONFIG_DIR,
+  PROJECT_CONFIG_FILE,
+  parseMcpToolName,
+  type McpServerConfig,
+} from "@koincode/shared";
 import { logger } from "./helpers";
 
+type ConfigSource = "global" | "project";
+
 type McpServerEntry = {
-  client: Client;
+  client: Client | null;
   tools: Record<string, Tool>;
   status: "connected" | "error" | "disconnected";
+  source: ConfigSource;
   error?: string;
 };
 
 // Module-level state: one entry per named server, persisted for the server process lifetime.
 const servers = new Map<string, McpServerEntry>();
 
+function configFile(source: ConfigSource): string {
+  return source === "global" ? GLOBAL_CONFIG_FILE : PROJECT_CONFIG_FILE;
+}
+
+function configDir(source: ConfigSource): string {
+  return source === "global" ? GLOBAL_CONFIG_DIR : PROJECT_CONFIG_DIR;
+}
+
 /**
  * Reads and merges mcpServers from the global (~/.koincode/config.json) and project
  * (.koincode/config.json) config files. Project config takes precedence — if both files
- * declare a server with the same name, the project entry wins.
+ * declare a server with the same name, the project entry wins (and its `source` tag
+ * reflects that — the global entry underneath is not separately retained).
  */
-function readMcpConfigs(): Record<string, McpServerConfig> {
-  const merged: Record<string, McpServerConfig> = {};
+function readMcpConfigs(): Record<string, McpServerConfig & { source: ConfigSource }> {
+  const merged: Record<string, McpServerConfig & { source: ConfigSource }> = {};
 
-  for (const configFile of [GLOBAL_CONFIG_FILE, PROJECT_CONFIG_FILE]) {
+  for (const source of ["global", "project"] as const) {
     try {
-      const raw = fs.readFileSync(configFile, "utf8");
+      const raw = fs.readFileSync(configFile(source), "utf8");
       const config = JSON.parse(raw) as { mcpServers?: Record<string, McpServerConfig> };
       if (config.mcpServers) {
-        Object.assign(merged, config.mcpServers);
+        for (const [name, cfg] of Object.entries(config.mcpServers)) {
+          merged[name] = { ...cfg, source };
+        }
       }
     } catch {
       // File missing or unparseable — skip silently.
@@ -76,7 +97,7 @@ function createTransport(
  * Tool names are namespaced to avoid collisions with KOINCODE's built-in tools.
  * The `execute` function on each tool calls the MCP server at invocation time.
  */
-async function connectServer(name: string, config: McpServerConfig): Promise<void> {
+async function connectServer(name: string, config: McpServerConfig, source: ConfigSource): Promise<void> {
   const transport = createTransport(name, config);
   const client = new Client({ name: "koincode", version: "1.0.0" });
   await client.connect(transport);
@@ -97,7 +118,7 @@ async function connectServer(name: string, config: McpServerConfig): Promise<voi
     });
   }
 
-  servers.set(name, { client, tools: aiTools, status: "connected" });
+  servers.set(name, { client, tools: aiTools, status: "connected", source });
   logger.info(`MCP: connected "${name}" — ${mcpTools.length} tool(s)`);
 }
 
@@ -116,19 +137,26 @@ async function connectServer(name: string, config: McpServerConfig): Promise<voi
  */
 export async function initializeMcp(): Promise<void> {
   const configs = readMcpConfigs();
-  const entries = Object.entries(configs).filter(([, cfg]) => cfg.enabled !== false);
+  const entries = Object.entries(configs);
 
   if (entries.length === 0) return;
 
   await Promise.all(
     entries.map(async ([name, config]) => {
+      if (config.enabled === false) {
+        // Registered (not skipped) so a status query with includeDisabled can see it —
+        // just never attempts a connection.
+        servers.set(name, { client: null, tools: {}, status: "disconnected", source: config.source });
+        return;
+      }
+
       try {
-        await connectServer(name, config);
+        await connectServer(name, config, config.source);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
 
-        servers.set(name, { client: null!, tools: {}, status: "error", error: message });
-        
+        servers.set(name, { client: null, tools: {}, status: "error", error: message, source: config.source });
+
         logger.error(`MCP: failed to connect "${name}": ${message}`);
       }
     }),
@@ -170,31 +198,106 @@ export function getMcpTools(): Record<string, Tool> {
  * Used to inject a human-readable overview into the system prompt
  * and expose connection health to callers.
  *
+ * @param includeDisabled  When false (the default — what the sidebar, status bar, and the
+ *   `manageMcp` LLM tool all use), servers with `status: "disconnected"` are omitted, matching
+ *   this function's behavior before disabled servers were tracked at all. Pass `true` (the `/mcp`
+ *   command does) to see them too.
+ *
  * @example
  * getMcpServerStatus()
- * / Returns (when github connected, slack failed):
+ * / Returns (when github connected, slack failed, notion disabled):
  * / [
- * /   { name: "github", status: "connected", toolCount: 26 },
- * /   { name: "slack",  status: "error",     toolCount: 0, error: "spawn npx ENOENT" },
+ * /   { name: "github", status: "connected", toolCount: 26, source: "global" },
+ * /   { name: "slack",  status: "error",     toolCount: 0,  source: "project", error: "spawn npx ENOENT" },
  * / ]
+ * getMcpServerStatus(true)
+ * / Also includes: { name: "notion", status: "disconnected", toolCount: 0, source: "global" }
  * /
  * / Possible status values:
  * /   "connected"    — live, tools available
  * /   "error"        — failed to connect at startup; error field has the reason
- * /   "disconnected" — was connected but client.close() was called (post-shutdown)
+ * /   "disconnected" — configured but not currently connected: either `enabled: false` in
+ * /                    config, or (rarer) a runtime disconnect
  */
-export function getMcpServerStatus(): Array<{
+export function getMcpServerStatus(includeDisabled = false): Array<{
   name: string;
   status: string;
   toolCount: number;
+  source: ConfigSource;
   error?: string;
 }> {
-  return Array.from(servers.entries()).map(([name, entry]) => ({
+  return Array.from(servers.entries())
+    .filter(([, entry]) => includeDisabled || entry.status !== "disconnected")
+    .map(([name, entry]) => ({
+      name,
+      status: entry.status,
+      toolCount: Object.keys(entry.tools).length,
+      source: entry.source,
+      ...(entry.error ? { error: entry.error } : {}),
+    }));
+}
+
+/**
+ * Flips a server's `enabled` flag in whichever config file currently declares it (project
+ * takes precedence over global, mirroring `readMcpConfigs`'s merge), then connects or
+ * disconnects that one server in-process.
+ *
+ * Deliberately not a reuse of the CLI's `restartServer()` (which restarts KOINCODE's entire
+ * local server process — needed for API key changes, since those are only read from env vars
+ * at spawn time). MCP connection state lives in this same process as this function and the
+ * `/mcp` routes, so a single server can be brought up or down directly with no restart, no
+ * dropped AI stream, and no effect on any other MCP server.
+ */
+export async function setServerEnabled(
+  name: string,
+  enabled: boolean,
+): Promise<{ name: string; status: string; toolCount: number; source: ConfigSource; error?: string }> {
+  const config = readMcpConfigs()[name];
+  if (!config) throw new Error(`MCP server "${name}" is not configured`);
+
+  const { source, ...serverConfig } = config;
+  const file = configFile(source);
+
+  let fileConfig: { mcpServers?: Record<string, McpServerConfig> };
+  try {
+    fileConfig = JSON.parse(fs.readFileSync(file, "utf8")) as typeof fileConfig;
+  } catch {
+    fileConfig = {};
+  }
+
+  fileConfig.mcpServers = {
+    ...fileConfig.mcpServers,
+    [name]: { ...fileConfig.mcpServers?.[name], enabled },
+  };
+
+  fs.mkdirSync(configDir(source), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(fileConfig, null, 2));
+
+  if (enabled) {
+    try {
+      await connectServer(name, { ...serverConfig }, source);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      servers.set(name, { client: null, tools: {}, status: "error", error: message, source });
+    }
+  } else {
+    const entry = servers.get(name);
+    try {
+      await entry?.client?.close();
+    } catch {
+      // Ignore close errors — marking it disconnected regardless.
+    }
+    servers.set(name, { client: null, tools: {}, status: "disconnected", source });
+  }
+
+  const updated = servers.get(name)!;
+  return {
     name,
-    status: entry.status,
-    toolCount: Object.keys(entry.tools).length,
-    ...(entry.error ? { error: entry.error } : {}),
-  }));
+    status: updated.status,
+    toolCount: Object.keys(updated.tools).length,
+    source: updated.source,
+    ...(updated.error ? { error: updated.error } : {}),
+  };
 }
 
 /**
@@ -211,7 +314,7 @@ export async function callMcpTool(
   const { server: serverName, tool: toolName } = parseMcpToolName(namespacedToolName);
   const entry = servers.get(serverName);
 
-  if (!entry || entry.status !== "connected") {
+  if (!entry || entry.status !== "connected" || !entry.client) {
     return { error: `MCP server "${serverName}" is not connected` };
   }
 
