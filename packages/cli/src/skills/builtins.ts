@@ -2,6 +2,7 @@ export type BuiltinSkill = {
   name: string;
   description: string;
   tools: string[];
+  aliases?: string[];
   content: string;
 };
 
@@ -10,10 +11,12 @@ export const BUILTIN_SKILLS: BuiltinSkill[] = [
     name: "code-review",
     description: "Review code for bugs, style, and missed edge cases",
     tools: ["readFile", "glob", "grep"],
+    aliases: ["review"],
     content: `---
 name: code-review
 description: Review code for bugs, style, and missed edge cases
 tools: [readFile, glob, grep]
+aliases: [review]
 scope: global
 ---
 
@@ -42,10 +45,12 @@ Perform a thorough code review. Identify bugs, logical errors, edge cases, secur
     name: "git-commit",
     description: "Stage changes and create a well-structured git commit",
     tools: ["shell", "readFile"],
+    aliases: ["commit"],
     content: `---
 name: git-commit
 description: Stage changes and create a well-structured git commit
 tools: [shell, readFile]
+aliases: [commit]
 scope: global
 ---
 

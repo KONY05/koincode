@@ -599,6 +599,11 @@ export function loadSkillCommands(): Command[] {
     description: `[${skill.scope}] ${skill.description}`,
     value: `/${skill.name}`,
     isSkill: true,
+    // Every skill also matches the universal "skills" keyword regardless of whatever
+    // aliases it declares itself — typing "/skill" or "/skills" should always surface every
+    // skill. ("skills".startsWith("skill") is true, so the plural alias alone covers both
+    // the singular and plural typed forms under filter-commands.ts's prefix match.)
+    aliases: [...skill.aliases, "skills"],
     action: async (ctx) => {
       await ctx.invokeSkill(skill.name);
     },
