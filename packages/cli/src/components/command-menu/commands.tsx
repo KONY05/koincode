@@ -1,8 +1,9 @@
-import { SUPPORTED_CHAT_MODELS } from "@koincode/shared";
+import { SUPPORTED_CHAT_MODELS, getReasoningEffortLevels } from "@koincode/shared";
 import {
   AgentsDialogContent,
   ContextDialogContent,
   DirectoryPickerDialogContent,
+  EffortDialogContent,
   HelpDialogContent,
   ModelsDialogContent,
   ReviewStatusDialogContent,
@@ -80,6 +81,31 @@ export const COMMANDS: Command[] = [
           <ModelsDialogContent
             models={SUPPORTED_CHAT_MODELS}
             onSelectModel={ctx.setModel}
+          />
+        ),
+      });
+    },
+  },
+  {
+    name: "effort",
+    description: "Set reasoning effort for the current model",
+    value: "/effort",
+    action: (ctx) => {
+      const levels = getReasoningEffortLevels(ctx.model);
+      if (!levels) {
+        ctx.toast.show({
+          variant: "error",
+          message: "This model doesn't support reasoning effort control.",
+        });
+        return;
+      }
+      ctx.dialog.open({
+        title: `${ctx.modelDisplayName} - Reasoning Effort`,
+        children: (
+          <EffortDialogContent
+            levels={levels}
+            currentEffort={ctx.reasoningEffort}
+            onSelectEffort={ctx.setReasoningEffort}
           />
         ),
       });

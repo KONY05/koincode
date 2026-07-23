@@ -69,6 +69,10 @@ export function updateGlobalConfig(
     next.autoModeSwitch = updates.autoModeSwitch;
   }
 
+  if (updates.reasoningEffort !== undefined) {
+    next.reasoningEffort = updates.reasoningEffort;
+  }
+
   if (updates.apiKeys !== undefined) {
     const merged: ApiKeys = { ...current.apiKeys, ...updates.apiKeys };
     for (const k of Object.keys(merged) as Array<keyof ApiKeys>) {

@@ -4,6 +4,7 @@ import type {
   CustomProviderConfig,
   CustomProviderInput,
 } from "@koincode/shared";
+import { findSupportedChatModel } from "@koincode/shared";
 import { readGlobalConfig, updateGlobalConfig } from "../utils/configs/global-config";
 
 function generateId(prefix: "provider" | "custom"): string {
@@ -24,13 +25,16 @@ export function customModelsForProvider(providerId: string): CustomModelConfig[]
 
 /**
  * Resolves a model id to what the user should actually see. Custom-model ids are opaque
- * (e.g. "custom/1a2b3c") — swap in the literal `modelId` string for display. Everything
- * else (built-in ids, "ollama/<name>") is already human-readable, so it passes through.
+ * (e.g. "custom/1a2b3c") — swap in the literal `modelId` string for display. Built-in ids
+ * resolve to their curated `label`. Everything else ("ollama/<name>") is already
+ * human-readable, so it passes through.
  */
 export function getModelDisplayName(modelId: string): string {
-  if (!modelId.startsWith("custom/")) return modelId;
-  const entry = listCustomModels().find((m) => m.id === modelId);
-  return entry?.modelId ?? modelId;
+  if (modelId.startsWith("custom/")) {
+    const entry = listCustomModels().find((m) => m.id === modelId);
+    return entry?.modelId ?? modelId;
+  }
+  return findSupportedChatModel(modelId)?.label ?? modelId;
 }
 
 /** For a custom model id, resolves the name of the provider it belongs to (e.g. "Groq"). */

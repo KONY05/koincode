@@ -141,7 +141,7 @@ function SessionChat({
   const [localClearMsgCount, setLocalClearMsgCount] = useState(() =>
     countMessagesBeforeLastBoundary(rawSessionMessages),
   );
-  const { mode, model } = usePromptConfig();
+  const { mode, model, reasoningEffort } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
   const toast = useToast();
   const [workspaceRoots, setWorkspaceRoots] = useState<WorkspaceRoot[]>(
@@ -376,7 +376,7 @@ function SessionChat({
   }, [contextUsage, status]);
 
   const handleInvokeSkill = async (skillName: string) => {
-    await submit({ userText: `Execute skill: ${skillName}`, mode, model });
+    await submit({ userText: `Execute skill: ${skillName}`, mode, model, reasoningEffort: reasoningEffort ?? undefined });
   };
 
   const handleClearSession = async () => {
@@ -436,7 +436,7 @@ function SessionChat({
       workspaceRoots={workspaceRoots}
     >
     <SessionShell
-      onSubmit={(text) => submit({ userText: text, mode, model })}
+      onSubmit={(text) => submit({ userText: text, mode, model, reasoningEffort: reasoningEffort ?? undefined })}
       onForceNext={interrupt}
       contextUsage={contextUsage}
       sessionCost={sessionCost}

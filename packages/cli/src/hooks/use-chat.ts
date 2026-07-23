@@ -95,6 +95,7 @@ export type QueuedMessage = {
   userText: string;
   mode: ModeType;
   model: string;
+  reasoningEffort?: ChatMessageMetadata["reasoningEffort"];
   origin?: ChatMessageMetadata["origin"];
   backgroundTaskView?: ChatMessageMetadata["backgroundTaskView"];
 };
@@ -150,6 +151,7 @@ export function useChat(
     autoModeSwitch,
     setAutoModeSwitch,
     model: currentModel,
+    reasoningEffort: currentReasoningEffort,
   } = usePromptConfig();
   const toast = useToast();
 
@@ -276,6 +278,7 @@ export function useChat(
             messages: requestMessages,
             mode: _activeModes.get(sessionId) ?? mode,
             model: message.metadata?.model ?? metadata?.model,
+            reasoningEffort: message.metadata?.reasoningEffort ?? metadata?.reasoningEffort,
             browserTools: readGlobalConfig().browser?.enabled ?? false,
             skillsManifest: loadSkillsManifest().map((s) => ({
               name: s.name,
@@ -322,6 +325,7 @@ export function useChat(
           userText,
           mode: activeMode,
           model: currentModel,
+          reasoningEffort: currentReasoningEffort ?? undefined,
           origin,
           backgroundTaskView,
         },
@@ -332,7 +336,13 @@ export function useChat(
     setWasInterrupted(false);
     void chat.sendMessage({
       text: userText,
-      metadata: { mode: activeMode, model: currentModel, origin, backgroundTaskView },
+      metadata: {
+        mode: activeMode,
+        model: currentModel,
+        reasoningEffort: currentReasoningEffort ?? undefined,
+        origin,
+        backgroundTaskView,
+      },
     });
   };
 
@@ -898,6 +908,7 @@ export function useChat(
         metadata: {
           mode: next.mode,
           model: next.model,
+          reasoningEffort: next.reasoningEffort,
           origin: next.origin,
           backgroundTaskView: next.backgroundTaskView,
         },
@@ -1016,7 +1027,12 @@ export function useChat(
     removeFromQueue: (id: string) => {
       setMessageQueue((prev) => prev.filter((m) => m.id !== id));
     },
-    submit: (params: { userText: string; mode: ModeType; model: string }) => {
+    submit: (params: {
+      userText: string;
+      mode: ModeType;
+      model: string;
+      reasoningEffort?: ChatMessageMetadata["reasoningEffort"];
+    }) => {
       clearPendingWakeup(sessionId);
 
       if (!hasApiKeyForModel(params.model)) {
@@ -1043,6 +1059,7 @@ export function useChat(
         metadata: {
           mode: params.mode,
           model: params.model,
+          reasoningEffort: params.reasoningEffort,
         },
       });
     },

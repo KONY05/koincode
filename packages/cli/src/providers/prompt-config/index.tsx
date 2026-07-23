@@ -6,8 +6,10 @@ import {
   SUPPORTED_CHAT_MODELS,
   findSupportedChatModel,
   isCustomOrOllamaModelId,
+  getReasoningEffortLevels,
   Mode,
   type ModeType,
+  type ReasoningEffortLevel,
 } from "@koincode/shared";
 import {
   readGlobalConfig,
@@ -27,6 +29,9 @@ type PromptConfigContextValue = {
   setModel: (model: string) => void;
   autoModeSwitch: "confirm" | "auto";
   setAutoModeSwitch: (v: "confirm" | "auto") => void;
+  /** Clamped to what `model` actually supports — null when the current model has no reasoning effort control. */
+  reasoningEffort: ReasoningEffortLevel | null;
+  setReasoningEffort: (v: ReasoningEffortLevel) => void;
   voiceInput: boolean;
   toggleVoice: () => void;
   infoSidebarVisible: boolean;
@@ -75,6 +80,13 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     () => readGlobalConfig().autoModeSwitch ?? "confirm",
   );
 
+  // Raw stored preference, independent of which model is currently selected — the
+  // effective `reasoningEffort` below re-derives against the current model's supported
+  // levels every time either changes, so switching models never shows a stale value.
+  const [reasoningEffortPreference, setReasoningEffortPreferenceState] = useState<
+    ReasoningEffortLevel | null
+  >(() => readGlobalConfig().reasoningEffort ?? null);
+
   const [voiceInput, setVoiceInputState] = useState<boolean>(
     () => readGlobalConfig().voiceInput ?? false,
   );
@@ -84,6 +96,15 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   );
 
   const modelDisplayName = useMemo(() => getModelDisplayName(model), [model]);
+
+  const reasoningEffort = useMemo<ReasoningEffortLevel | null>(() => {
+    const levels = getReasoningEffortLevels(model);
+    if (!levels) return null;
+    if (reasoningEffortPreference && levels.includes(reasoningEffortPreference)) {
+      return reasoningEffortPreference;
+    }
+    return levels.includes("medium") ? "medium" : (levels[0] ?? null);
+  }, [model, reasoningEffortPreference]);
 
   const toggleMode = useCallback(() => {
     setMode((m) => (m === Mode.BUILD ? Mode.PLAN : Mode.BUILD));
@@ -98,6 +119,11 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   const setAutoModeSwitch = useCallback((v: "confirm" | "auto") => {
     setAutoModeSwitchState(v);
     updateGlobalConfig({ autoModeSwitch: v });
+  }, []);
+
+  const setReasoningEffort = useCallback((v: ReasoningEffortLevel) => {
+    setReasoningEffortPreferenceState(v);
+    updateGlobalConfig({ reasoningEffort: v });
   }, []);
 
   const toggleVoice = useCallback(() => {
@@ -127,6 +153,8 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
         setModel,
         autoModeSwitch,
         setAutoModeSwitch,
+        reasoningEffort,
+        setReasoningEffort,
         voiceInput,
         toggleVoice,
         infoSidebarVisible,

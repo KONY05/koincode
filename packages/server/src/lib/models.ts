@@ -13,10 +13,12 @@ import { extractReasoningMiddleware, wrapLanguageModel, type LanguageModel } fro
 import {
   findSupportedChatModel,
   isCustomOrOllamaModelId,
+  getReasoningEffortLevels,
   GLOBAL_CONFIG_FILE,
   type KoincodeGlobalConfig,
   type CustomModelConfig,
   type CustomProviderConfig,
+  type ReasoningEffortLevel,
   type SupportedChatModel,
   type SupportedChatModelId,
   type SupportedProvider,
@@ -45,6 +47,9 @@ export type ResolvedModel = {
 };
 
 // Thinking is a provider-level capability — enabled for every model from providers that support it.
+// These are the fallback used when the user hasn't chosen a reasoning effort yet (or the model
+// doesn't support the setting) — a model that can reason should never end up with *less* of it
+// just because the new effort control was never touched.
 const ANTHROPIC_THINKING: ProviderOptions = {
   anthropic: { thinking: { type: "enabled", budgetTokens: 10000 } },
 };
@@ -54,6 +59,71 @@ const GOOGLE_THINKING: ProviderOptions = {
 };
 
 // OpenAI: gpt-4o/mini have no thinking mode; o-series models reason by default — no options needed.
+
+// ─── Reasoning effort: translating the UI's low/medium/high into each provider's own
+// mechanism. See context/feature-specs/44-reasoning-effort-model-label.md for the research
+// behind each of these.
+
+// Confirmed per Anthropic's platform docs: manual budgetTokens is a hard 400 error on
+// claude-fable-5/claude-opus-4-8/claude-opus-4-7/claude-sonnet-5 — adaptive is the only way to
+// get reasoning depth control on those. budgetTokens still works on claude-sonnet-4-6 but is
+// deprecated there; adaptive is recommended. claude-haiku-4-5 never got the adaptive upgrade —
+// budgetTokens is its only mechanism, and thinking is off by default unless it's set explicitly.
+
+// claude-haiku-4-5 only ever exposes the standard low/medium/high levels (see models.ts's
+// registry entry) — Partial since the wider ReasoningEffortLevel union now includes
+// minimal/xhigh/max, which this model's own declared level list never actually offers.
+const HAIKU_BUDGET_BY_EFFORT: Partial<Record<ReasoningEffortLevel, number>> = {
+  low: 4000,
+  medium: 10000, // matches ANTHROPIC_THINKING's existing default
+  high: 24000,
+};
+
+function anthropicEffortOptions(
+  modelId: AnthropicModelId,
+  effort: ReasoningEffortLevel,
+): ProviderOptions {
+  if (modelId === "claude-haiku-4-5") {
+    return {
+      anthropic: {
+        thinking: { type: "enabled", budgetTokens: HAIKU_BUDGET_BY_EFFORT[effort] ?? 10000 },
+      },
+    };
+  }
+  // Adaptive-only and dual-support (claude-sonnet-4-6) models both take the adaptive path —
+  // it's recommended even where the old budget path still works.
+  return { anthropic: { thinking: { type: "adaptive" }, effort } };
+}
+
+// Confirmed against ai.google.dev/gemini-api/docs/thinking's documented min/max/default per
+// model. Gemini 2.5 entries only ever expose the standard low/medium/high levels — inner
+// Partial since the wider ReasoningEffortLevel union now includes minimal/xhigh/max.
+const GEMINI_25_BUDGET_BY_EFFORT: Partial<Record<GoogleModelId, Partial<Record<ReasoningEffortLevel, number>>>> = {
+  "gemini-2.5-pro": { low: 3000, medium: 9000, high: 28000 }, // range 128–32,768, no full disable
+  "gemini-2.5-flash": { low: 500, medium: 9000, high: 22000 }, // range 0–24,576, 0 disables entirely
+};
+
+function googleEffortOptions(modelId: GoogleModelId, effort: ReasoningEffortLevel): ProviderOptions {
+  const isGemini3Line = modelId.startsWith("gemini-3"); // Gemini 3 and 3.1 use thinkingLevel
+  if (isGemini3Line) {
+    return { google: { thinkingConfig: { thinkingLevel: effort, includeThoughts: true } } };
+  }
+  
+  const budget = GEMINI_25_BUDGET_BY_EFFORT[modelId]?.[effort] ?? 10000; // matches GOOGLE_THINKING's default
+  return { google: { thinkingConfig: { thinkingBudget: budget, includeThoughts: true } } };
+}
+
+function xaiEffortOptions(effort: ReasoningEffortLevel): ProviderOptions {
+  return { xai: { reasoningEffort: effort } };
+}
+
+function openaiEffortOptions(effort: ReasoningEffortLevel): ProviderOptions {
+  return { openai: { reasoningEffort: effort } };
+}
+
+function openrouterEffortOptions(effort: ReasoningEffortLevel): ProviderOptions {
+  return { openrouter: { reasoning: { effort } } };
+}
 
 function assertUnsupportedProvider(provider: never): never {
   throw new Error(`Unsupported provider: ${provider}`);
@@ -95,9 +165,15 @@ function requireOpenRouterKey(): string {
   return key;
 }
 
+/** True only when `effort` was given and this model's registry entry actually lists it as supported. */
+function supportsEffort(modelId: string, effort: ReasoningEffortLevel | undefined): effort is ReasoningEffortLevel {
+  return effort != null && (getReasoningEffortLevels(modelId)?.includes(effort) ?? false);
+}
+
 function resolveViaOpenRouter(
   modelId: string,
   provider: SupportedProvider,
+  effort?: ReasoningEffortLevel,
 ): ResolvedModel {
   const openrouter = createOpenRouter({ apiKey: requireOpenRouterKey() });
   // openrouter-native models already carry their full provider/name ID.
@@ -114,10 +190,13 @@ function resolveViaOpenRouter(
     model: openrouter.chat(routerModelId, settings),
     provider,
     modelId: modelId as SupportedChatModelId,
+    // OpenRouter normalizes reasoning effort itself, regardless of underlying provider — this
+    // also closes the previous gap where Anthropic/Google's thinking silently disappeared here.
+    providerOptions: supportsEffort(modelId, effort) ? openrouterEffortOptions(effort) : undefined,
   };
 }
 
-function resolveAnthropicModel(modelId: AnthropicModelId): ResolvedModel {
+function resolveAnthropicModel(modelId: AnthropicModelId, effort?: ReasoningEffortLevel): ResolvedModel {
   if (!process.env.ANTHROPIC_API_KEY) {
     const key = readConfigKey("anthropic");
     if (key) process.env.ANTHROPIC_API_KEY = key;
@@ -127,25 +206,32 @@ function resolveAnthropicModel(modelId: AnthropicModelId): ResolvedModel {
       model: anthropic(modelId),
       provider: "anthropic",
       modelId,
-      providerOptions: ANTHROPIC_THINKING,
+      providerOptions: supportsEffort(modelId, effort)
+        ? anthropicEffortOptions(modelId, effort)
+        : ANTHROPIC_THINKING,
       promptCaching: true,
     };
   }
-  return resolveViaOpenRouter(modelId, "anthropic");
+  return resolveViaOpenRouter(modelId, "anthropic", effort);
 }
 
-function resolveOpenAIModel(modelId: OpenAIModelId): ResolvedModel {
+function resolveOpenAIModel(modelId: OpenAIModelId, effort?: ReasoningEffortLevel): ResolvedModel {
   if (!process.env.OPENAI_API_KEY) {
     const key = readConfigKey("openai");
     if (key) process.env.OPENAI_API_KEY = key;
   }
   if (process.env.OPENAI_API_KEY) {
-    return { model: openai(modelId), provider: "openai", modelId };
+    return {
+      model: openai(modelId),
+      provider: "openai",
+      modelId,
+      providerOptions: supportsEffort(modelId, effort) ? openaiEffortOptions(effort) : undefined,
+    };
   }
-  return resolveViaOpenRouter(modelId, "openai");
+  return resolveViaOpenRouter(modelId, "openai", effort);
 }
 
-function resolveGoogleModel(modelId: GoogleModelId): ResolvedModel {
+function resolveGoogleModel(modelId: GoogleModelId, effort?: ReasoningEffortLevel): ResolvedModel {
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     const key = readConfigKey("google");
     if (key) process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
@@ -155,36 +241,43 @@ function resolveGoogleModel(modelId: GoogleModelId): ResolvedModel {
       model: google(modelId),
       provider: "google",
       modelId,
-      providerOptions: GOOGLE_THINKING,
+      providerOptions: supportsEffort(modelId, effort)
+        ? googleEffortOptions(modelId, effort)
+        : GOOGLE_THINKING,
     };
   }
-  return resolveViaOpenRouter(modelId, "google");
+  return resolveViaOpenRouter(modelId, "google", effort);
 }
 
-function resolveXaiModel(modelId: XaiModelId): ResolvedModel {
+function resolveXaiModel(modelId: XaiModelId, effort?: ReasoningEffortLevel): ResolvedModel {
   if (!process.env.XAI_API_KEY) {
     const key = readConfigKey("xai");
     if (key) process.env.XAI_API_KEY = key;
   }
   if (process.env.XAI_API_KEY) {
-    return { model: xai(modelId), provider: "xai", modelId };
+    return {
+      model: xai(modelId),
+      provider: "xai",
+      modelId,
+      providerOptions: supportsEffort(modelId, effort) ? xaiEffortOptions(effort) : undefined,
+    };
   }
-  return resolveViaOpenRouter(modelId, "xai");
+  return resolveViaOpenRouter(modelId, "xai", effort);
 }
 
-function resolveSupportedChatModel(model: SupportedChatModel): ResolvedModel {
+function resolveSupportedChatModel(model: SupportedChatModel, effort?: ReasoningEffortLevel): ResolvedModel {
   const provider = model.provider;
   switch (provider) {
     case "anthropic":
-      return resolveAnthropicModel(model.id);
+      return resolveAnthropicModel(model.id, effort);
     case "openai":
-      return resolveOpenAIModel(model.id);
+      return resolveOpenAIModel(model.id, effort);
     case "google":
-      return resolveGoogleModel(model.id);
+      return resolveGoogleModel(model.id, effort);
     case "xai":
-      return resolveXaiModel(model.id);
+      return resolveXaiModel(model.id, effort);
     case "openrouter":
-      return resolveViaOpenRouter(model.id, "openrouter");
+      return resolveViaOpenRouter(model.id, "openrouter", effort);
     default:
       return assertUnsupportedProvider(provider);
   }
@@ -281,10 +374,13 @@ function resolveCustomModel(modelId: string): ResolvedModel {
   };
 }
 
-export async function resolveChatModel(modelId: string): Promise<ResolvedModel> {
+export async function resolveChatModel(
+  modelId: string,
+  effort?: ReasoningEffortLevel,
+): Promise<ResolvedModel> {
   if (modelId.startsWith("ollama/")) return resolveOllamaModel(modelId);
   if (modelId.startsWith("custom/")) return resolveCustomModel(modelId);
   const model = findSupportedChatModel(modelId);
   if (!model) throw new Error(`Unsupported model: ${modelId}`);
-  return resolveSupportedChatModel(model);
+  return resolveSupportedChatModel(model, effort);
 }

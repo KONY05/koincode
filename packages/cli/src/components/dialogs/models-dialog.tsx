@@ -360,7 +360,7 @@ export const ModelsDialogContent = ({
           renderItem={(model, isSelected) => (
             <box flexGrow={1} paddingX={1}>
               <text selectable={false} fg={isSelected ? "black" : "white"}>
-                {model.id}
+                {model.label}
               </text>
             </box>
           )}
