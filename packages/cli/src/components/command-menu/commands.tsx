@@ -5,6 +5,7 @@ import {
   DirectoryPickerDialogContent,
   EffortDialogContent,
   HelpDialogContent,
+  McpStatusDialogContent,
   ModelsDialogContent,
   ReviewStatusDialogContent,
   SessionsDialogContent,
@@ -499,6 +500,17 @@ export const COMMANDS: Command[] = [
       ctx.dialog.open({
         title: "Review Status",
         children: <ReviewStatusDialogContent />,
+      });
+    },
+  },
+  {
+    name: "mcp",
+    description: "Show configured MCP servers and toggle them on/off",
+    value: "/mcp",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "MCP Servers",
+        children: <McpStatusDialogContent />,
       });
     },
   },
