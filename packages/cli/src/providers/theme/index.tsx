@@ -11,25 +11,14 @@ import {
   readGlobalConfig,
   updateGlobalConfig,
 } from "../../utils/configs/global-config";
-import {
-  supportsTrueColor,
-  quantizeThemeColors,
-} from "../../utils/color-support";
-
-const IS_TRUE_COLOR = supportsTrueColor();
-
-function applyColorSupport(theme: Theme): Theme {
-  if (IS_TRUE_COLOR) return theme;
-  return { ...theme, colors: quantizeThemeColors(theme.colors) };
-}
 
 function getInitialTheme(): Theme {
   try {
     const config = readGlobalConfig();
     const saved = THEMES.find((t) => t.name === config.themeName);
-    return applyColorSupport(saved ?? DEFAULT_THEME);
+    return saved ?? DEFAULT_THEME;
   } catch {
-    return applyColorSupport(DEFAULT_THEME);
+    return DEFAULT_THEME;
   }
 }
 
@@ -57,7 +46,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [currentTheme, setCurrentTheme] = useState<Theme>(getInitialTheme);
 
   const setTheme = useCallback((theme: Theme) => {
-    setCurrentTheme(applyColorSupport(theme));
+    setCurrentTheme(theme);
     try {
       updateGlobalConfig({ themeName: theme.name });
     } catch {
