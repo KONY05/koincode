@@ -18,7 +18,7 @@ import { logger } from "./helpers";
 type ConfigSource = "global" | "project";
 
 type McpServerEntry = {
-  client: Client;
+  client: Client | null;
   tools: Record<string, Tool>;
   status: "connected" | "error" | "disconnected";
   source: ConfigSource;
@@ -146,7 +146,7 @@ export async function initializeMcp(): Promise<void> {
       if (config.enabled === false) {
         // Registered (not skipped) so a status query with includeDisabled can see it —
         // just never attempts a connection.
-        servers.set(name, { client: null!, tools: {}, status: "disconnected", source: config.source });
+        servers.set(name, { client: null, tools: {}, status: "disconnected", source: config.source });
         return;
       }
 
@@ -155,7 +155,7 @@ export async function initializeMcp(): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
 
-        servers.set(name, { client: null!, tools: {}, status: "error", error: message, source: config.source });
+        servers.set(name, { client: null, tools: {}, status: "error", error: message, source: config.source });
 
         logger.error(`MCP: failed to connect "${name}": ${message}`);
       }
@@ -275,10 +275,10 @@ export async function setServerEnabled(
 
   if (enabled) {
     try {
-      await connectServer(name, { ...serverConfig, enabled }, source);
+      await connectServer(name, { ...serverConfig }, source);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      servers.set(name, { client: null!, tools: {}, status: "error", error: message, source });
+      servers.set(name, { client: null, tools: {}, status: "error", error: message, source });
     }
   } else {
     const entry = servers.get(name);
@@ -287,7 +287,7 @@ export async function setServerEnabled(
     } catch {
       // Ignore close errors — marking it disconnected regardless.
     }
-    servers.set(name, { client: null!, tools: {}, status: "disconnected", source });
+    servers.set(name, { client: null, tools: {}, status: "disconnected", source });
   }
 
   const updated = servers.get(name)!;
@@ -314,7 +314,7 @@ export async function callMcpTool(
   const { server: serverName, tool: toolName } = parseMcpToolName(namespacedToolName);
   const entry = servers.get(serverName);
 
-  if (!entry || entry.status !== "connected") {
+  if (!entry || entry.status !== "connected" || !entry.client) {
     return { error: `MCP server "${serverName}" is not connected` };
   }
 
