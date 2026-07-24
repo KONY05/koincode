@@ -24,8 +24,14 @@ import McpToolView, { ManageMcpView } from "../tool-view/mcp-tool";
 import { Spinner } from "../spinner";
 import { getModelDisplayName } from "../../lib/custom-models";
 import { copyToClipboard } from "../../lib/clipboard";
+import { isCompiledBinary } from "../../utils/tree-sitter";
 
-const treeSitterClient = getTreeSitterClient();
+// getTreeSitterClient() auto-starts a parser worker the moment it's constructed, which in a
+// compiled binary fails its WASM load and spams the TUI with errors (see utils/tree-sitter.ts
+// for the full explanation) — skip constructing it there entirely. Every consumer below
+// (Diff/Markdown/Code renderables) already treats treeSitterClient as optional upstream, so
+// this degrades to unhighlighted output.
+const treeSitterClient = isCompiledBinary ? undefined : getTreeSitterClient();
 
 type ClientMessagePart = Message["parts"][number];
 type ToolPart = Extract<
@@ -66,7 +72,7 @@ type RenderToolContentProps = {
   errorText: string | undefined;
   colors: ReturnType<typeof useTheme>["colors"];
   syntaxStyle: ReturnType<typeof createMarkdownSyntaxStyle>;
-  treeSitterClient: ReturnType<typeof getTreeSitterClient>;
+  treeSitterClient: ReturnType<typeof getTreeSitterClient> | undefined;
 };
 
 function renderToolContent({

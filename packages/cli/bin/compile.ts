@@ -15,6 +15,10 @@
  * Flags:
  *   --single    Build only for the current platform (local dev)
  *   --os=NAME   Build only for a specific OS (darwin, linux, windows)
+ *   --preview   Bake NODE_ENV="preview" instead of "production" — use for throwaway builds
+ *               (CI smoke-tests, local manual testing) so they don't report to production
+ *               Sentry or hit production services. Combine with the others, e.g. `--single
+ *               --preview`. Never use for a real release build.
  *   (none)      Build all 5 targets
  */
 
@@ -52,6 +56,12 @@ await $`bun run bin/sync-ide-extension.ts`;
 
 const singleFlag = process.argv.includes("--single");
 const osFlag = process.argv.find((a) => a.startsWith("--os="))?.split("=")[1];
+// Throwaway builds (CI smoke-tests, local manual testing) shouldn't report to production Sentry
+// or route to production services — bakes NODE_ENV as "preview" instead of "production", which
+// the existing `NODE_ENV === "production"` gates (sentry.ts, server/index.ts, review-api.ts) all
+// already treat as non-production with zero changes needed there. Real release builds (no flag)
+// are unaffected.
+const previewFlag = process.argv.includes("--preview");
 
 // ─── Targets ───────────────────────────────────────────────────────────────
 
@@ -125,9 +135,13 @@ for (const item of targets) {
       outfile: `./dist/${binaryName}`,
     },
     define: {
-      "process.env.NODE_ENV": "'production'",
+      "process.env.NODE_ENV": previewFlag ? "'preview'" : "'production'",
       "process.env.MIXPANEL_TOKEN": `'${MIXPANEL_TOKEN}'`,
       "process.env.__KOINCODE_LIBSQL_NATIVE_PKG__": `'${libsqlPkg}'`,
+      // Baked into both halves of the binary (the CLI's server-manager reads it, the server's
+      // /health returns it) so a client can detect and restart a stale/foreign server squatting
+      // the shared port instead of silently reusing it. See server-manager.ts's version-skew guard.
+      "process.env.__KOINCODE_VERSION__": `'${pkg.version}'`,
       OTUI_TREE_SITTER_WORKER_PATH:
         (item.os === "win32" ? '"B:/~BUN/root/' : '"/$bunfs/root/') +
         path.relative(dir, parserWorker).replaceAll("\\", "/") +

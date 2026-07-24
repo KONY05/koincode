@@ -4,6 +4,8 @@ import fs from "fs";
 
 import { GLOBAL_CONFIG_DIR, PID_FILE, SERVER_PORT } from "@koincode/shared";
 import { readGlobalConfig } from "../utils/configs/global-config";
+import { version as OUR_VERSION } from "../../package.json";
+import { compareVersions } from "./version";
 
 const LOG_FILE = `${GLOBAL_CONFIG_DIR}/server.log`;
 
@@ -65,15 +67,38 @@ function killPortIfInUse(port: number): void {
   }
 }
 
-async function isServerHealthy(port: number): Promise<boolean> {
+type ServerStatus = { healthy: boolean; version: string | null };
+
+async function checkServer(port: number): Promise<ServerStatus> {
   try {
     const res = await fetch(`http://localhost:${port}/health`, {
       signal: AbortSignal.timeout(2000),
     });
-    return res.ok;
+    if (!res.ok) return { healthy: false, version: null };
+    const body = (await res.json().catch(() => ({}))) as { version?: string | null };
+    return { healthy: true, version: body.version ?? null };
   } catch {
-    return false;
+    return { healthy: false, version: null };
   }
+}
+
+// Whether a healthy server is actually the one we should use. Only compiled binaries can suffer
+// version skew — a stale or foreign koincode build's `--server` squatting the shared fixed port,
+// which a fresh client would otherwise silently reuse. That mismatched server has a different
+// model registry and response shape (it rejects models it doesn't know → "invalid request body",
+// omits newer session fields → dialogs blank out).
+//
+// Upgrade-only rule: reuse the server if it's our version OR NEWER; only reject (→ kill + respawn
+// ours) if it's strictly OLDER. This makes the newest running client win the shared port while
+// older clients defer to it, rather than two different-version instances ping-ponging kills at
+// each other. A version-less server (the old /health shape, predating the `version` field) counts
+// as older, so it always gets upgraded. In dev the server is always current source (`bun --hot`)
+// and reports no version, so skip the gate entirely — there's no stale-binary problem there.
+function isServerAcceptable(status: ServerStatus): boolean {
+  if (!status.healthy) return false;
+  if (!isCompiledBinary) return true;
+  if (status.version === null) return false; // old server, predates versioning → older → upgrade
+  return compareVersions(status.version, OUR_VERSION) >= 0;
 }
 
 async function waitForServer(
@@ -82,7 +107,7 @@ async function waitForServer(
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await isServerHealthy(port)) return true;
+    if (isServerAcceptable(await checkServer(port))) return true;
     await new Promise((r) => setTimeout(r, 250));
   }
   return false;
@@ -140,7 +165,9 @@ function spawnServer(port: number) {
 
 export async function ensureServerRunning(): Promise<void> {
   const port = getServerPort();
-  if (await isServerHealthy(port)) return;
+  // Reuse an existing server only if it's healthy AND our build (or we're in dev). A version
+  // mismatch means a stale/foreign server is on the port — fall through to kill + respawn ours.
+  if (isServerAcceptable(await checkServer(port))) return;
 
   killPortIfInUse(port);
   spawnServer(port);
