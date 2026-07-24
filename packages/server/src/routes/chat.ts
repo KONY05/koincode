@@ -43,6 +43,12 @@ const skillManifestEntrySchema = z.object({
   scope: z.enum(["global", "project", "builtin"]),
 });
 
+const instructionFileEntrySchema = z.object({
+  source: z.union([z.literal("global"), z.object({ label: z.string() })]),
+  path: z.string(),
+  content: z.string(),
+});
+
 const submitSchema = z.object({
   id: z.string(),
   messages: z
@@ -72,6 +78,7 @@ const submitSchema = z.object({
     })
     .nullable()
     .optional(),
+  instructionFiles: z.array(instructionFileEntrySchema).optional().default([]),
 });
 
 const submitValidator = zValidator("json", submitSchema, (result, c) => {
@@ -93,7 +100,7 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 
 
 const app = new Hono().post("/", submitValidator, async (c) => {
-  const { id, messages, mode, model, reasoningEffort, browserTools, skillsManifest, ideActiveFile, ideSelection } = c.req.valid("json");
+  const { id, messages, mode, model, reasoningEffort, browserTools, skillsManifest, ideActiveFile, ideSelection, instructionFiles } = c.req.valid("json");
 
   const session = await db.session.findUnique({
     where: { id },
@@ -275,7 +282,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
 
   const promptCaching = resolvedModel.promptCaching === true;
   const roots = parseWorkspaceRoots(session.roots);
-  const systemPrompt = buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus, roots });
+  const systemPrompt = buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus, roots, instructionFiles });
   // Order matters: append the volatile IDE context to the newest message's content
   // *before* marking that message as this turn's cache breakpoint, so the breakpoint's
   // hash covers the final content, not a stale pre-append snapshot.

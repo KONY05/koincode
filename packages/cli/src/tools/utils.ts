@@ -1,5 +1,32 @@
-import { relative, resolve } from "path";
+import { readFileSync } from "fs";
+import { dirname, join, relative, resolve } from "path";
+
 import type { WorkspaceRoot } from "@koincode/shared";
+
+/** Priority order checked in every directory for project/instruction conventions — first name found wins, matching opencode's own AGENTS.md/CLAUDE.md/CONTEXT.md convention. */
+export const INSTRUCTION_FILENAMES = ["AGENTS.md", "CLAUDE.md", "CONTEXT.md"] as const;
+
+/**
+ * Tries each of `INSTRUCTION_FILENAMES` directly inside `dir`, in priority order, returning
+ * the first that exists. Never throws — a missing or unreadable file just means "not found
+ * here". Content is capped at `MAX_FILE_SIZE`, same limit already applied to normal file
+ * reads (`runReadFile`) — unlike those, there's no offset/pagination story for instruction
+ * files (they're injected as a single block, not paginated by the model), so a file over the
+ * cap is just truncated once rather than readable in chunks. AGENTS.md/CLAUDE.md files are
+ * conventionally short by design, so this is a backstop against an outlier, not an expected
+ * everyday limit.
+ */
+export function findInstructionFile(dir: string): { path: string; content: string } | undefined {
+  for (const filename of INSTRUCTION_FILENAMES) {
+    const path = join(dir, filename);
+    try {
+      return { path, content: truncate(readFileSync(path, "utf-8"), MAX_FILE_SIZE) };
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
+}
 
 export const MAX_FILE_SIZE = 10_000;
 export const MAX_RESULTS = 200;
@@ -28,6 +55,46 @@ export function formatWorkspacePath(resolved: string, roots: WorkspaceRoot[]): s
     }
   }
   return resolved;
+}
+
+/**
+ * Walks from `resolvedFilePath`'s directory up to (not including) the nearest workspace
+ * root, collecting each level's nearest instruction file via `findInstructionFile` — skipping
+ * any whose current content exactly matches what's already in `alreadyLoaded` for that path.
+ * Content-keyed rather than path-keyed on purpose: comparing against the *last shown content*
+ * (not just "was this path ever shown") means editing an already-surfaced AGENTS.md gets it
+ * re-attached on the next read that touches it, instead of the model being stuck with a stale
+ * copy for the rest of the session. Deliberately stops before the root itself: the root's own
+ * instruction file is already covered by the eager per-root tier (`getInstructionFilesForRequest`),
+ * so this can never re-surface it. Also skips a match equal to `resolvedFilePath` itself — reading
+ * an instruction file directly (e.g. `readFile("sub/AGENTS.md")`) would otherwise find that same
+ * file sitting in its own directory and re-attach its content back onto itself as a redundant
+ * `<system-reminder>`, duplicating what's already the read's own primary content. Matches
+ * opencode's identical `found === target` guard in `instruction.ts`'s `resolve()`. Returns `[]`
+ * if `resolvedFilePath` isn't under any known root.
+ */
+export function findUnsurfacedAgentsMd(
+  resolvedFilePath: string,
+  roots: WorkspaceRoot[],
+  alreadyLoaded: Map<string, string>,
+): { path: string; content: string }[] {
+  const root = roots.find(
+    (r) => resolvedFilePath === r.path || resolvedFilePath.startsWith(`${r.path}/`),
+  );
+  if (!root) return [];
+
+  const results: { path: string; content: string }[] = [];
+  let current = dirname(resolvedFilePath);
+
+  while (current.startsWith(root.path) && current !== root.path) {
+    const found = findInstructionFile(current);
+    if (found && found.path !== resolvedFilePath && alreadyLoaded.get(found.path) !== found.content) {
+      results.push(found);
+    }
+    current = dirname(current);
+  }
+
+  return results;
 }
 
 export function truncate(value: string, limit: number) {
