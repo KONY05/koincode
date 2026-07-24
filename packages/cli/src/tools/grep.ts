@@ -8,8 +8,15 @@ export async function runGrep(input: unknown) {
   const { cwd, resolved } = resolveFromCwd(path);
 
   const args = ["-rn", "--color=never", "--exclude-dir=node_modules", "--exclude-dir=.git", "-E"];
-  
-  if (include) args.push(`--include=${include}`);
+
+  if (include) {
+    // grep's --include matches the basename only — a pattern with a directory component
+    // (e.g. the model passing "packages/cli/**/*.ts" to scope a path) can never match any
+    // file and would silently zero out every result. Salvage the trailing glob segment
+    // instead of dropping the filter to a no-op; directory scoping belongs in `path`.
+    const basenameGlob = include.includes("/") ? include.slice(include.lastIndexOf("/") + 1) : include;
+    if (basenameGlob) args.push(`--include=${basenameGlob}`);
+  }
   args.push(pattern, resolved);
 
   
