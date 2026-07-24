@@ -18,13 +18,13 @@
     },
     "packages/cli": {
       "name": "koincode",
-      "version": "1.22.3",
+      "version": "1.23.2",
       "bin": {
         "koincode": "bin/npm-wrapper.cjs",
       },
       "dependencies": {
         "@libsql/client": "^0.14.0",
-        "@opentui/core": "^0.4.5",
+        "@opentui/core": "0.4.5",
         "@opentui/react": "^0.4.5",
         "@sentry/bun": "^10.57.0",
         "mammoth": "^1.12.0",
@@ -56,11 +56,11 @@
         "zod": "^4.3.6",
       },
       "optionalDependencies": {
-        "@koincode/darwin-arm64": "1.22.3",
-        "@koincode/darwin-x64": "1.22.3",
-        "@koincode/linux-arm64": "1.22.3",
-        "@koincode/linux-x64": "1.22.3",
-        "@koincode/windows-x64": "1.22.3",
+        "@koincode/darwin-arm64": "1.23.2",
+        "@koincode/darwin-x64": "1.23.2",
+        "@koincode/linux-arm64": "1.23.2",
+        "@koincode/linux-x64": "1.23.2",
+        "@koincode/windows-x64": "1.23.2",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -120,6 +120,7 @@
   "patchedDependencies": {
     "libsql@0.4.7": "patches/libsql@0.4.7.patch",
     "libsql@0.5.29": "patches/libsql@0.5.29.patch",
+    "@opentui/core@0.4.5": "patches/@opentui%2Fcore@0.4.5.patch",
   },
   "packages": {
     "@ai-sdk/anthropic": ["@ai-sdk/anthropic@3.0.100", "", { "dependencies": { "@ai-sdk/provider": "3.0.14", "@ai-sdk/provider-utils": "4.0.40" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-/o2a3zVPdwRGSHYgssZ6Xec0vdhlgzMpm/T6JmifApVc5j6JmMChtV+sZ3omUqCFmHxfPzHvvNumplDFh3zrmw=="],

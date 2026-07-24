@@ -24,6 +24,22 @@ function shortCwd(cwd: string | null | undefined): string {
   return cwd.split("/").filter(Boolean).pop() ?? cwd;
 }
 
+// The `Session` type is inferred from the *current* server's response, but at runtime a client
+// can end up talking to an older/foreign server (e.g. a stale build squatting the shared port)
+// whose payload is missing newer fields like `roots` or has a malformed `updatedAt`. The
+// version-skew guard in server-manager.ts is the real fix; this keeps the dialog from blanking
+// the whole screen (an unguarded `.length` / `new Date(...)` throws mid-render) if one slips
+// through anyway.
+function rootsCount(session: Session): number {
+  return session.roots?.length ?? 0;
+}
+
+function safeTime(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : format(date, "hh:mm a");
+}
+
 export const SessionsDialogContent = () => {
   const [activeTab, setActiveTab] = useState<Tab>("project");
   const [projectSessions, setProjectSessions] = useState<Session[]>([]);
@@ -268,8 +284,8 @@ export const SessionsDialogContent = () => {
           onHighlight={handleHighlight}
           filterFn={(s, query) => {
             const q = query.toLowerCase();
-            const titleMatch = s.title.toLowerCase().includes(q);
-            const workspaceMatch = q === "workspace" && s.roots.length > 1;
+            const titleMatch = (s.title ?? "").toLowerCase().includes(q);
+            const workspaceMatch = q === "workspace" && rootsCount(s) > 1;
             return titleMatch || workspaceMatch;
           }}
           renderItem={(session, isSelected) => (
@@ -277,13 +293,13 @@ export const SessionsDialogContent = () => {
               <text selectable={false} fg={isSelected ? "black" : "white"}>
                 {session.title}
               </text>
-              {session.roots.length > 1 && (
+              {rootsCount(session) > 1 && (
                 <text
                   selectable={false}
                   fg={isSelected ? "black" : colors.dimSeparator}
                   attributes={TextAttributes.DIM}
                 >
-                  {"  "}+{session.roots.length - 1} dirs
+                  {"  "}+{rootsCount(session) - 1} dirs
                 </text>
               )}
               <box flexGrow={1} />
@@ -301,7 +317,7 @@ export const SessionsDialogContent = () => {
                 fg={isSelected ? "black" : undefined}
                 attributes={TextAttributes.DIM}
               >
-                {format(new Date(session.updatedAt), "hh:mm a")}
+                {safeTime(session.updatedAt)}
               </text>
             </>
           )}

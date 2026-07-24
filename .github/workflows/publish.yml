@@ -44,6 +44,11 @@ jobs:
           MIXPANEL_TOKEN: ${{ secrets.MIXPANEL_TOKEN }}
         run: bun bin/compile.ts --os=darwin
 
+      # Boot the binary matching the runner's native arch (macos-latest is arm64) before it can
+      # ship — a boot crash blocks the release. Cross-arch (darwin-x64) can't run here; skipped.
+      - name: Smoke-test boot (arm64)
+        run: bash packages/cli/bin/smoke-test.sh packages/cli/dist/koincode-darwin-arm64
+
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
@@ -74,6 +79,11 @@ jobs:
         env:
           MIXPANEL_TOKEN: ${{ secrets.MIXPANEL_TOKEN }}
         run: bun bin/compile.ts --os=linux
+
+      # Boot the native-arch binary (ubuntu-latest is x64) before it can ship; a crash blocks the
+      # release. Cross-arch (linux-arm64) can't run here; skipped.
+      - name: Smoke-test boot (x64)
+        run: bash packages/cli/bin/smoke-test.sh packages/cli/dist/koincode-linux-x64
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
@@ -106,6 +116,15 @@ jobs:
           MIXPANEL_TOKEN: ${{ secrets.MIXPANEL_TOKEN }}
         shell: bash
         run: bun bin/compile.ts --single
+
+      # Advisory only (continue-on-error): the smoke script drives process spawn/kill through git
+      # bash, which is less reliable on Windows runners than on macOS/Linux — a false failure
+      # shouldn't block a release. It still surfaces a real boot crash in the logs. Promote to
+      # blocking once it's proven stable here.
+      - name: Smoke-test boot (advisory)
+        continue-on-error: true
+        shell: bash
+        run: bash packages/cli/bin/smoke-test.sh packages/cli/dist/koincode-windows-x64.exe
 
       - name: Upload binary
         uses: actions/upload-artifact@v4

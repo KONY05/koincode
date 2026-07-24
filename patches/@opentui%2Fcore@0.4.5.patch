@@ -1,0 +1,38 @@
+diff --git a/chunk-bun-t2myhmwd.js b/chunk-bun-t2myhmwd.js
+index 701d70dea2174e98ab56f4d614e678e868561479..792b36a84c8b37d415aea808202240904dfcec56 100644
+--- a/chunk-bun-t2myhmwd.js
++++ b/chunk-bun-t2myhmwd.js
+@@ -885,6 +885,16 @@ function resolveFallbackFilePath(fallbackPath, metaUrl) {
+   return fileURLToPath3(path instanceof URL ? path : new URL(path, metaUrl));
+ }
+ function normalizeLoadedFilePath(loadedPath, baseUrl) {
++  // koincode: inside a `bun build --compile` binary, `import(x, { with: { type: "file"|"wasm" } })`
++  // can resolve without a usable `.default` (the asset isn't traceable out of Bun's /$bunfs/
++  // virtual filesystem), so `loadedPath` arrives undefined here. Upstream this throws at
++  // module-load time on the top-level `await` that resolves the tree-sitter worker path,
++  // crashing the whole process before the app starts. Return undefined instead so import
++  // succeeds and tree-sitter degrades to unavailable (no syntax highlighting) rather than
++  // taking down the binary. See patches/@opentui+core@0.4.5.patch and progress-tracker.md.
++  if (loadedPath == null) {
++    return undefined;
++  }
+   if (loadedPath.startsWith("file:")) {
+     return fileURLToPath3(loadedPath);
+   }
+diff --git a/chunk-node-q0cwyvm9.js b/chunk-node-q0cwyvm9.js
+index be7df0e11bc6eac9ac8aacacdf2a4686670f09e1..a6ec02b1b24f0de16e6653865e0bca6789d1a68e 100644
+--- a/chunk-node-q0cwyvm9.js
++++ b/chunk-node-q0cwyvm9.js
+@@ -916,6 +916,12 @@ function resolveFallbackFilePath(fallbackPath, metaUrl) {
+   return fileURLToPath3(path instanceof URL ? path : new URL(path, metaUrl));
+ }
+ function normalizeLoadedFilePath(loadedPath, baseUrl) {
++  // koincode: mirror of the guard in chunk-bun-t2myhmwd.js — a nullish loadedPath (bundled
++  // asset that didn't resolve in a compiled binary) must not throw at module-load time. See
++  // patches/@opentui+core@0.4.5.patch and progress-tracker.md.
++  if (loadedPath == null) {
++    return undefined;
++  }
+   if (loadedPath.startsWith("file:")) {
+     return fileURLToPath3(loadedPath);
+   }

@@ -46,6 +46,9 @@ if (process.argv.includes("--server")) {
   const { ensureServerRunning } = await import("../src/lib/server-manager");
   const { updateGlobalConfig } = await import("../src/utils/configs/global-config");
   const { resolveBrowser } = await import("../src/lib/browser-setup");
+  // Loaded up front (before the risky startup below) so it's guaranteed available even if the
+  // render tree is exactly what crashes — it's deliberately opentui-free. See startup-recovery.ts.
+  const { handleStartupCrash } = await import("../src/lib/startup-recovery");
 
   const args = process.argv.slice(2);
 
@@ -89,7 +92,13 @@ if (process.argv.includes("--server")) {
     }
   }
 
-  await ensureServerRunning();
-
-  await import("../src/index.tsx");
+  // Crash-guard: if the app can't even start (a bad build that throws during server bring-up or
+  // while importing the render tree), self-heal by updating to a newer release if one exists,
+  // instead of leaving the user stranded on a broken binary. See startup-recovery.ts.
+  try {
+    await ensureServerRunning();
+    await import("../src/index.tsx");
+  } catch (err) {
+    await handleStartupCrash(err);
+  }
 }

@@ -281,6 +281,12 @@ export async function runCliUpdate(): Promise<void> {
 
       child.on("close", (code) => {
         if (code === 0) {
+          // Stop the old background server so the next launch/request respawns from the freshly
+          // installed binary — otherwise it lingers on the port and a new client reuses it
+          // (the version-skew guard in server-manager.ts would eventually force a restart, but
+          // killing it here stops it immediately). Only on success — a failed update shouldn't
+          // take down a working server.
+          killServer();
           process.stdout.write(
             `\nkoincode updated to v${newVersion} — run koincode to start the new version.\n`,
           );
@@ -293,6 +299,9 @@ export async function runCliUpdate(): Promise<void> {
       process.stdout.write(`Downloading koincode v${newVersion}...\n`);
       const result = await downloadSelfUpdate(newVersion);
       if (result === "downloaded") {
+        // Stop the old server so the next launch respawns from the new binary (see the npm
+        // branch above for the full rationale). Only on a confirmed successful download.
+        killServer();
         process.stdout.write(
           `koincode updated to v${newVersion} — run koincode to start the new version.\n`,
         );

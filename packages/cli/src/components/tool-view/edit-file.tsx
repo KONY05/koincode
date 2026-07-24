@@ -38,7 +38,7 @@ export default function EditFileDiff({
   error?: string;
   colors: ThemeColors;
   syntaxStyle: SyntaxStyle;
-  treeSitterClient: TreeSitterClient;
+  treeSitterClient: TreeSitterClient | undefined;
 }) {
   if (!input || typeof input !== "object") return null;
   const { path: inputPath, oldString, newString } = input as {

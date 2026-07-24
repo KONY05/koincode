@@ -52,3 +52,30 @@ jobs:
 
       - name: Lint
         run: bun run lint
+
+  # Compiles a real standalone binary and boots it. Catches the class of failure that only exists
+  # in `bun build --compile` output (bundled assets that don't resolve out of Bun's /$bunfs/
+  # virtual filesystem, etc.) — which typecheck/lint/dev-mode all pass but that crashes a real
+  # binary at startup (see the @opentui/core 0.4.5 regression). One platform is enough: this class
+  # of crash is platform-agnostic.
+  smoke-boot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build standalone binary (current platform)
+        working-directory: packages/cli
+        # A dummy analytics token lets this run on fork PRs with no secret (compile.ts only
+        # requires the var to be non-empty). --preview bakes NODE_ENV="preview" so this throwaway
+        # build never reports to production Sentry.
+        env:
+          MIXPANEL_TOKEN: smoke-test-dummy
+        run: bun bin/compile.ts --single --preview
+
+      - name: Smoke-test boot
+        run: bash packages/cli/bin/smoke-test.sh packages/cli/dist/koincode-linux-x64

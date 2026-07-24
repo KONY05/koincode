@@ -68,7 +68,13 @@ app.onError((error, c) => {
 });
 
 const routes = app
-  .get("/health", (c) => c.json({ ok: true }))
+  // `version` lets a client detect it's talking to a different build than its own — see the
+  // version-skew guard in the CLI's server-manager.ts. Injected via compile.ts's
+  // `__KOINCODE_VERSION__` define in compiled binaries; null in dev (`bun --hot`), where the
+  // client skips the check because hot-reload keeps the server on current source anyway.
+  .get("/health", (c) =>
+    c.json({ ok: true, version: process.env.__KOINCODE_VERSION__ ?? null }),
+  )
   .route("/sessions", sessions)
   .route("/chat", chat)
   .route("/memory", memory)
