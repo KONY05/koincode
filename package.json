@@ -11,7 +11,7 @@
     "build-run:cli": "bun run build:cli && bun run packages/cli/dist/koincode",
     "start": "bun run packages/cli/dist/koincode",
     "link:cli": "bun run build:cli && cd packages/cli && bun link",
-    "test:npm:local": "bun run --filter koincode compile:test",
+    "test:binary": "bun run --filter koincode compile:test",
     "db:migrate": "bun run --cwd packages/database db:migrate",
     "db:studio": "bun run --cwd packages/database db:studio",
     "typecheck": "bun run --cwd packages/shared tsc --noEmit && bun run --cwd packages/cli tsc --noEmit && bun run --cwd packages/server tsc --noEmit && bun run --cwd packages/vscode-extension tsc --noEmit",
