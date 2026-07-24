@@ -173,7 +173,8 @@ function SessionChat({
     abort,
     interrupt,
     error,
-  } = useChat(session.id, initialMessages, [], workspaceRoots);
+    markInstructionBoundary,
+  } = useChat(session.id, initialMessages, [], workspaceRoots, localClearMsgCount);
 
   // Background-task deliveries (spawnAgent runInBackground, backgrounded
   // shell) share the same underlying queue as real queued user messages —
@@ -339,6 +340,8 @@ function SessionChat({
 
       if (!res.ok) throw new Error("Compact failed");
 
+      markInstructionBoundary();
+
       const eventText = source === "auto"
         ? "Context auto-compacted — history summarized, context window reset"
         : "Context compacted — history summarized, context window reset";
@@ -382,6 +385,7 @@ function SessionChat({
   const handleClearSession = async () => {
     await apiClient.sessions[":id"].clear.$post({ param: { id: session.id } });
     setLocalClearMsgCount(messages.length);
+    markInstructionBoundary();
   };
 
   const handleAddWorkspaceRoot = async (path: string) => {

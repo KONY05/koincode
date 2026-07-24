@@ -94,8 +94,28 @@ function hasSubshell(command: string): boolean {
   return command.includes("$(") || command.includes("`");
 }
 
+/**
+ * Binaries that can never mutate state regardless of arguments — these skip the
+ * approval prompt entirely. Binaries that CAN mutate depending on flags (e.g. `sed -i`,
+ * `find -delete`) are deliberately excluded; name-only classification can't tell a safe
+ * invocation from a destructive one for those, so they stay in the normal prompt flow.
+ */
+const SAFE_READONLY_BINARIES = new Set([
+  "cat",
+  "ls",
+  "pwd",
+  "echo",
+  "grep",
+  "wc",
+  "head",
+  "tail",
+  "file",
+  "which",
+]);
+
 type AtomicClassification = { requiresApproval: true } & PendingApproval & {
     isCdOnly: boolean;
+    isSafe: boolean;
   };
 
 /** Classify a single atomic command (no operators) by its leading binary. */
@@ -109,6 +129,7 @@ function classifyAtomicCommand(cmd: string): AtomicClassification {
       ...mapped,
       description: cmd,
       isCdOnly: mapped.key === "shell:cd",
+      isSafe: false,
     };
   }
 
@@ -120,6 +141,7 @@ function classifyAtomicCommand(cmd: string): AtomicClassification {
     description: cmd,
     tier: "normal",
     isCdOnly: false,
+    isSafe: SAFE_READONLY_BINARIES.has(fallbackBin),
   };
 }
 
@@ -227,6 +249,12 @@ export default function getShellPermissionInfo(
   // Classify each sub-command.
   const classified = subcommands.map(classifyAtomicCommand);
 
+  // If every sub-command is a read-only binary (or a bare `cd`) and nothing writes via
+  // redirection, skip the prompt entirely — nothing here can mutate state.
+  if (!hasWriteRedirection(command) && classified.every((c) => c.isSafe || c.isCdOnly)) {
+    return { requiresApproval: false };
+  }
+
   // Filter out bare `cd` sub-commands — they are safe redirects, not meaningful actions.
   // If ALL sub-commands are `cd`, still classify the whole thing as `shell:cd`.
   const meaningful = classified.filter((c) => !c.isCdOnly);
@@ -255,6 +283,7 @@ export default function getShellPermissionInfo(
         description: command,
         tier: "normal",
         isCdOnly: false,
+        isSafe: false,
       };
     }
   }

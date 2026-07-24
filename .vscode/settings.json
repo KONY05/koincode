@@ -23,6 +23,7 @@
     "networkidle",
     "numstat",
     "ollama",
+    "opencode",
     "openrouter",
     "opentui",
     "pids",

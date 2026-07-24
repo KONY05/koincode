@@ -37,7 +37,11 @@ export const toolInputSchemas = {
     include: z
       .string()
       .optional()
-      .describe("Optional glob for files to include"),
+      .describe(
+        "Optional filename-only glob to filter matches, e.g. \"*.ts\" or \"*.{ts,tsx}\" — " +
+          "matched against the basename, not the full path, so it must not contain \"/\". " +
+          "Use `path` to scope the search to a directory instead.",
+      ),
   }),
   writeFile: z.object({
     path: z.string().describe("Relative path to write, or an absolute path to address a secondary workspace root"),

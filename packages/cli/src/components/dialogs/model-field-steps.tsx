@@ -10,6 +10,8 @@ import {
   customProviderInputSchema,
   type CustomModelInput,
   type CustomProviderInput,
+  type ContextWindowOption,
+  CONTEXT_WINDOW_OPTIONS,
 } from "@koincode/shared";
 
 type TextStepProps = {
@@ -167,6 +169,108 @@ export function BooleanStep({
   );
 }
 
+type NumberPickerRow =
+  | { kind: "value"; value: number; label: string }
+  | { kind: "custom"; label: string }
+  | { kind: "skip"; label: string };
+
+type NumberPickerStepProps = {
+  layerId: string;
+  label: string;
+  options: ContextWindowOption[];
+  initialValue?: number;
+  allowSkip?: boolean;
+  /** When provided, adds a "Custom value..." row that calls this instead of onSubmit. */
+  onCustom?: () => void;
+  onSubmit: (value: number | undefined) => void;
+  onCancel: () => void;
+};
+
+/** Number picker — select from predefined value/label options, plus optional "custom value" and "skip" rows. */
+export function NumberPickerStep({
+  layerId,
+  label,
+  options,
+  initialValue,
+  allowSkip = false,
+  onCustom,
+  onSubmit,
+  onCancel,
+}: NumberPickerStepProps) {
+  const rows: NumberPickerRow[] = [
+    ...options.map((opt) => ({ kind: "value" as const, value: opt.value, label: opt.label })),
+    ...(onCustom ? [{ kind: "custom" as const, label: "Custom value..." }] : []),
+    ...(allowSkip ? [{ kind: "skip" as const, label: "Skip (optional)" }] : []),
+  ];
+
+  const [selectedIndex, setSelectedIndex] = useState(() => {
+    if (initialValue === undefined) return allowSkip ? rows.length - 1 : 0;
+    const idx = options.findIndex((opt) => opt.value === initialValue);
+    if (idx >= 0) return idx;
+    // A value was set previously but isn't one of the predefined options — it was typed in.
+    const customIdx = rows.findIndex((row) => row.kind === "custom");
+    return customIdx >= 0 ? customIdx : 0;
+  });
+  const { isTopLayer } = useKeyboardLayer();
+  const { colors } = useTheme();
+
+  const selectRow = (row: NumberPickerRow) => {
+    if (row.kind === "value") onSubmit(row.value);
+    else if (row.kind === "skip") onSubmit(undefined);
+    else onCustom?.();
+  };
+
+  useKeyboard((key) => {
+    if (!isTopLayer(layerId)) return;
+    if (key.name === "escape") {
+      key.preventDefault();
+      onCancel();
+    } else if (key.name === "up") {
+      key.preventDefault();
+      setSelectedIndex((i) => Math.max(0, i - 1));
+    } else if (key.name === "down") {
+      key.preventDefault();
+      setSelectedIndex((i) => Math.min(rows.length - 1, i + 1));
+    } else if (key.name === "return" || key.name === "enter") {
+      key.preventDefault();
+      const row = rows[selectedIndex];
+      if (row) selectRow(row);
+    }
+  });
+
+  return (
+    <box flexDirection="column" gap={1}>
+      <text>{label}</text>
+      <box gap={0}>
+        {rows.map((row, i) => {
+          const isSelected = i === selectedIndex;
+          return (
+            <box
+              key={row.label}
+              flexDirection="row"
+              gap={1}
+              height={1}
+              onMouseMove={() => setSelectedIndex(i)}
+              onMouseDown={() => selectRow(row)}
+            >
+              <text
+                fg={isSelected ? colors.primary : colors.dimSeparator}
+                attributes={isSelected ? TextAttributes.BOLD : undefined}
+              >
+                {isSelected ? "› " : "  "}[{i + 1}]
+              </text>
+              <text fg={isSelected ? "white" : "gray"}>{row.label}</text>
+            </box>
+          );
+        })}
+      </box>
+      <text fg={colors.dimSeparator} attributes={TextAttributes.DIM}>
+        ↑↓ + enter · esc to go back
+      </text>
+    </box>
+  );
+}
+
 export type ProviderFieldsStep = "name" | "baseURL" | "apiKey";
 
 export type ProviderFieldsDraft = {
@@ -288,7 +392,7 @@ export function ProviderFieldsWizard({
   );
 }
 
-export type ModelFieldsStep = "modelId" | "contextWindow" | "vision";
+export type ModelFieldsStep = "modelId" | "contextWindow" | "contextWindowCustom" | "vision";
 
 export type ModelFieldsDraft = {
   modelId: string;
@@ -326,6 +430,7 @@ export function ModelFieldsWizard({
     setError(null);
     if (from === "modelId") onCancel();
     else if (from === "contextWindow") setStep("modelId");
+    else if (from === "contextWindowCustom") setStep("contextWindow");
     else if (from === "vision") setStep("contextWindow");
   };
 
@@ -355,29 +460,51 @@ export function ModelFieldsWizard({
 
   if (step === "contextWindow") {
     return (
-      <TextStep
+      <NumberPickerStep
         key="contextWindow"
         layerId={layerId}
-        label="Context window in tokens (optional — leave blank to skip):"
+        label="Context window in tokens (optional):"
+        initialValue={draft.contextWindow === "" ? undefined : Number(draft.contextWindow)}
+        options={CONTEXT_WINDOW_OPTIONS}
+        allowSkip
+        onCustom={() => {
+          setError(null);
+          setStep("contextWindowCustom");
+        }}
+        onCancel={() => back("contextWindow")}
+        onSubmit={(value) => {
+          setError(null);
+          setDraft((d) => ({ ...d, contextWindow: value === undefined ? "" : String(value) }));
+          setStep("vision");
+        }}
+      />
+    );
+  }
+
+  if (step === "contextWindowCustom") {
+    return (
+      <TextStep
+        key="contextWindowCustom"
+        layerId={layerId}
+        label="Custom context window in tokens:"
         initialValue={draft.contextWindow}
         placeholder="128000"
         error={error}
-        onCancel={() => back("contextWindow")}
+        onCancel={() => back("contextWindowCustom")}
         onSubmit={(value) => {
           const trimmed = value.trim();
-          if (trimmed === "") {
-            setError(null);
-            setDraft((d) => ({ ...d, contextWindow: "" }));
-            setStep("vision");
+          const num = Number(trimmed);
+          if (trimmed === "" || !Number.isFinite(num)) {
+            setError("Enter a valid number");
             return;
           }
-          const result = customModelInputSchema.shape.contextWindow.safeParse(trimmed);
+          const result = customModelInputSchema.shape.contextWindow.safeParse(num);
           if (!result.success) {
             setError(result.error.issues[0]?.message ?? "Invalid context window");
             return;
           }
           setError(null);
-          setDraft((d) => ({ ...d, contextWindow: trimmed }));
+          setDraft((d) => ({ ...d, contextWindow: String(num) }));
           setStep("vision");
         }}
       />

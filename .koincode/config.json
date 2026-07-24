@@ -1,7 +1,9 @@
 {
   "permissions": {
     "shell:cd": "allowed",
-    "shell:bin:echo": "allowed"
+    "shell:bin:echo": "allowed",
+    "shell:bin:sed": "allowed",
+    "shell:bin:grep": "allowed"
   },
   "hooks": {
     "PostToolUse": [

@@ -17,6 +17,7 @@ import {
   type WorkspaceRoot,
 } from "@koincode/shared";
 import { apiClient, fetchWithRestart } from "../lib/api-client";
+import { extractLoadedAgentsMd, getInstructionFilesForRequest } from "../lib/instruction-files";
 import { sweepOrphanSnapshots } from "../lib/snapshots";
 import { hasApiKeyForModel } from "../lib/usage";
 import { estimateSessionCost } from "../lib/cost";
@@ -110,6 +111,17 @@ const _activeModes = new Map<string, ModeType>();
 // a useRef during render.
 const _activeRoots = new Map<string, WorkspaceRoot[]>();
 
+// Message-count index of the most recent live /clear or /compact, keyed by session.
+// Deliberately separate from session.tsx's `localClearMsgCount` — that one drives
+// what renders in the transcript and is intentionally allowed to lag after a
+// compact (the user can still scroll back until they leave and return); this one
+// scopes extractLoadedAgentsMd's history scan and needs to be immediately
+// correct for both boundary types, since a stale "already loaded" AGENTS.md path
+// silently drops content the model can no longer actually see (the server already
+// truncates its own history at the same boundary). Defaults to 0 (whole history in
+// scope) until the first live boundary in this session.
+const _lastInstructionBoundary = new Map<string, number>();
+
 // Pending scheduleWakeup timers keyed by session id — cleared on cancellation
 // (a real user message arrives) or when the session unmounts. Process-lifetime
 // only, same accepted limitation as the background task registry. `unsubscribe`
@@ -144,6 +156,12 @@ export function useChat(
   initialMessages: Message[],
   initialSystemEvents: SystemEvent[] = [],
   roots: WorkspaceRoot[] = [],
+  // Index (into the marker-stripped message array) of this session's last clear/compact
+  // boundary as of when it was loaded from the DB — same value session.tsx computes via
+  // countMessagesBeforeLastBoundary(rawSessionMessages) to seed its own localClearMsgCount.
+  // Without this, a reload would forget any boundary that existed before this mount and
+  // extractLoadedAgentsMd would fall back to scanning full history again.
+  initialInstructionBoundary = 0,
 ) {
   const {
     mode,
@@ -216,6 +234,11 @@ export function useChat(
 
   _activeModes.set(sessionId, mode);
   _activeRoots.set(sessionId, roots);
+  // Seed once, on this session's first render only — later renders must not clobber a live
+  // markInstructionBoundary() call with this now-stale mount-time value.
+  if (!_lastInstructionBoundary.has(sessionId)) {
+    _lastInstructionBoundary.set(sessionId, initialInstructionBoundary);
+  }
   const autoModeSwitchRef = useRef(autoModeSwitch);
   const setModeRef = useRef(setMode);
   const setAutoModeSwitchRef = useRef(setAutoModeSwitch);
@@ -224,6 +247,7 @@ export function useChat(
     return () => {
       _activeModes.delete(sessionId);
       _activeRoots.delete(sessionId);
+      _lastInstructionBoundary.delete(sessionId);
       clearPendingWakeup(sessionId);
       cancelAllBackgroundWork(sessionId);
     };
@@ -287,6 +311,7 @@ export function useChat(
             })),
             ideActiveFile: getIdeContextForRequest(),
             ideSelection: getIdeSelectionForRequest(),
+            instructionFiles: getInstructionFilesForRequest(_activeRoots.get(sessionId) ?? []),
           },
         };
       },
@@ -817,7 +842,13 @@ export function useChat(
             lastModelUsed,
             sessionId,
             _activeRoots.get(sessionId) ?? [],
+            toolCall.toolName === "readFile"
+              ? extractLoadedAgentsMd(
+                  chat.messages.slice(_lastInstructionBoundary.get(sessionId) ?? 0),
+                )
+              : undefined,
           );
+          
           trackToolExecuted({
             tool: toolCall.toolName,
             mode: _activeModes.get(sessionId)!,
@@ -1067,6 +1098,14 @@ export function useChat(
     interrupt: () => {
       setWasInterrupted(true);
       chat.stop();
+    },
+    // Call right after a /clear or /compact POST succeeds — marks "everything up
+    // to this point" as out of scope for extractLoadedAgentsMd's history scan.
+    // Deliberately decoupled from the transcript's own render offset (localClearMsgCount
+    // in session.tsx), which intentionally lags after a compact; this needs to be
+    // immediate for both boundary types.
+    markInstructionBoundary: () => {
+      _lastInstructionBoundary.set(sessionId, chat.messages.length);
     },
   };
 }

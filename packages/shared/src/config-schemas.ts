@@ -8,7 +8,7 @@ export const customProviderInputSchema = z.object({
 
 export const customModelInputSchema = z.object({
   modelId: z.string().trim().min(5, "Model id is required"),
-  contextWindow: z.coerce.number().int().positive().optional(),
+  contextWindow: z.number().int().positive().optional(),
   vision: z.boolean().optional().default(false),
 });
 

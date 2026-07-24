@@ -43,6 +43,7 @@ export async function executeLocalTool(
   modelId?: string,
   sessionId?: string,
   roots: WorkspaceRoot[] = [],
+  alreadyLoadedAgentsMd: Map<string, string> = new Map(),
 ) {
   if (mode === Mode.PLAN && !PLAN_TOOLS.has(toolName)) {
     throw new Error(`Tool ${toolName} is not available in PLAN mode`);
@@ -52,7 +53,7 @@ export async function executeLocalTool(
   try {
     switch (toolName) {
       case "readFile":
-        toolOutput = await runReadFile(input, roots);
+        toolOutput = await runReadFile(input, roots, alreadyLoadedAgentsMd);
         break;
       case "listDirectory":
         toolOutput = await runListDirectory(input, roots);

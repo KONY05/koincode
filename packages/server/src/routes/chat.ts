@@ -43,6 +43,12 @@ const skillManifestEntrySchema = z.object({
   scope: z.enum(["global", "project", "builtin"]),
 });
 
+const instructionFileEntrySchema = z.object({
+  source: z.union([z.literal("global"), z.object({ label: z.string() })]),
+  path: z.string(),
+  content: z.string(),
+});
+
 const submitSchema = z.object({
   id: z.string(),
   messages: z
@@ -72,6 +78,7 @@ const submitSchema = z.object({
     })
     .nullable()
     .optional(),
+  instructionFiles: z.array(instructionFileEntrySchema).optional().default([]),
 });
 
 const submitValidator = zValidator("json", submitSchema, (result, c) => {
@@ -93,7 +100,7 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 
 
 const app = new Hono().post("/", submitValidator, async (c) => {
-  const { id, messages, mode, model, reasoningEffort, browserTools, skillsManifest, ideActiveFile, ideSelection } = c.req.valid("json");
+  const { id, messages, mode, model, reasoningEffort, browserTools, skillsManifest, ideActiveFile, ideSelection, instructionFiles } = c.req.valid("json");
 
   const session = await db.session.findUnique({
     where: { id },
@@ -155,14 +162,24 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     }
   }
 
-  // Drop consecutive same-role messages. This can happen when onFinish fails to
-  // fire after an interrupt, leaving an orphaned user message in the DB with no
-  // assistant response. The next submission would then send two user messages in
-  // a row, which strict providers (Anthropic) reject. We keep the last message
-  // in each consecutive same-role run so the newest user turn always wins.
-  const deduped = mergedMessages.filter(
-    (msg, i, arr) => i === arr.length - 1 || msg.role !== arr[i + 1]?.role,
-  );
+  // Merge consecutive same-role messages instead of dropping the earlier ones.
+  // This can happen when onFinish fails to fire after an interrupt, leaving an
+  // orphaned user message in the DB with no assistant response. The next
+  // submission would then have two user messages in a row, which strict
+  // providers (Anthropic) reject. Folding the earlier parts into the newest
+  // turn keeps the content instead of silently losing it; the earlier
+  // message's id is tracked so its now-redundant DB row can be cleaned up below.
+  const mergedAwayIds = new Set<string>();
+  const deduped: KoincodeUIMessage[] = [];
+  for (const msg of mergedMessages) {
+    const prev = deduped[deduped.length - 1];
+    if (prev && prev.role === msg.role) {
+      mergedAwayIds.add(prev.id);
+      deduped[deduped.length - 1] = { ...msg, parts: [...prev.parts, ...msg.parts] };
+    } else {
+      deduped.push(msg);
+    }
+  }
 
   const nextMessages = await validateUIMessages<KoincodeUIMessage>({
     messages: deduped,
@@ -181,7 +198,21 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   );
   const newMessages = nextMessages.filter((m) => !storedMsgIds.has(m.id));
 
+  // DB rows for messages that got folded into a later same-role turn above.
+  // Their content now lives inside the merged message being saved below, so the
+  // standalone row is redundant and would otherwise be re-merged (and duplicated)
+  // on every future request.
+  const staleDbIds = messageRecords
+    .filter((rec, idx) => {
+      const parsedId = (parsedRecords[idx] as { id?: string } | null)?.id;
+      return !!parsedId && mergedAwayIds.has(parsedId);
+    })
+    .map((rec) => rec.id);
+
   try {
+    if (staleDbIds.length > 0) {
+      await db.message.deleteMany({ where: { id: { in: staleDbIds } } });
+    }
     if (newMessages.length > 0) {
       await db.$transaction(async (tx) => {
         const { _max } = await tx.message.aggregate({
@@ -251,7 +282,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
 
   const promptCaching = resolvedModel.promptCaching === true;
   const roots = parseWorkspaceRoots(session.roots);
-  const systemPrompt = buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus, roots });
+  const systemPrompt = buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus, roots, instructionFiles });
   // Order matters: append the volatile IDE context to the newest message's content
   // *before* marking that message as this turn's cache breakpoint, so the breakpoint's
   // hash covers the final content, not a stale pre-append snapshot.

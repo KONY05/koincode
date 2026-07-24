@@ -23,6 +23,12 @@ type McpServerStatus = {
   error?: string;
 };
 
+type InstructionFileEntry = {
+  source: "global" | { label: string };
+  path: string;
+  content: string;
+};
+
 type SystemPromptParams = {
   mode: ModeType;
   browserTools?: boolean;
@@ -30,6 +36,7 @@ type SystemPromptParams = {
   skillsManifest?: SkillManifestEntry[];
   mcpServers?: McpServerStatus[];
   roots?: WorkspaceRoot[];
+  instructionFiles?: InstructionFileEntry[];
 };
 
 /**
@@ -42,12 +49,14 @@ type SystemPromptParams = {
  * user's active editor file) is injected directly into the newest message instead
  * — see `appendIdeContext` in `lib/prompt-caching.ts`.
  */
-export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers, roots }: SystemPromptParams): string {
+export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers, roots, instructionFiles }: SystemPromptParams): string {
   const parts: string[] = [];
 
   parts.push(getIdentitySection());
   parts.push(getEnvironmentSection(roots));
-  parts.push(getAgentsMdSection());
+  if (instructionFiles && instructionFiles.length > 0) {
+    parts.push(getAgentsMdSection(instructionFiles));
+  }
   parts.push(getModeSection(mode));
   parts.push(getToolUsageSection(mode, mcpServers, browserTools));
   parts.push(getSecuritySection());
@@ -121,16 +130,20 @@ ${workingDirectoryLine}
 The user has granted you access to run tools in service of their request. Use them when needed.`;
 }
 
-function getAgentsMdSection(): string {
-  return `# AGENTS.md
+function formatInstructionSource(source: InstructionFileEntry["source"]): string {
+  return source === "global" ? "global" : source.label;
+}
 
-Repos often contain AGENTS.md files. These files are how humans give you instructions or tips for working within the project — coding conventions, how code is organized, how to run or test code, etc.
+function getAgentsMdSection(instructionFiles: InstructionFileEntry[]): string {
+  const blocks = instructionFiles
+    .map((entry) => `Instructions from: [${formatInstructionSource(entry.source)}] ${entry.path}\n${entry.content}`)
+    .join("\n\n");
 
-- The scope of an AGENTS.md file is the entire directory tree rooted at the folder containing it.
-- For every file you touch, obey instructions in any AGENTS.md whose scope includes that file.
-- More-deeply-nested AGENTS.md files take precedence over parent ones when instructions conflict.
-- Direct system/user instructions take precedence over AGENTS.md instructions.
-- At the start of a task, check for AGENTS.md in the working directory and relevant subdirectories using \`glob\` or \`readFile\`.`;
+  return `# Project Instructions
+
+The following AGENTS.md (or CLAUDE.md/CONTEXT.md) files apply to this session — treat them as standing conventions for how to work within their scope (coding conventions, how code is organized, how to run or test code, etc.), same weight as direct user instructions unless they conflict, in which case direct instructions win. A file tagged with a project root's name applies to that root's directory tree; \`[global]\` applies across all projects. A subdirectory may have its own, more specific instruction file too — those aren't listed here; they're attached automatically (as a \`<system-reminder>\` block) the first time you read a file in their scope, and take precedence over these when they conflict.
+
+${blocks}`;
 }
 
 function getModeSection(mode: ModeType): string {

@@ -1,7 +1,7 @@
 import { readFile } from "fs/promises";
 import { extname } from "path";
 
-import { formatWorkspacePath, MAX_FILE_SIZE, resolveFromCwd } from "./utils";
+import { findUnsurfacedAgentsMd, formatWorkspacePath, MAX_FILE_SIZE, resolveFromCwd } from "./utils";
 import { toolInputSchemas, type WorkspaceRoot } from "@koincode/shared";
 
 /**
@@ -39,7 +39,11 @@ async function extractFileContent(resolved: string): Promise<string> {
   return readFile(resolved, "utf-8");
 }
 
-export async function runReadFile(input: unknown, roots: WorkspaceRoot[] = []) {
+export async function runReadFile(
+  input: unknown,
+  roots: WorkspaceRoot[] = [],
+  alreadyLoadedAgentsMd: Map<string, string> = new Map(),
+) {
   const { path, offset = 0, limit = MAX_FILE_SIZE } = toolInputSchemas.readFile.parse(input);
 
   const { resolved } = resolveFromCwd(path);
@@ -51,7 +55,19 @@ export async function runReadFile(input: unknown, roots: WorkspaceRoot[] = []) {
 
   const hasMore = offset + limit < content.length;
 
-  return hasMore
-    ? { path: displayPath, content: chunk, truncated: true, totalLength: content.length, nextOffset: offset + limit }
-    : { path: displayPath, content: chunk, totalLength: content.length };
+  // Content itself, not just paths — extractLoadedAgentsMd compares against this on later
+  // calls, so an edit to an already-surfaced AGENTS.md gets picked up instead of the model
+  // being stuck with whatever was shown the first time.
+  const loadedAgentsMd = findUnsurfacedAgentsMd(resolved, roots, alreadyLoadedAgentsMd);
+  const reminder =
+    loadedAgentsMd.length > 0
+      ? `\n\n<system-reminder>\n${loadedAgentsMd.map((f) => `Instructions from: ${f.path}\n${f.content}`).join("\n\n")}\n</system-reminder>`
+      : "";
+
+  return {
+    ...(hasMore
+      ? { path: displayPath, content: chunk + reminder, truncated: true, totalLength: content.length, nextOffset: offset + limit }
+      : { path: displayPath, content: chunk + reminder, totalLength: content.length }),
+    loadedAgentsMd,
+  };
 }

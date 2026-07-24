@@ -1,4 +1,5 @@
 import { dirname, resolve } from "path";
+
 import type { WorkspaceRoot } from "@koincode/shared";
 import { isOutsideProject, isSensitivePath } from "./file";
 import getShellPermissionInfo from "./shell";
