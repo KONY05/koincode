@@ -125,9 +125,16 @@ export function loadSkillsManifest(): ResolvedSkill[] {
 
   const projectSkillsDir = resolve(process.cwd(), ".koincode", "skills");
   const globalSkillsDir = resolve(homedir(), ".koincode", "skills");
+  // .agents/skills is the convention used by the `npx skills add` ecosystem
+  // (vercel-labs/skills) and other agents (Cursor, OpenCode, Codex, Cline) —
+  // read-only external input, never written by koincode itself.
+  const projectAgentsSkillsDir = resolve(process.cwd(), ".agents", "skills");
+  const globalAgentsSkillsDir = resolve(homedir(), ".agents", "skills");
 
   const project = scanSkillsDir(projectSkillsDir, "project");
   const global = scanSkillsDir(globalSkillsDir, "global");
+  const projectAgents = scanSkillsDir(projectAgentsSkillsDir, "project");
+  const globalAgents = scanSkillsDir(globalAgentsSkillsDir, "global");
   const builtins: ResolvedSkill[] = BUILTIN_SKILLS.map((s) => ({
     name: s.name,
     description: s.description,
@@ -142,7 +149,7 @@ export function loadSkillsManifest(): ResolvedSkill[] {
   // Deduplicate: project > global > builtin (first-seen wins)
   const seen = new Set<string>();
   const result: ResolvedSkill[] = [];
-  for (const skill of [...project, ...global, ...builtins]) {
+  for (const skill of [...project, ...global, ...projectAgents, ...globalAgents, ...builtins]) {
     if (!seen.has(skill.name)) {
       seen.add(skill.name);
       result.push(skill);

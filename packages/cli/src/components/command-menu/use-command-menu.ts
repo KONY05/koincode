@@ -4,6 +4,7 @@ import { useKeyboard } from "@opentui/react";
 import { getFilteredCommands } from "./filter-commands";
 import type { Command } from "./types";
 import { useKeyboardLayer } from "../../providers/keyboard-layer";
+import { invalidateSkillsCache } from "../../lib/skills";
 
 type UseCommandMenuReturn = {
   showCommandMenu: boolean;
@@ -43,6 +44,12 @@ export function useCommandMenu(): UseCommandMenuReturn {
 
     const prefix = text.startsWith("/") ? text.slice(1) : null;
     if (prefix !== null && !prefix.includes(" ")) {
+      // Re-scan skill directories each time the palette opens (not on every keystroke) so
+      // skills installed by an external tool (e.g. `npx skills add`) while this session is
+      // already running show up without restarting koincode.
+      if (!showCommandMenu) {
+        invalidateSkillsCache();
+      }
       setShowCommandMenu(true);
       push("command", () => {
         close();
