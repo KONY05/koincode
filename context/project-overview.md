@@ -44,8 +44,8 @@ KOINCODE is a local-first, open-source terminal AI coding agent. It runs entirel
 
 ### Sessions
 
-- Each conversation is a persistent session stored in a local SQLite database.
-- Sessions store the full message history as a JSON blob.
+- Each conversation is a persistent session stored in a local SQLite database (via Prisma + `@prisma/adapter-libsql`).
+- Sessions store message history as normalized `Message` rows linked to the `Session`, not a JSON blob.
 - Users can list, resume, and navigate between sessions from the home screen.
 
 ### Terminal UI

@@ -9,41 +9,10 @@ import { RootLayout } from "./layouts/root-layout";
 import { Home } from "./screens/home";
 import { NewSession } from "./screens/new-session";
 import { Session } from "./screens/session";
-import { updateGlobalConfig } from "./utils/configs/global-config";
 import { ensureIdeExtension } from "./lib/ide-extension";
 import { closeBrowser } from "./tools/browser/browser-session";
 import { handleFocusSequence } from "./lib/terminal-focus";
 import { cancelAllRegisteredWork } from "./lib/background/session-background-work";
-import type { ApiKeys } from "@koincode/shared";
-
-// Handle key-saving flags before starting the TUI
-const KEY_FLAGS: Array<{ flag: string; apiKey: keyof ApiKeys }> = [
-  { flag: "--openrouter-key", apiKey: "openrouter" },
-  { flag: "--anthropic-key", apiKey: "anthropic" },
-  { flag: "--openai-key", apiKey: "openai" },
-  { flag: "--google-key", apiKey: "google" },
-  { flag: "--xai-key", apiKey: "xai" },
-];
-
-const args = process.argv.slice(2).map((a) => a.trim());
-
-for (const { flag, apiKey } of KEY_FLAGS) {
-  // Support both --flag=value and --flag value
-  const eqArg = args.find((a) => a.startsWith(`${flag}=`));
-  const idx = args.indexOf(flag);
-  const value = eqArg
-    ? eqArg.slice(flag.length + 1)
-    : idx !== -1 && args[idx + 1] != null && !args[idx + 1]!.startsWith("--")
-      ? args[idx + 1]!
-      : undefined;
-
-  if (value) {
-    updateGlobalConfig({ apiKeys: { [apiKey]: value } });
-    process.stdout.write(
-      `✓ ${flag.replace("--", "").replace("-key", "")} key saved\n`,
-    );
-  }
-}
 
 ensureIdeExtension();
 trackAppStarted();

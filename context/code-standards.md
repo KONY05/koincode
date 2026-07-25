@@ -24,7 +24,7 @@
 ## Hono Server
 
 - Keep route handlers thin — validate input, call a lib function, return the result.
-- Middleware runs before every protected route; do not re-implement auth or credit checks inside route handlers.
+- The server is unauthenticated by design (no auth or credit/billing middleware — see `project-overview.md`'s Out of Scope section); do not add auth or credit checks to route handlers.
 - Long-running or multi-turn AI work belongs in `routes/chat.ts` with the AI SDK; do not inline model calls elsewhere.
 - Return consistent JSON response shapes from all endpoints.
 
@@ -42,8 +42,8 @@
 
 ## Data
 
-- All persistent state lives in the local SQLite database via `@libsql/client`.
-- Migrations are embedded as code in `packages/server/src/lib/migrations.ts` — never read migration SQL files from disk. This ensures migrations work identically across compiled binaries, npm installs, and curl/iex installs.
+- All persistent state lives in a local SQLite database (`~/.koincode/data.db`), queried through Prisma via `@prisma/adapter-libsql`.
+- Runtime migrations are separate from the Prisma ORM layer: embedded as code in `packages/server/src/lib/migrations.ts` (executed with `@libsql/client` directly on every server startup) — never read migration SQL files from disk at runtime. This ensures migrations work identically across compiled binaries, npm installs, and curl/iex installs. Prisma's own `prisma/migrations/` folder is only used when authoring a schema change locally (`db:generate`/`db:migrate`); it is not what applies migrations for end users.
 - To add a new migration: (1) add an entry to the `MIGRATIONS` record with a timestamped key and the SQL string, (2) update the base `CREATE TABLE IF NOT EXISTS` statements so fresh installs get the final schema without running every migration.
 
 ## File Organization

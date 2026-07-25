@@ -34,7 +34,7 @@ Bun workspaces under `packages/`:
 
 ```bash
 # Development
-bun run dev:cli       # Watch mode for CLI (packages/cli/src/index.tsx)
+bun run dev:cli       # Watch mode for CLI (packages/cli/bin/koincode.ts)
 bun run dev:server    # Hot-reload server (packages/server/src/index.ts)
 
 # Build & Link CLI globally
@@ -49,13 +49,16 @@ No test framework is configured. TypeScript strict mode (`tsconfig.base.json`) i
 
 ## Environment Setup
 
-Copy `.env.example` to `.env` at the repo root. Required variables:
+Copy `.env.example` to `.env` at the repo root if you need to override defaults — most variables are optional. End-user provider keys live in `~/.koincode/config.json` (written by the CLI's `/setup` flow), not `.env`; `.env` is for local dev/build only:
 
 ```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/koincode
 API_URL=http://localhost:37420
+DATABASE_URL=            # optional override; defaults to a SQLite file at ~/.koincode/data.db
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
+XAI_API_KEY=
+OPENROUTER_KEY=
+MIXPANEL_TOKEN=          # build-time only, baked into compiled binaries
 ```
 
 ## Architecture
@@ -67,38 +70,59 @@ OPENAI_API_KEY=
 
 ### CLI (`packages/cli/src/`)
 
-- **Entry point:** `index.tsx` — bootstraps React app with OpenTUI renderer
+- **Entry point:** `bin/koincode.ts` — update check, server spawn/health-check, startup crash-guard, then dynamically imports `src/index.tsx`, which bootstraps the React app with the OpenTUI renderer
 - **Routing:** Three screens via React Router: `Home` (session list), `NewSession`, `Session` (chat)
 - **`hooks/use-chat.ts`** — core hook driving AI streaming via `@ai-sdk/react`
-- **`lib/local-tools.ts`** — PLAN/BUILD tool implementations (readFile, writeFile, editFile, bash, etc.)
-- **`lib/api.ts`** — typed API client wrapping server endpoints
+- **`tools/`** — PLAN/BUILD tool implementations, one file per tool (`read-file.ts`, `write-file.ts`, `edit-file.ts`, `glob.ts`, `grep.ts`, `shell.ts`, etc.), dispatched via `tools/index.ts`
+- **`lib/api-client.ts`** — typed API client wrapping server endpoints
 - **`providers/`** — dialog, keyboard, prompt config, theme, toast state managers
 
 ### Server (`packages/server/src/`)
 
-- **Entry point:** `index.ts` — Hono app with route groups: `/sessions`, `/chat`
+- **Entry point:** `index.ts` — Hono app; runs embedded migrations on startup, then mounts route groups: `/sessions`, `/chat`, `/memory`, `/ollama-models`, `/mcp`, `/images`, `/snapshots` (plus `/health`)
 - **`routes/chat.ts`** — main LLM orchestration: system prompt construction, AI SDK streaming, tool call dispatch, session persistence
 - **`lib/models.ts`** — model lookup and provider resolution
 
 ### Shared (`packages/shared/src/`)
 
-- **`models.ts`** — supported model registry with pricing (default: `claude-opus-4-6`)
+- **`models.ts`** — supported model registry with pricing (default: `claude-sonnet-5`)
 - **`schemas.ts`** — Zod schemas for tool contracts; defines which tools are available in PLAN vs BUILD mode
 
 ### Database (`packages/database/`)
 
-Single Prisma model:
+Prisma schema, SQLite via `@prisma/adapter-libsql`, three models:
 ```prisma
 model Session {
+  id               String    @id @default(cuid())
+  title            String
+  cwd              String?
+  roots            String    @default("[]")
+  gitBranch        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  messagesRelation Message[]
+}
+
+model Message {
   id        String   @id @default(cuid())
-  title     String
-  messages  Json     @default("[]")
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+  order     Int
+}
+
+model Memory {
+  id        String   @id @default(cuid())
+  key       String
+  value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 ```
 
-Uses `@prisma/adapter-pg` for edge-compatible connections. Production DB is Neon (PostgreSQL). SQLite migration is planned for Phase 2.
+DB file lives at `~/.koincode/data.db`. Runtime migrations are applied on every server startup by a hand-rolled embedded-SQL runner (`packages/server/src/lib/migrations.ts`, using `@libsql/client` directly), not by `prisma migrate` — this is what makes migrations work identically across compiled binaries, npm installs, and curl/iex installs. Prisma's own migration folder under `packages/database/prisma/migrations/` is only for authoring a schema change locally (`db:generate`/`db:migrate`).
 
 ## Key Design Decisions
 
@@ -106,4 +130,4 @@ Uses `@prisma/adapter-pg` for edge-compatible connections. Production DB is Neon
 - **Local tool execution:** AI tool calls are streamed to the CLI and executed client-side, not server-side, so the server never touches the user's filesystem.
 - **No auth or billing:** The server is unauthenticated — all endpoints are localhost-only. No Clerk, no Polar.
 - **Single-user scope:** No `userId` on any model or route; the app is scoped to the local machine user.
-- **Message history in JSON:** Full conversation history is stored as a JSON blob on the `Session` model rather than normalized rows.
+- **Message history as normalized rows:** Each message is its own `Message` row (`sessionId`, `role`, `content`, `order`) linked to its `Session` via a relation, not a JSON blob.

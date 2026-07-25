@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- Phase 2: Local-First Pivot — planning
+- Phase 2: Local-First Pivot — core pivot complete (auth/billing removal, SQLite migration, OpenRouter + direct provider keys, port move all done; see P2-F01–F06 under "Next Up" below), ongoing feature work continues within it.
 
 ## Current Goal
 
-- Phase 2 Feature 01: Strip auth & billing, switch to SQLite, add OpenRouter + direct provider key support
+- No single active Phase 2 feature is in flight — see "In Progress" and "Recently Completed" below for current work.
 
 ## Completed
 
@@ -228,9 +228,9 @@ Fix: `ringBellIfUnfocused` now skips its own focus check entirely when `TERM_PRO
 ### Phase 2 — Local-First Pivot
 
 - **P2-F01:** ✅ Done. Removed Clerk auth middleware, all auth routes, Polar billing middleware and billing routes. Removed `@clerk/backend` and `@polar-sh/sdk` dependencies. Removed all `userId` references from routes, schema, and generated Prisma client. Server is now unauthenticated — all endpoints accessible from localhost only. Removed `/login`, `/logout`, `/upgrade`, `/usage` CLI commands.
-- **P2-F02:** ✅ Done. Swapped `@prisma/adapter-pg` → `@prisma/adapter-better-sqlite3`. Schema changed to `provider = "sqlite"`. DB path: `~/.config/koincode/data.db`. Initial migration generated at `packages/database/prisma/migrations/`. `prisma.config.ts` now computes the path dynamically (no `.env` required for DB). Server runs `prisma migrate deploy` on startup. CLI spawns the server on first run via `server-manager.ts` — health-check at `/health`, polls until ready, restarts on `ECONNREFUSED`. Server auto-shuts after 30 min of idle, CLI restarts it transparently. Port updated from 3000 → 37420 everywhere.
+- **P2-F02:** ✅ Done. Originally swapped `@prisma/adapter-pg` → `@prisma/adapter-better-sqlite3`; **superseded since** — the DB client (`packages/database/src/client.ts`) now uses `@prisma/adapter-libsql` (`PrismaLibSql`), not `better-sqlite3`. Schema is `provider = "sqlite"`. DB path is `~/.koincode/data.db` (`DB_PATH` in `@koincode/shared`'s `paths.ts`) — corrected from an earlier `~/.config/koincode/data.db` note here that never matched the actual constant. Runtime migrations run via the embedded-SQL runner in `packages/server/src/lib/migrations.ts` (see `code-standards.md`'s Data section), not `prisma migrate deploy`. CLI spawns the server on first run via `server-manager.ts` — health-check at `/health`, polls until ready, restarts on `ECONNREFUSED`. Server auto-shuts after 30 min of idle, CLI restarts it transparently. Port updated from 3000 → 37420 everywhere.
 - **P2-F03 + P2-F04:** ✅ Done. OpenRouter integration and multi-provider key support implemented together. Keys stored in `~/.koincode/config.json` (`KoincodeGlobalConfig` type in `@koincode/shared`). CLI reads config and passes keys as env vars when spawning the server. Server model resolver checks for a direct provider key first (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) and falls back to OpenRouter (`OPENROUTER_API_KEY`) for any model whose native key is absent. `/setup` command opens a dialog with rows for OpenRouter, Anthropic, OpenAI, and Gemini keys — navigate with ↑↓, Enter to edit, Esc to cancel/close. Keys can also be saved non-interactively: `koincode --openrouter-key sk-xxx`, `--anthropic-key`, `--openai-key`, `--google-key` (renamed from `--gemini-key` — see the later apiKeys rename entry below).
-- **P2-F05:** Update server port from 3000 → 37420 across server config, `API_URL` default, and CLAUDE.md.
+- **P2-F05:** ✅ Done. Server port is 37420 everywhere — `SERVER_PORT` in `@koincode/shared`, `.env.example`'s `API_URL`, and `CLAUDE.md`'s own monorepo table all agree.
 - **P2-F06:** ✅ Done. `Memory` model added to Prisma schema (`id`, `content`, `createdAt`, `updatedAt`). Migration `20260529172100_add_memory` created and applied. CRUD routes at `/memory` (GET list, POST create, PATCH `:id`, DELETE `:id`). Chat route fetches all memories on each request and passes concatenated content to `buildSystemPrompt` as `userMemory`. System prompt injects a `# Remembered Context` section when memories exist. Memory tool calls (so the agent can manage memory itself) are deferred — see Deferred section.
 - **Memory tool calls** — Expose the memory CRUD routes as agent tool calls (add, update, delete, list) so the AI can manage user memory directly during a session. Routes and DB table are already implemented; only the tool contracts and CLI-side execution handlers need to be added.
 - **Text highlight IDE context (Feature 38)** — Implemented end to end, matching the spec's hybrid ambient/one-shot design: the extension captures the editor selection continuously (no attach hotkey), the status bar shows an indicator, but the selected text is injected into only the *next* message sent, then consumed/cleared — unlike `ideActiveFile`, which re-injects every turn.
@@ -295,13 +295,13 @@ These were scoped out and should be revisited:
 - Config stored globally at `~/.koincode/config.json` — holds provider keys and user preferences, shared across all projects.
 - Project-specific config stored at `.koincode/config.json` — holds project-level hooks and permissions.
 - Hooks support both global and project scopes: global hooks apply to all projects, project hooks override global hooks for the current project.
-- Message history stored as a JSON blob on the Session row rather than normalized message rows.
+- Message history stored as normalized `Message` rows (`sessionId`, `role`, `content`, `order`) linked to their `Session`, not a JSON blob.
 - PLAN mode and BUILD mode share the same session; mode is selected at session creation and controls which tools are exposed to the model.
 
 ## Session Notes
 
 - Bun as package manager and runtime throughout (no Node/npm).
 - React 19.2.4, React Router 7, Zod 4, Hono 4, AI SDK 6.
-- Default model: `claude-opus-4-6` (will become an OpenRouter model in Phase 2).
-- Production DB was Neon PostgreSQL — being replaced with local SQLite in Phase 2.
-- Port changing from 3000 → 37420 in Phase 2 to avoid common port conflicts.
+- Default model: `claude-sonnet-5` (`DEFAULT_CHAT_MODEL_ID` in `packages/shared/src/models.ts`).
+- Production DB was Neon PostgreSQL — replaced with local SQLite (Prisma + `@prisma/adapter-libsql`) as part of the Phase 2 pivot; done, not pending.
+- Port moved from 3000 → 37420 as part of the Phase 2 pivot; done, not pending.
