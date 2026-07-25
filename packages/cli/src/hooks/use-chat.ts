@@ -436,6 +436,7 @@ export function useChat(
               signal: controller.signal,
               maxTurns,
               timeoutSeconds,
+              roots: _activeRoots.get(sessionId) ?? [],
             })
               .then((result) => completeBackgroundTask(taskId, result))
               .catch((error) =>
@@ -469,6 +470,7 @@ export function useChat(
               model: String(model),
               maxTurns,
               timeoutSeconds,
+              roots: _activeRoots.get(sessionId) ?? [],
             });
             chat.addToolOutput({
               tool: "spawnAgent" as keyof ChatTools,
