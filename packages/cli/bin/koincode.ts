@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { version } from "../package.json";
+import type { ApiKeys } from "@koincode/shared";
 
 const HELP_TEXT = `koincode v${version}
 An open source local-first terminal coding agent.
@@ -43,7 +44,7 @@ if (process.argv.includes("--server")) {
   const { runCliUpdate } = await import("../src/lib/update-cli");
   await runCliUpdate();
 } else {
-  const { ensureServerRunning } = await import("../src/lib/server-manager");
+  const { ensureServerRunning, restartServer } = await import("../src/lib/server-manager");
   const { updateGlobalConfig } = await import("../src/utils/configs/global-config");
   const { resolveBrowser } = await import("../src/lib/browser-setup");
   // Loaded up front (before the risky startup below) so it's guaranteed available even if the
@@ -92,11 +93,51 @@ if (process.argv.includes("--server")) {
     }
   }
 
+  // --*-key flags: save a provider API key. Parsed before the server starts (like --port and the
+  // browser-tools flags above) so a fresh spawn already has the right key baked into its env —
+  // see server-manager.ts's spawnServer(), which reads config once at spawn time.
+  const KEY_FLAGS: Array<{ flag: string; apiKey: keyof ApiKeys }> = [
+    { flag: "--openrouter-key", apiKey: "openrouter" },
+    { flag: "--anthropic-key", apiKey: "anthropic" },
+    { flag: "--openai-key", apiKey: "openai" },
+    { flag: "--google-key", apiKey: "google" },
+    { flag: "--xai-key", apiKey: "xai" },
+  ];
+
+  let keyFlagSaved = false;
+
+  for (const { flag, apiKey } of KEY_FLAGS) {
+    // Support both --flag=value and --flag value
+    const eqArg = args.find((a) => a.startsWith(`${flag}=`));
+    const idx = args.indexOf(flag);
+    const value = eqArg
+      ? eqArg.slice(flag.length + 1)
+      : idx !== -1 && args[idx + 1] != null && !args[idx + 1]!.startsWith("--")
+        ? args[idx + 1]!
+        : undefined;
+
+    if (value) {
+      updateGlobalConfig({ apiKeys: { [apiKey]: value } });
+      process.stdout.write(
+        `✓ ${flag.replace("--", "").replace("-key", "")} key saved\n`,
+      );
+      keyFlagSaved = true;
+    }
+  }
+
   // Crash-guard: if the app can't even start (a bad build that throws during server bring-up or
   // while importing the render tree), self-heal by updating to a newer release if one exists,
   // instead of leaving the user stranded on a broken binary. See startup-recovery.ts.
   try {
-    await ensureServerRunning();
+    // A server may already be running from a prior session (30-min idle timeout) with an old key
+    // baked into its env — restartServer() forces a fresh spawn so it picks up the key we just
+    // wrote. It degrades to a plain spawn when nothing's running, so this is always exactly one
+    // spawn, never a wasted extra cycle. Otherwise, reuse a healthy existing server as usual.
+    if (keyFlagSaved) {
+      await restartServer();
+    } else {
+      await ensureServerRunning();
+    }
     await import("../src/index.tsx");
   } catch (err) {
     await handleStartupCrash(err);

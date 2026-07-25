@@ -452,6 +452,7 @@ const agentStepSchema = z.object({
   messages: z.array(coreMessageSchema).min(1),
   mode: modeSchema,
   model: z.string().refine(isSupportedChatModel, "Unsupported model"),
+  instructionFiles: z.array(instructionFileEntrySchema).optional().default([]),
 });
 
 const agentStepValidator = zValidator("json", agentStepSchema, (result, c) => {
@@ -464,14 +465,14 @@ const appWithAgentStep = app.post(
   "/agent-step",
   agentStepValidator,
   async (c) => {
-    const { messages, mode, model } = c.req.valid("json");
+    const { messages, mode, model, instructionFiles } = c.req.valid("json");
 
     const tools = { ...getToolContracts(mode), ...getMcpTools() };
     const resolvedModel = await resolveChatModel(model);
 
     const result = await generateText({
       model: resolvedModel.model,
-      system: buildSystemPrompt({ mode }),
+      system: buildSystemPrompt({ mode, instructionFiles }),
       messages,
       tools,
       stopWhen: stepCountIs(1),

@@ -6,11 +6,12 @@
  * No React, no UI — purely async.
  */
 
-import { type ModeType, toolInputSchemas } from "@koincode/shared";
+import { type ModeType, toolInputSchemas, type WorkspaceRoot } from "@koincode/shared";
 import { executeLocalTool } from "./index";
 import { getPermissionInfo } from "../utils/permissions";
 import { isPermittedForProject } from "../utils/configs/project-config";
 import { fetchWithRestart } from "../lib/api-client";
+import { getInstructionFilesForRequest } from "../lib/instruction-files";
 import { SERVER_PORT } from "@koincode/shared";
 
 const MAX_STEPS = 50;
@@ -71,6 +72,11 @@ type SpawnAgentInput = {
   timeoutSeconds?: number;
   /** Aborts the loop between steps (and the in-flight step request) when triggered. */
   signal?: AbortSignal;
+  /** Parent session's workspace roots — without these the sub-agent gets neither the
+   * eager AGENTS.md/CLAUDE.md tier (its system prompt) nor the nested tier (its readFile
+   * calls have no root to bound the walk against, so it's silently a no-op). Also fixes
+   * tool-output paths always rendering absolute instead of root-relative for the same reason. */
+  roots?: WorkspaceRoot[];
 };
 
 // Compact one-liner for a tool call the sub-agent made but never narrated —
@@ -115,6 +121,41 @@ function collectPartialProgress(messages: AgentMessage[]): string {
   return parts.join("\n");
 }
 
+// Sub-agent analogue of `extractLoadedAgentsMd` (lib/instruction-files.ts) — same purpose
+// (don't re-attach a nested AGENTS.md's content in a `<system-reminder>` if it's already
+// been shown, unless it's changed since), but over this file's own `AgentMessage`/
+// `ToolResultPart` shape rather than the main session's UIMessage tool parts. A sub-agent
+// run has no `/clear`/`/compact` concept — it's a single bounded loop — so unlike the main
+// session there's no boundary to slice against; the full accumulated history is always
+// in scope for this scan.
+export function extractLoadedAgentsMdFromMessages(messages: AgentMessage[]): Map<string, string> {
+  const loaded = new Map<string, string>();
+  for (const m of messages) {
+    if (m.role !== "tool") continue;
+    for (const part of m.content) {
+      if (part.toolName !== "readFile" || part.isError) continue;
+      try {
+        const output = JSON.parse(part.output.value) as { loadedAgentsMd?: unknown };
+        if (!Array.isArray(output.loadedAgentsMd)) continue;
+        for (const entry of output.loadedAgentsMd) {
+          if (
+            entry &&
+            typeof entry === "object" &&
+            typeof (entry as { path?: unknown }).path === "string" &&
+            typeof (entry as { content?: unknown }).content === "string"
+          ) {
+            const { path, content } = entry as { path: string; content: string };
+            loaded.set(path, content);
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
+  return loaded;
+}
+
 // export const CODE_REVIEWER: SubagentDefinition = {
 //   name: "code_reviewer",
 //   description:
@@ -142,6 +183,7 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     maxTurns,
     timeoutSeconds,
     signal,
+    roots = [],
   } = input;
 
   let currentMode: ModeType = startingMode;
@@ -203,7 +245,14 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     const response = await fetchWithRestart(AGENT_STEP_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, mode: currentMode, model }),
+      // Read fresh every step, same as the main session's prepareSendMessagesRequest —
+      // cheap, and picks up a mid-run edit rather than caching a stale snapshot.
+      body: JSON.stringify({
+        messages,
+        mode: currentMode,
+        model,
+        instructionFiles: getInstructionFilesForRequest(roots),
+      }),
       signal,
     });
 
@@ -344,15 +393,16 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
         continue;
       }
 
-      // Execute the tool locally. Sub-agents have no parent session/workspace
-      // context here, so paths always display as absolute (formatWorkspacePath's
-      // fallback for an empty roots list) rather than root-labeled.
+      // Execute the tool locally.
       try {
         const toolOutput = await executeLocalTool(
           tc.toolName,
           tc.input,
           currentMode,
           model,
+          undefined,
+          roots,
+          tc.toolName === "readFile" ? extractLoadedAgentsMdFromMessages(messages) : undefined,
         );
         toolResults.push({
           type: "tool-result",
