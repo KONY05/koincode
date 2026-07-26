@@ -5,19 +5,20 @@ import { useTheme } from "../../providers/theme";
 type Props = {
   message: string;
   mode: ModeType;
+  incognito?: boolean;
 };
 
-export function UserMessage({ message, mode }: Props) {
+export function UserMessage({ message, mode, incognito = false }: Props) {
   const { colors } = useTheme();
 
   return (
     <box width="100%" alignItems="center">
       <box
         border={["left"]}
-        borderColor={mode === Mode.PLAN ? colors.planMode : colors.primary}        width="100%"
+        borderColor={incognito ? colors.info : mode === Mode.PLAN ? colors.planMode : colors.primary}        width="100%"
         customBorderChars={{
           ...EmptyBorder,
-          vertical: "┃",
+          vertical: incognito ? "┆" : "┃",
           bottomLeft: "╹",
         }}
       >

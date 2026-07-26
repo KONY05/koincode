@@ -3,7 +3,9 @@
     "shell:cd": "allowed",
     "shell:bin:echo": "allowed",
     "shell:bin:sed": "allowed",
-    "shell:bin:grep": "allowed"
+    "shell:bin:grep": "allowed",
+    "shell:git": "allowed",
+    "file:sensitive": "allowed"
   },
   "hooks": {
     "PostToolUse": [

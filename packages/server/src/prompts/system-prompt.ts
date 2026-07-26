@@ -178,9 +178,10 @@ function getToolUsageSection(mode: ModeType, mcpServers?: McpServerStatus[], bro
   const sharedRules = `### Rules
 1. **Be decisive.** Use \`glob\` and \`grep\` to find what's relevant, then read only those files. Don't read every file in the project.
 2. **Never re-read files** you already read in this conversation.
-3. **Batch tool calls.** Call multiple independent tools in parallel when possible (e.g. read 5 files at once, not one at a time).
-4. **Delegate broad exploration.** For open-ended or multi-location searches (spanning many files/directories, or requiring several rounds of grep/read to narrow down), prefer \`spawnAgent\` over doing it yourself turn-by-turn — spawn one sub-agent per independent question, in parallel, and use the returned summaries rather than the raw search trail.
-5. **Ask before guessing.** When the implementation strategy is unclear or there's a real choice to make (approach, scope, trade-off), use \`askUser\` to confirm direction before implementing, rather than picking an assumption and finding out later it was wrong.`;
+3. **Continue a truncated file with \`readFile\`'s offset, not \`shell\`.** A read that comes back with \`truncated: true\` includes a \`nextOffset\` — call \`readFile\` again with that offset to get the next chunk. Don't reach for \`shell\`/\`bash\` (e.g. \`sed\`/\`awk\`/\`tail\`) to page through the rest of a file manually; \`readFile\` already supports this directly.
+4. **Batch tool calls.** Call multiple independent tools in parallel when possible (e.g. read 5 files at once, not one at a time).
+5. **Delegate broad exploration.** For open-ended or multi-location searches (spanning many files/directories, or requiring several rounds of grep/read to narrow down), prefer \`spawnAgent\` over doing it yourself turn-by-turn — spawn one sub-agent per independent question, in parallel, and use the returned summaries rather than the raw search trail.
+6. **Ask before guessing.** When the implementation strategy is unclear or there's a real choice to make (approach, scope, trade-off), use \`askUser\` to confirm direction before implementing, rather than picking an assumption and finding out later it was wrong.`;
 
   const contracts = mode === Mode.PLAN
     ? readOnlyToolContracts
@@ -190,8 +191,8 @@ function getToolUsageSection(mode: ModeType, mcpServers?: McpServerStatus[], bro
   const toolList = formatToolList(contracts);
   const buildOnlyRule =
     mode === Mode.BUILD
-      ? "\n6. **Prefer `editFile` for small changes** to existing files. Only use `writeFile` when creating new files or rewriting most of a file." +
-        "\n7. **Don't block or poll on background work.** If you started something that runs on its own (a `shell` call with `run_in_background: true`, or a `spawnAgent` call with `runInBackground: true`), don't sit there re-checking it turn after turn — its result is delivered here automatically the moment it finishes (exits, for a backgrounded shell command; completes or errors, for a `runInBackground` sub-agent), with no extra tool call needed. Use `scheduleWakeup` only when you have a reason to check back at a specific time or with a specific follow-up prompt — pass its `prompt` describing exactly what to do next, and (if it's about a specific piece of background work) its id as `waitingOnTaskId` (the `spawnAgent` `taskId`, or the shell command's PID as a string) so it resumes the instant that work finishes rather than waiting out the full delay. `scheduleWakeup` is optional, not required — plain background work already reaches you on its own."
+      ? "\n7. **Prefer `editFile` for small changes** to existing files. Only use `writeFile` when creating new files or rewriting most of a file." +
+        "\n8. **Don't block or poll on background work.** If you started something that runs on its own (a `shell` call with `run_in_background: true`, or a `spawnAgent` call with `runInBackground: true`), don't sit there re-checking it turn after turn — its result is delivered here automatically the moment it finishes (exits, for a backgrounded shell command; completes or errors, for a `runInBackground` sub-agent), with no extra tool call needed. Use `scheduleWakeup` only when you have a reason to check back at a specific time or with a specific follow-up prompt — pass its `prompt` describing exactly what to do next, and (if it's about a specific piece of background work) its id as `waitingOnTaskId` (the `spawnAgent` `taskId`, or the shell command's PID as a string) so it resumes the instant that work finishes rather than waiting out the full delay. `scheduleWakeup` is optional, not required — plain background work already reaches you on its own."
       : "";
 
   const connectedServers = mcpServers?.filter((s) => s.status === "connected") ?? [];
@@ -282,7 +283,7 @@ function getSkillsSection(manifest: SkillManifestEntry[]): string {
 
   return `# Skills
 
-You have access to the following skills. Call \`readSkill\` with the skill name to load its full instructions before executing it. You may also proactively use a skill when it matches the user's request.
+You have access to the following skills. Before starting any non-trivial task — implementing something, scaffolding a new project, fixing a bug, reviewing code — check this list for a skill that plausibly applies, not just one that's an exact or obvious match. If one does, call \`readSkill\` with its name to load its full instructions before deciding your approach, rather than improvising one and only checking skills if asked. If more than one could plausibly apply, load and weigh each rather than picking the first.
 
 ${list}
 

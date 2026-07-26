@@ -270,6 +270,34 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: "incognito",
+    description: "Toggle incognito mode — chat history won't be saved for the next session",
+    value: "/incognito",
+    action: (ctx) => {
+      if (ctx.isIncognitoLocked) {
+        ctx.toast.show({
+          variant: "info",
+          message: "Incognito only applies to new sessions — this session keeps how it started.",
+        });
+        return;
+      }
+
+      const turningOn = !ctx.incognito;
+      // Defaults mode to Plan on the way in and restores whatever it was on the way
+      // out — handled inside toggleIncognito/PromptConfigProvider itself, not here,
+      // so the same restore applies whether incognito ends via this command or via
+      // Home's own reset-on-return effect.
+      ctx.toggleIncognito();
+
+      ctx.toast.show({
+        variant: "info",
+        message: turningOn
+          ? "Incognito mode on, defaulted to Plan — your next message starts a session that won't be saved"
+          : "Incognito mode off",
+      });
+    },
+  },
+  {
     name: "restart-server",
     description: "Restart the background server process",
     value: "/restart-server",

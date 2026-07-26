@@ -25,6 +25,9 @@ export type CommandContext = {
   toggleVoice: () => void;
   toggleInfoSidebar: () => void;
   contextUsage: ContextUsage | null;
+  incognito: boolean;
+  toggleIncognito: () => void;
+  isIncognitoLocked: boolean;
 };
 
 export type Command = {

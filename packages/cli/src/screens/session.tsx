@@ -1,10 +1,18 @@
+import { basename } from "path";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router";
 import { useKeyboard } from "@opentui/react";
 import type { InferResponseType } from "hono/client";
 import { z } from "zod";
 
-import { modeSchema, BOUNDARY_ROLES, type WorkspaceRoot } from "@koincode/shared";
+import {
+  modeSchema,
+  BOUNDARY_ROLES,
+  findRootConflict,
+  makeRootLabel,
+  type WorkspaceRoot,
+} from "@koincode/shared";
+import { getGitBranch } from "../utils/helper";
 import { SessionShell } from "../components/session-shell";
 import {
   UserMessage,
@@ -29,10 +37,14 @@ type SessionData = InferResponseType<
   200
 >;
 
+const workspaceRootSchema = z.object({ label: z.string(), path: z.string() });
+
 const initialStateSchema = z.object({
   message: z.string(),
   mode: modeSchema,
   model: z.string(),
+  pendingRoots: z.array(workspaceRootSchema).optional().default([]),
+  isIncognito: z.boolean().optional().default(false),
 });
 
 function ChatMessage({
@@ -40,11 +52,13 @@ function ChatMessage({
   streaming = false,
   interrupted = false,
   isSubagentRunning = false,
+  incognito = false,
 }: {
   msg: Message;
   streaming?: boolean;
   interrupted?: boolean;
   isSubagentRunning?: boolean;
+  incognito?: boolean;
 }) {
   if (msg.role === "user") {
     const text = msg.parts
@@ -77,7 +91,7 @@ function ChatMessage({
       );
     }
 
-    return <UserMessage message={text} mode={msg.metadata?.mode ?? "BUILD"} />;
+    return <UserMessage message={text} mode={msg.metadata?.mode ?? "BUILD"} incognito={incognito} />;
   }
 
   return (
@@ -120,11 +134,13 @@ function SessionChat({
   initialState,
   onDeleteLastMessage,
   onHandoff,
+  isIncognito = false,
 }: {
   session: SessionData;
   initialState: z.infer<typeof initialStateSchema> | null;
   onDeleteLastMessage?: () => void;
   onHandoff: () => Promise<void>;
+  isIncognito?: boolean;
 }) {
   const rawSessionMessages = session.messages as unknown[];
 
@@ -174,7 +190,8 @@ function SessionChat({
     interrupt,
     error,
     markInstructionBoundary,
-  } = useChat(session.id, initialMessages, [], workspaceRoots, localClearMsgCount);
+    deleteLastUserTurn,
+  } = useChat(session.id, initialMessages, [], workspaceRoots, localClearMsgCount, isIncognito);
 
   // Background-task deliveries (spawnAgent runInBackground, backgrounded
   // shell) share the same underlying queue as real queued user messages —
@@ -224,17 +241,24 @@ function SessionChat({
   // such mutations, delete immediately; otherwise confirm first, since revert
   // touches the user's files on disk.
   const initiateDelete = async () => {
-    if (!onDeleteLastMessage) return;
+    // Incognito: there's no Message row to delete/refetch (see deleteLastUserTurn),
+    // so this doesn't go through onDeleteLastMessage at all — only the revert-confirm
+    // decision below (mutations found or not) differs from the normal path.
+    if (!isIncognito && !onDeleteLastMessage) return;
 
     const lastUserIndex = messages.findLastIndex((m) => m.role === "user");
     if (lastUserIndex === -1) {
-      onDeleteLastMessage();
+      if (!isIncognito) onDeleteLastMessage?.();
       return;
     }
 
     const mutations = collectMutations(messages.slice(lastUserIndex));
     if (mutations.length === 0) {
-      onDeleteLastMessage();
+      if (isIncognito) {
+        deleteLastUserTurn();
+      } else {
+        onDeleteLastMessage?.();
+      }
       return;
     }
 
@@ -246,7 +270,11 @@ function SessionChat({
     setPendingRevertConfirm(null);
     if (!confirmed) return;
     await applyRevert(pendingRevertConfirm?.plans ?? []);
-    onDeleteLastMessage?.();
+    if (isIncognito) {
+      deleteLastUserTurn();
+    } else {
+      onDeleteLastMessage?.();
+    }
   };
 
   // Let the user cancel a reply even before the first streamed chunk arrives.
@@ -329,6 +357,16 @@ function SessionChat({
   const hasAutoCompactedRef = useRef(false);
 
   const runCompact = async (source: "manual" | "auto") => {
+    // Not available in incognito v1 — compaction summarizes via a DB-backed endpoint
+    // that assumes a real Session row. Auto-compact just skips silently (nothing the
+    // user asked for); manual /compact explains why.
+    if (isIncognito) {
+      if (source === "manual") {
+        toast.show({ variant: "info", message: "Compact isn't available in incognito mode yet" });
+      }
+      return;
+    }
+
     setIsCompacting(true);
 
     const label = source === "auto" ? "Context full — auto-compacting…" : "Compacting context…";
@@ -383,12 +421,36 @@ function SessionChat({
   };
 
   const handleClearSession = async () => {
-    await apiClient.sessions[":id"].clear.$post({ param: { id: session.id } });
+    // Incognito has no Message rows to fence with a clear_boundary marker — the local
+    // transcript-hiding + instruction-boundary reset below is the whole effect anyway.
+    if (!isIncognito) {
+      await apiClient.sessions[":id"].clear.$post({ param: { id: session.id } });
+    }
     setLocalClearMsgCount(messages.length);
     markInstructionBoundary();
   };
 
   const handleAddWorkspaceRoot = async (path: string) => {
+    // Incognito has no Session row to persist `roots` on — mirror Home's own
+    // pre-session /add-dir handling (same findRootConflict/makeRootLabel helpers),
+    // fully client-side.
+    if (isIncognito) {
+      const conflict = findRootConflict(path, workspaceRoots);
+      if (conflict) {
+        toast.show({
+          variant: "error",
+          message: `"${path}" overlaps with the existing "${conflict.label}" root`,
+        });
+        return;
+      }
+
+      const label = makeRootLabel(path, workspaceRoots);
+      const nextRoots = [...workspaceRoots, { label, path }];
+      setWorkspaceRoots(nextRoots);
+      toast.show({ variant: "success", message: `Added ${label} to this workspace` });
+      return;
+    }
+
     try {
       const res = await apiClient.sessions[":id"]["add-root"].$post({
         param: { id: session.id },
@@ -438,6 +500,7 @@ function SessionChat({
       compact={handleCompact}
       addWorkspaceRoot={handleAddWorkspaceRoot}
       workspaceRoots={workspaceRoots}
+      isIncognitoLocked
     >
     <SessionShell
       onSubmit={(text) => submit({ userText: text, mode, model, reasoningEffort: reasoningEffort ?? undefined })}
@@ -485,6 +548,7 @@ function SessionChat({
               wasInterrupted && status !== "streaming" && isLastAssistant
             }
             isSubagentRunning={isSubagentRunning}
+            incognito={isIncognito}
           />
         );
       })}
@@ -508,12 +572,35 @@ export function Session() {
   const location = useLocation();
   const toast = useToast();
 
-  const [session, setSession] = useState<SessionData | null>(null);
-
   const initialState = useMemo(() => {
     const parsed = initialStateSchema.safeParse(location.state);
     return parsed.success ? parsed.data : null;
   }, [location.state]);
+
+  const isIncognito = initialState?.isIncognito ?? false;
+
+  // Incognito: no Session row exists (or ever will) for `id` — build the session shape
+  // straight from the router state NewSession forwarded, instead of GETting a row that
+  // was never created. Everything else in this screen only reads `session`'s shape, so
+  // a synthetic object with the same fields is enough for the rest of the tree to work.
+  // Computed as the initial state itself (not an effect) since it's pure/synchronous —
+  // unlike the real fetchSession below, there's no network round trip to wait on.
+  const [session, setSession] = useState<SessionData | null>(() => {
+    if (!id || !initialState?.isIncognito) return null;
+
+    const cwd = process.cwd();
+    const now = new Date().toISOString();
+    return {
+      id,
+      title: initialState.message.slice(0, 100),
+      cwd,
+      gitBranch: getGitBranch() ?? null,
+      createdAt: now,
+      updatedAt: now,
+      roots: [{ label: basename(cwd), path: cwd }, ...initialState.pendingRoots],
+      messages: [],
+    } as SessionData;
+  });
 
   useEffect(() => {
     if (!session?.title) return;
@@ -522,7 +609,7 @@ export function Session() {
   }, [session?.title]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || initialState?.isIncognito) return;
 
     let ignore = false;
     const fetchSession = async () => {
@@ -549,10 +636,14 @@ export function Session() {
     return () => {
       ignore = true;
     };
-  }, [id, toast, navigate]);
+  }, [id, toast, navigate, initialState]);
 
   const handleHandoff = async () => {
     if (!session) return;
+    if (isIncognito) {
+      toast.show({ variant: "info", message: "Handoff isn't available in incognito mode" });
+      return;
+    }
     toast.show({ variant: "info", message: "Summarizing session…" });
     try {
       const res = await apiClient.sessions[":id"].handoff.$post({
@@ -570,6 +661,8 @@ export function Session() {
   };
 
   const handleDeleteLastMessage = async () => {
+    // Incognito never reaches here — SessionChat's initiateDelete/handleRevertConfirmResponse
+    // handle deletion entirely client-side via deleteLastUserTurn for that case.
     if (!session) return;
     try {
       const res = await apiClient.sessions[":id"].messages["last-user"].$delete(
@@ -615,6 +708,7 @@ export function Session() {
       initialState={initialState}
       onDeleteLastMessage={handleDeleteLastMessage}
       onHandoff={handleHandoff}
+      isIncognito={isIncognito}
     />
   );
 }

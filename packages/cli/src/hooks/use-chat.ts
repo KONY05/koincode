@@ -162,6 +162,10 @@ export function useChat(
   // Without this, a reload would forget any boundary that existed before this mount and
   // extractLoadedAgentsMd would fall back to scanning full history again.
   initialInstructionBoundary = 0,
+  // Decided once, before the first message (see 50-incognito-mode-implementation.md) —
+  // fixed for this hook instance's whole lifetime, never toggled mid-session. Safe to
+  // capture directly in the transport's closure below rather than a reactive dep.
+  isIncognito = false,
 ) {
   const {
     mode,
@@ -280,6 +284,38 @@ export function useChat(
         const metadata = messages.findLast(
           (m) => m.metadata?.mode && m.metadata?.model,
         )?.metadata;
+
+        // Incognito: no Session/Message rows exist server-side to rebuild context
+        // from, so send the full conversation every turn instead of just the newest
+        // message(s) — the server takes it as-is (see chat.ts's incognito branch).
+        // Each message here already carries its own real mode/model metadata (set by
+        // chat.sendMessage at send time, or by the server's messageMetadata callback
+        // for a past assistant turn), so unlike the normal path below, nothing needs
+        // to be reattached — reattaching the *current* mode/model onto every historical
+        // message would corrupt their real per-turn metadata.
+        if (isIncognito) {
+          return {
+            body: {
+              id: sessionId,
+              messages,
+              mode: _activeModes.get(sessionId) ?? mode,
+              model: message.metadata?.model ?? metadata?.model,
+              reasoningEffort: message.metadata?.reasoningEffort ?? metadata?.reasoningEffort,
+              browserTools: readGlobalConfig().browser?.enabled ?? false,
+              skillsManifest: loadSkillsManifest().map((s) => ({
+                name: s.name,
+                description: s.description,
+                scope: s.scope,
+              })),
+              ideActiveFile: getIdeContextForRequest(),
+              ideSelection: getIdeSelectionForRequest(),
+              instructionFiles: getInstructionFilesForRequest(_activeRoots.get(sessionId) ?? []),
+              incognito: true,
+              roots: _activeRoots.get(sessionId) ?? [],
+            },
+          };
+        }
+
         const previousMessage = messages[messages.length - 2];
 
         // If the previous assistant message was interrupted, do NOT send it back —
@@ -1108,6 +1144,17 @@ export function useChat(
     // immediate for both boundary types.
     markInstructionBoundary: () => {
       _lastInstructionBoundary.set(sessionId, chat.messages.length);
+    },
+    // Truncates the last user turn (and everything after it) purely client-side via
+    // the AI SDK's own chat.setMessages — no server round trip. Used for incognito
+    // sessions, which have no Message rows to delete/refetch from; the normal path's
+    // double-escape delete goes through the DB instead (see Session.handleDeleteLastMessage).
+    // Returns false (no-op) if there's no user message to delete.
+    deleteLastUserTurn: (): boolean => {
+      const lastUserIndex = chat.messages.findLastIndex((m) => m.role === "user");
+      if (lastUserIndex === -1) return false;
+      chat.setMessages(chat.messages.slice(0, lastUserIndex));
+      return true;
     },
   };
 }

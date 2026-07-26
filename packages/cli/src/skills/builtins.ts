@@ -9,37 +9,42 @@ export type BuiltinSkill = {
 export const BUILTIN_SKILLS: BuiltinSkill[] = [
   {
     name: "code-review",
-    description: "Review code for bugs, style, and missed edge cases",
-    tools: ["readFile", "glob", "grep"],
+    description: "Delegate a code review to an independent sub-agent for bugs, style, and missed edge cases",
+    tools: ["spawnAgent", "checkAgentTask"],
     aliases: ["review"],
     content: `---
 name: code-review
-description: Review code for bugs, style, and missed edge cases
-tools: [readFile, glob, grep]
+description: Delegate a code review to an independent sub-agent for bugs, style, and missed edge cases
+tools: [spawnAgent, checkAgentTask]
 aliases: [review]
 scope: global
 ---
 
 # Instructions
 
-Perform a thorough code review. Identify bugs, logical errors, edge cases, security issues, and style violations. Do not fix anything — report findings only.
+Perform a thorough code review by delegating the actual review to a sub-agent via spawnAgent, instead of reading and reviewing the code yourself in this conversation. A sub-agent reviewing with no memory of how the code was written or discussed catches things an agent reviewing its own (or its own conversation's) work tends to miss, and its PLAN starting mode makes "do not modify anything" an actual guarantee instead of just an instruction it could ignore.
 
 ## Steps
 
-1. Read the files specified by the user. If none are specified, ask which files or directories to review.
-2. For each file, look for:
-   - Logic errors or off-by-one bugs
-   - Unhandled edge cases (nulls, empty arrays, out-of-range inputs)
-   - Security vulnerabilities (injection, path traversal, exposed secrets)
-   - Style inconsistencies with the surrounding code
-   - Dead code or unnecessary complexity
-3. Present findings grouped by severity: **Critical**, **Warning**, **Suggestion**
-4. Keep each finding concise: file, line (if applicable), issue, why it matters
+1. Figure out what to review. If the user didn't specify files/directories, ask. If they refer to something contextually ("the file I just edited", "my changes") — resolve that yourself from this conversation first and pass an explicit path (or \`git diff\` scope) into the sub-agent's task, since the sub-agent starts with zero knowledge of this conversation and cannot resolve a vague reference on its own.
+2. Call spawnAgent with:
+   - \`task\`: the full review brief (see below) — this is the *only* thing the sub-agent will know about what to do, so it must be completely self-contained, not a short pointer.
+   - \`startingMode: "PLAN"\` (the default — don't override to BUILD, that removes the write guarantee this whole approach exists for)
+   - \`maxTurns\`: scale with scope — a handful of small files needs far fewer turns than a whole directory; err on the higher side (up to the tool's own cap) rather than cutting it off mid-review
+   - Leave \`runInBackground\` unset (synchronous) for a normal review the user is waiting on; only set it \`true\` if the user explicitly wants to keep working while a large review runs, in which case follow up with checkAgentTask
+3. The \`task\` string must include, in full (the sub-agent has no other source for this):
+   - Exactly what to review (the resolved paths/scope from step 1)
+   - What to look for: logic errors or off-by-one bugs; unhandled edge cases (nulls, empty arrays, out-of-range inputs); security vulnerabilities (injection, path traversal, exposed secrets); style inconsistencies with the surrounding code; dead code or unnecessary complexity
+   - That this is read-only — report findings, do not modify anything
+   - The output shape: findings grouped by severity (Critical, Warning, Suggestion), each one concise (file, issue, why it matters)
+   - An instruction to quote the actual line of code (or a short snippet) for each finding, not just a line number — line numbers reported back through this path are not reliable, quoted code is
+4. Present the sub-agent's findings to the user. If its result mentions a timeout, a step limit, or files it couldn't find or access, relay that honestly rather than presenting a partial or failed review as if it were complete.
 
 ## Notes
 
-- Do not make changes. Report only.
-- If no files are specified, ask the user which files or directories to review.`,
+- Do not make changes yourself, and the sub-agent's PLAN mode means it structurally cannot either — this isn't just a request, it's enforced by which tools are available to it.
+- If no files are specified, ask the user which files or directories to review before spawning anything.
+- If changes span clearly unrelated concerns (e.g. two unrelated features), consider reviewing them as separate spawnAgent calls so each result stays focused, rather than one call covering everything.`,
   },
   {
     name: "git-commit",
@@ -61,22 +66,25 @@ Create a git commit for the user's current changes.
 ## Steps
 
 1. Run \`git status\` and \`git diff\` to understand all staged and unstaged changes
-2. Review the diff to understand what changed and why
-3. Stage the relevant files with \`git add <files>\` — avoid \`git add .\` to prevent accidental staging of sensitive files
-4. Write a commit message:
+2. Run \`git log --oneline -10\` and look at a couple of the actual commits (not just subjects) to learn this repo's real conventions before writing anything — prefix style (conventional commits like feat:/fix:/chore:, or something else, or none), whether bodies are used and in what form, capitalization, punctuation. Match what you find, don't default to a generic style you'd use for any repo.
+3. Review the diff to understand what changed and why
+4. Stage the relevant files with \`git add <files>\` — avoid \`git add .\` to prevent accidental staging of sensitive files
+5. Write a commit message consistent with the convention found in step 2:
    - Subject line: imperative mood, under 72 characters, no trailing period
    - Body (optional): explains *why* the change was made, not what
-5. Wait for user to review and approve the commit message, show options of (yes, edit and cancel)
-6. If the user chooses edit, ask for the new commit message and create the commit with the new commit message
-7. If the user chooses cancel, cancel the commit
-8. Create the commit: \`git commit -m "subject"\`
+6. Show the commit message to the user and ask literally: "Commit with this message? (yes / edit / cancel)"
+7. STOP HERE. This is a hard stop, not a suggestion: end your turn immediately after asking in step 6. Do not call \`git commit\`, do not run any further tool calls, and do not continue to step 8 within this same turn — not even if the changes look small, obviously correct, or the answer seems predictable. Staging the files is as far as you go without a new message from the user. Wait for their next message before doing anything else.
+8. Once the user's next message actually answers the question in step 6:
+   - If they approve (e.g. "yes"): create the commit — \`git commit -m "subject"\`
+   - If they ask for changes: revise the commit message, then return to step 6 and stop again — do not commit the revised message without asking the same way
+   - If they cancel: stop without committing, staged files stay staged
 
 ## Notes
 
 - Never commit files that likely contain secrets (.env, credentials.json)
-- Use conventional commits format when the project already uses it (feat:, fix:, chore:, etc.)
 - If changes span multiple unrelated concerns, ask the user if they want to split into multiple commits
-- Do not force-push or amend published commits without explicit user approval`,
+- Do not force-push or amend published commits without explicit user approval
+- Do not push after committing unless the user separately asks you to`,
   },
   {
     name: "init",

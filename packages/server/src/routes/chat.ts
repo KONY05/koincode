@@ -79,6 +79,13 @@ const submitSchema = z.object({
     .nullable()
     .optional(),
   instructionFiles: z.array(instructionFileEntrySchema).optional().default([]),
+  // Incognito: no Session/Message rows exist for this id at all — the client sends its
+  // full in-memory history every turn instead of relying on a DB-backed rebuild, and
+  // `roots` (normally read off the Session row) rides along in the request instead.
+  incognito: z.boolean().optional().default(false),
+  roots: z
+    .array(z.object({ label: z.string(), path: z.string() }))
+    .optional(),
 });
 
 const submitValidator = zValidator("json", submitSchema, (result, c) => {
@@ -100,13 +107,13 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 
 
 const app = new Hono().post("/", submitValidator, async (c) => {
-  const { id, messages, mode, model, reasoningEffort, browserTools, skillsManifest, ideActiveFile, ideSelection, instructionFiles } = c.req.valid("json");
+  const { id, messages, mode, model, reasoningEffort, browserTools, skillsManifest, ideActiveFile, ideSelection, instructionFiles, incognito, roots: requestRoots } = c.req.valid("json");
 
-  const session = await db.session.findUnique({
-    where: { id },
-  });
+  const session = incognito
+    ? null
+    : await db.session.findUnique({ where: { id } });
 
-  if (!session) {
+  if (!incognito && !session) {
     logger.error(`Session ${id} not found`);
     return c.json({ error: "Session not found" }, 404);
   }
@@ -121,121 +128,127 @@ const app = new Hono().post("/", submitValidator, async (c) => {
       ? memories.map((m) => `- ${m.key}: ${m.value}`).join("\n")
       : undefined;
 
-  // Fetch messages from Message table
-  const messageRecords = await db.message.findMany({
-    where: { sessionId: id },
-    orderBy: { order: "asc" },
-  });
-
-  const parsedRecords = messageRecords.map((m) => {
-    try {
-      return JSON.parse(m.content);
-    } catch {
-      return null;
-    }
-  });
-
-  const lastClearIdx = getLastBoundaryIndex(messageRecords);
-
-  const previousMessages = parsedRecords
-    .slice(lastClearIdx + 1)
-    .filter(
-      (m): m is KoincodeUIMessage => m !== null && !!m.id && m.parts.length > 0,
-    );
-
-  const mergedMessages = [...previousMessages];
-
-  for (const message of messages) {
-    const incomingMessage = {
-      ...message,
-      metadata: { ...message.metadata, mode, model },
-    } satisfies KoincodeUIMessage;
-
-    const existingMessageIndex = mergedMessages.findIndex(
-      (m) => m.id === incomingMessage.id,
-    );
-
-    if (existingMessageIndex === -1) {
-      mergedMessages.push(incomingMessage);
-    } else {
-      mergedMessages[existingMessageIndex] = incomingMessage;
-    }
-  }
-
-  // Merge consecutive same-role messages instead of dropping the earlier ones.
-  // This can happen when onFinish fails to fire after an interrupt, leaving an
-  // orphaned user message in the DB with no assistant response. The next
-  // submission would then have two user messages in a row, which strict
-  // providers (Anthropic) reject. Folding the earlier parts into the newest
-  // turn keeps the content instead of silently losing it; the earlier
-  // message's id is tracked so its now-redundant DB row can be cleaned up below.
-  const mergedAwayIds = new Set<string>();
-  const deduped: KoincodeUIMessage[] = [];
-  for (const msg of mergedMessages) {
-    const prev = deduped[deduped.length - 1];
-    if (prev && prev.role === msg.role) {
-      mergedAwayIds.add(prev.id);
-      deduped[deduped.length - 1] = { ...msg, parts: [...prev.parts, ...msg.parts] };
-    } else {
-      deduped.push(msg);
-    }
-  }
-
-  const nextMessages = await validateUIMessages<KoincodeUIMessage>({
-    messages: deduped,
-    tools,
-  });
-
-  // Only persist messages genuinely absent from the DB. We match by UIMessage ID
-  // embedded in the content JSON, not by slice offset, because onFinish saves the
-  // assistant response asynchronously. If a follow-up request (e.g. tool-result
-  // round-trip) arrives before onFinish completes, slice-based detection would
-  // re-save the same assistant message and create duplicates.
-  const storedMsgIds = new Set(
-    parsedRecords
-      .map((m) => (m as { id?: string } | null)?.id)
-      .filter((msgId): msgId is string => !!msgId),
-  );
-  const newMessages = nextMessages.filter((m) => !storedMsgIds.has(m.id));
-
-  // DB rows for messages that got folded into a later same-role turn above.
-  // Their content now lives inside the merged message being saved below, so the
-  // standalone row is redundant and would otherwise be re-merged (and duplicated)
-  // on every future request.
-  const staleDbIds = messageRecords
-    .filter((rec, idx) => {
-      const parsedId = (parsedRecords[idx] as { id?: string } | null)?.id;
-      return !!parsedId && mergedAwayIds.has(parsedId);
-    })
-    .map((rec) => rec.id);
-
-  try {
-    if (staleDbIds.length > 0) {
-      await db.message.deleteMany({ where: { id: { in: staleDbIds } } });
-    }
-    if (newMessages.length > 0) {
-      await db.$transaction(async (tx) => {
-        const { _max } = await tx.message.aggregate({
+  // Incognito: no Message rows exist for this id, and never will — the client already
+  // sent its complete in-memory history (including this turn's new message(s)), so
+  // there's nothing to fetch, merge, or pre-save. Just validate it as-is.
+  const nextMessages = incognito
+    ? await validateUIMessages<KoincodeUIMessage>({ messages, tools })
+    : await (async () => {
+        // Fetch messages from Message table
+        const messageRecords = await db.message.findMany({
           where: { sessionId: id },
-          _max: { order: true },
+          orderBy: { order: "asc" },
         });
-        const nextOrder = (_max.order ?? -1) + 1;
-        await tx.message.createMany({
-          data: newMessages.map((msg, index) => ({
-            sessionId: id,
-            role: msg.role,
-            content: JSON.stringify(msg),
-            order: nextOrder + index,
-          })),
+
+        const parsedRecords = messageRecords.map((m) => {
+          try {
+            return JSON.parse(m.content);
+          } catch {
+            return null;
+          }
         });
-      });
-    }
-    // logger.info(
-    //   `Persisted ${newMessages.length} new message(s) for session ${id}`,
-    // );
-  } catch (err) {
-    logger.error(`Failed to pre-save messages for session ${id}:`, err);
-  }
+
+        const lastClearIdx = getLastBoundaryIndex(messageRecords);
+
+        const previousMessages = parsedRecords
+          .slice(lastClearIdx + 1)
+          .filter(
+            (m): m is KoincodeUIMessage => m !== null && !!m.id && m.parts.length > 0,
+          );
+
+        const mergedMessages = [...previousMessages];
+
+        for (const message of messages) {
+          const incomingMessage = {
+            ...message,
+            metadata: { ...message.metadata, mode, model },
+          } satisfies KoincodeUIMessage;
+
+          const existingMessageIndex = mergedMessages.findIndex(
+            (m) => m.id === incomingMessage.id,
+          );
+
+          if (existingMessageIndex === -1) {
+            mergedMessages.push(incomingMessage);
+          } else {
+            mergedMessages[existingMessageIndex] = incomingMessage;
+          }
+        }
+
+        // Merge consecutive same-role messages instead of dropping the earlier ones.
+        // This can happen when onFinish fails to fire after an interrupt, leaving an
+        // orphaned user message in the DB with no assistant response. The next
+        // submission would then have two user messages in a row, which strict
+        // providers (Anthropic) reject. Folding the earlier parts into the newest
+        // turn keeps the content instead of silently losing it; the earlier
+        // message's id is tracked so its now-redundant DB row can be cleaned up below.
+        const mergedAwayIds = new Set<string>();
+        const deduped: KoincodeUIMessage[] = [];
+        for (const msg of mergedMessages) {
+          const prev = deduped[deduped.length - 1];
+          if (prev && prev.role === msg.role) {
+            mergedAwayIds.add(prev.id);
+            deduped[deduped.length - 1] = { ...msg, parts: [...prev.parts, ...msg.parts] };
+          } else {
+            deduped.push(msg);
+          }
+        }
+
+        const validated = await validateUIMessages<KoincodeUIMessage>({
+          messages: deduped,
+          tools,
+        });
+
+        // Only persist messages genuinely absent from the DB. We match by UIMessage ID
+        // embedded in the content JSON, not by slice offset, because onFinish saves the
+        // assistant response asynchronously. If a follow-up request (e.g. tool-result
+        // round-trip) arrives before onFinish completes, slice-based detection would
+        // re-save the same assistant message and create duplicates.
+        const storedMsgIds = new Set(
+          parsedRecords
+            .map((m) => (m as { id?: string } | null)?.id)
+            .filter((msgId): msgId is string => !!msgId),
+        );
+        const newMessages = validated.filter((m) => !storedMsgIds.has(m.id));
+
+        // DB rows for messages that got folded into a later same-role turn above.
+        // Their content now lives inside the merged message being saved below, so the
+        // standalone row is redundant and would otherwise be re-merged (and duplicated)
+        // on every future request.
+        const staleDbIds = messageRecords
+          .filter((rec, idx) => {
+            const parsedId = (parsedRecords[idx] as { id?: string } | null)?.id;
+            return !!parsedId && mergedAwayIds.has(parsedId);
+          })
+          .map((rec) => rec.id);
+
+        try {
+          if (staleDbIds.length > 0) {
+            await db.message.deleteMany({ where: { id: { in: staleDbIds } } });
+          }
+          if (newMessages.length > 0) {
+            await db.$transaction(async (tx) => {
+              const { _max } = await tx.message.aggregate({
+                where: { sessionId: id },
+                _max: { order: true },
+              });
+              const nextOrder = (_max.order ?? -1) + 1;
+              await tx.message.createMany({
+                data: newMessages.map((msg, index) => ({
+                  sessionId: id,
+                  role: msg.role,
+                  content: JSON.stringify(msg),
+                  order: nextOrder + index,
+                })),
+              });
+            });
+          }
+        } catch (err) {
+          logger.error(`Failed to pre-save messages for session ${id}:`, err);
+        }
+
+        return validated;
+      })();
 
   const modelMessages = await convertToModelMessages(nextMessages, {
     tools,
@@ -281,7 +294,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   }
 
   const promptCaching = resolvedModel.promptCaching === true;
-  const roots = parseWorkspaceRoots(session.roots);
+  const roots = incognito ? (requestRoots ?? []) : parseWorkspaceRoots(session!.roots);
   const systemPrompt = buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus, roots, instructionFiles });
   // Order matters: append the volatile IDE context to the newest message's content
   // *before* marking that message as this turn's cache breakpoint, so the breakpoint's
@@ -318,6 +331,9 @@ const app = new Hono().post("/", submitValidator, async (c) => {
       };
     },
     onFinish(event) {
+      // Incognito: nothing to persist, ever — this id has no Session/Message rows.
+      if (incognito) return;
+
       // Don't await - run in background to avoid blocking the response
       void (async () => {
         // Non-aborted, non-error turns with pending tool calls will be saved by
