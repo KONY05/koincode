@@ -73,7 +73,7 @@ export const Intro: React.FC<{ durationInFrames: number }> = ({ durationInFrames
           transform: `translateY(${taglineY}px)`,
         }}
       >
-        Ask a quick question. Nothing gets saved.
+        Stop switching to browser incognito for a quick question.
       </div>
     </AbsoluteFill>
   );

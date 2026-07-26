@@ -31,16 +31,16 @@ export const TerminalDemo: React.FC<{ durationInFrames: number }> = ({ durationI
             mode="Build"
             incognito
             startFrame={5}
-            text="got 10 mins before my system design interview — quiz me on CAP theorem"
+            text="deep in this refactor, random one — remind me how CAP theorem actually works?"
           />
           <BotText
             startFrame={70}
-            text={"Consistency — every read gets the latest write\nAvailability — every request gets a response\nPartition tolerance — keeps working through network splits\n\nPick 2 of 3. Postgres? CP."}
+            text={"Consistency — every read gets the latest write\nAvailability — every request gets a response\nPartition tolerance — survives network splits\n\nPick 2 of 3. Postgres? Usually CP."}
           />
           <BotText
             startFrame={110}
             fontSize={18}
-            text="✓ Nothing saved — this session disappears when you close it"
+            text="✓ Nothing saved — right back to the refactor"
           />
         </div>
 
