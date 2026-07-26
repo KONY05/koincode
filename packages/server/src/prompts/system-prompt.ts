@@ -283,7 +283,7 @@ function getSkillsSection(manifest: SkillManifestEntry[]): string {
 
   return `# Skills
 
-You have access to the following skills. Call \`readSkill\` with the skill name to load its full instructions before executing it. You may also proactively use a skill when it matches the user's request.
+You have access to the following skills. Before starting any non-trivial task — implementing something, scaffolding a new project, fixing a bug, reviewing code — check this list for a skill that plausibly applies, not just one that's an exact or obvious match. If one does, call \`readSkill\` with its name to load its full instructions before deciding your approach, rather than improvising one and only checking skills if asked. If more than one could plausibly apply, load and weigh each rather than picking the first.
 
 ${list}
 
