@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 
 import {
@@ -104,6 +104,26 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   // sticky cross-restart preference.
   const [incognito, setIncognitoState] = useState<boolean>(false);
 
+  // Whatever `mode` was right before incognito defaulted it to Plan — restored the
+  // moment incognito turns back off (explicit /incognito toggle, or the implicit
+  // reset on returning to Home), so defaulting to Plan is a scoped, temporary
+  // override rather than something that overwrites the user's actual mode choice.
+  // A ref, not state: it's read/written only inside setIncognito's own logic, never
+  // rendered, so it doesn't need to trigger a re-render on its own.
+  const modeBeforeIncognitoRef = useRef<ModeType | null>(null);
+
+  // Mirrors `mode` into a ref so setIncognito/toggleIncognito can read its *current*
+  // value without needing `mode` in their own dependency array. This matters: those
+  // two must stay referentially stable forever (like every other setter here) —
+  // Home's reset-on-mount effect depends on `setIncognito` itself, so if that
+  // reference ever changed identity (e.g. from a `[mode]` dependency), the effect
+  // would re-fire on every toggle and immediately revert it — which is exactly the
+  // bug this ref fixes.
+  const modeRef = useRef(mode);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
   const modelDisplayName = useMemo(() => getModelDisplayName(model), [model]);
 
   const reasoningEffort = useMemo<ReasoningEffortLevel | null>(() => {
@@ -151,12 +171,34 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     });
   }, []);
 
-  const setIncognito = useCallback((v: boolean) => {
-    setIncognitoState(v);
+  // Runs the mode default/restore side effect for a given transition — called from
+  // both setIncognito and toggleIncognito's functional updaters below, at the moment
+  // React actually applies the state change, so it always sees the latest `mode`
+  // (via modeRef) regardless of how stale the enclosing callback's own closure is.
+  const applyModeForIncognitoChange = (next: boolean) => {
+    if (next) {
+      modeBeforeIncognitoRef.current = modeRef.current;
+      setMode(Mode.PLAN);
+    } else if (modeBeforeIncognitoRef.current !== null) {
+      setMode(modeBeforeIncognitoRef.current);
+      modeBeforeIncognitoRef.current = null;
+    }
+  };
+
+  const setIncognito = useCallback((next: boolean) => {
+    setIncognitoState((prev) => {
+      if (next === prev) return prev;
+      applyModeForIncognitoChange(next);
+      return next;
+    });
   }, []);
 
   const toggleIncognito = useCallback(() => {
-    setIncognitoState((v) => !v);
+    setIncognitoState((prev) => {
+      const next = !prev;
+      applyModeForIncognitoChange(next);
+      return next;
+    });
   }, []);
 
   return (

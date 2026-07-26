@@ -1,4 +1,4 @@
-import { Mode, SUPPORTED_CHAT_MODELS, getReasoningEffortLevels } from "@koincode/shared";
+import { SUPPORTED_CHAT_MODELS, getReasoningEffortLevels } from "@koincode/shared";
 import {
   AgentsDialogContent,
   ContextDialogContent,
@@ -283,15 +283,11 @@ export const COMMANDS: Command[] = [
       }
 
       const turningOn = !ctx.incognito;
+      // Defaults mode to Plan on the way in and restores whatever it was on the way
+      // out — handled inside toggleIncognito/PromptConfigProvider itself, not here,
+      // so the same restore applies whether incognito ends via this command or via
+      // Home's own reset-on-return effect.
       ctx.toggleIncognito();
-
-      // Default to Plan when turning incognito on — a nudge, not a lock: Plan has no
-      // write/edit/bash tools, matching the common "quick private question" use case,
-      // but the user can still switch to Build themselves if they want the agent to
-      // actually save something during this session.
-      if (turningOn) {
-        ctx.setMode(Mode.PLAN);
-      }
 
       ctx.toast.show({
         variant: "info",

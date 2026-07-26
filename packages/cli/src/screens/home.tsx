@@ -46,7 +46,10 @@ export function Home() {
   // Unlike mode/model, incognito isn't sticky across sessions — every time the user
   // lands back on Home (fresh launch, or /new from an active session), it resets off.
   // Deciding it fresh each time matches the spec's intent ("decided before the first
-  // message") better than carrying a prior session's choice into the next one.
+  // message") better than carrying a prior session's choice into the next one. This
+  // is also what restores `mode` back to whatever it was before incognito defaulted
+  // it to Plan — a no-op if incognito was already off (PromptConfigProvider's
+  // setIncognito bails out when the value isn't actually changing).
   useEffect(() => {
     setIncognito(false);
   }, [setIncognito]);
