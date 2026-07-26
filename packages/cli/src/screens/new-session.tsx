@@ -19,6 +19,7 @@ const newSessionStateSchema = z.object({
   mode: modeSchema,
   model: z.string(),
   pendingRoots: z.array(workspaceRootSchema).optional().default([]),
+  isIncognito: z.boolean().optional().default(false),
 });
 
 export function NewSession() {
@@ -48,6 +49,15 @@ export function NewSession() {
     let ignore = false;
     const createSession = async () => {
       try {
+        // Incognito: never create a Session row at all — a client-only id is enough
+        // to key the route and React state. Nothing is ever persisted for it, so
+        // there's nothing to clean up later either.
+        if (state.isIncognito) {
+          const sessionId = crypto.randomUUID();
+          navigate(`/sessions/${sessionId}`, { state, replace: true });
+          return;
+        }
+
         const gitBranch = getGitBranch();
 
         const cwd = process.cwd();
@@ -89,7 +99,7 @@ export function NewSession() {
 
   return (
     <SessionShell onSubmit={() => {}} inputDisabled>
-      <UserMessage message={state.message} mode={state.mode} />
+      <UserMessage message={state.message} mode={state.mode} incognito={state.isIncognito} />
     </SessionShell>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { TextAttributes } from "@opentui/core";
 import { basename } from "path";
@@ -22,6 +22,12 @@ const HOME_TIPS = [
   "Run /setup to configure or switch AI providers",
 ];
 
+const INCOGNITO_TIPS = [
+  "Chat history won't be saved while incognito mode is on",
+  "This session disappears the moment you close it or start a new one",
+  "Type /incognito again before your first message to turn it off",
+];
+
 const GIT_BRANCH = getGitBranch();
 // process.cwd() (not the display-shortened CWD from utils/helper) — this needs to be
 // a real filesystem path, since it's compared against candidate directories below.
@@ -32,17 +38,30 @@ const NO_API_KEY_MESSAGE =
 
 export function Home() {
   const navigate = useNavigate();
-  const { mode, model } = usePromptConfig();
+  const { mode, model, incognito, setIncognito } = usePromptConfig();
   const { colors } = useTheme();
   const toast = useToast();
   const updateInfo = useUpdateCheck();
+
+  // Unlike mode/model, incognito isn't sticky across sessions — every time the user
+  // lands back on Home (fresh launch, or /new from an active session), it resets off.
+  // Deciding it fresh each time matches the spec's intent ("decided before the first
+  // message") better than carrying a prior session's choice into the next one.
+  useEffect(() => {
+    setIncognito(false);
+  }, [setIncognito]);
 
   // Staged directories, added via /add-dir before a session exists yet — submitted
   // together with the first message so a session can start as a workspace already
   // spanning multiple roots, instead of always starting single-root and needing
   // /add-dir again afterward.
   const [pendingRoots, setPendingRoots] = useState<WorkspaceRoot[]>([]);
-  const [tip] = useState(() => HOME_TIPS[Math.floor(Math.random() * HOME_TIPS.length)]);
+  // Picked once per mount (not re-randomized on every render) so the tip doesn't
+  // change out from under the user — but which *pool* is shown swaps live with
+  // incognito, since that's the whole point: reinforce it's on right now.
+  const [tipIndex] = useState(() => Math.floor(Math.random() * HOME_TIPS.length));
+  const [incognitoTipIndex] = useState(() => Math.floor(Math.random() * INCOGNITO_TIPS.length));
+  const tip = incognito ? INCOGNITO_TIPS[incognitoTipIndex] : HOME_TIPS[tipIndex];
 
   const handleSubmit = useCallback(
     (text: string) => {
@@ -50,9 +69,9 @@ export function Home() {
         toast.show({ variant: "error", message: NO_API_KEY_MESSAGE });
         return;
       }
-      navigate("/sessions/new", { state: { message: text, mode, model, pendingRoots } });
+      navigate("/sessions/new", { state: { message: text, mode, model, pendingRoots, isIncognito: incognito } });
     },
-    [navigate, mode, model, toast, pendingRoots],
+    [navigate, mode, model, toast, pendingRoots, incognito],
   );
 
   const handleInvokeSkill = useCallback(
@@ -62,10 +81,10 @@ export function Home() {
         return;
       }
       navigate("/sessions/new", {
-        state: { message: `Execute skill: ${skillName}`, mode, model, pendingRoots },
+        state: { message: `Execute skill: ${skillName}`, mode, model, pendingRoots, isIncognito: incognito },
       });
     },
-    [navigate, mode, model, toast, pendingRoots],
+    [navigate, mode, model, toast, pendingRoots, incognito],
   );
 
   const noop = useCallback(() => Promise.resolve(), []);
@@ -116,7 +135,7 @@ export function Home() {
           </box>
           <box flexDirection="row" gap={1} flexShrink={0} width="100%" justifyContent="center">
             <text fg={colors.dimSeparator}>•</text>
-            <text fg={colors.primary}>Tip</text>
+            <text fg={incognito ? colors.info : colors.primary}>{incognito ? "Incognito" : "Tip"}</text>
             <text attributes={TextAttributes.DIM}>{tip}</text>
           </box>
         </box>

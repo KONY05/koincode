@@ -1,4 +1,4 @@
-import { SUPPORTED_CHAT_MODELS, getReasoningEffortLevels } from "@koincode/shared";
+import { Mode, SUPPORTED_CHAT_MODELS, getReasoningEffortLevels } from "@koincode/shared";
 import {
   AgentsDialogContent,
   ContextDialogContent,
@@ -266,6 +266,38 @@ export const COMMANDS: Command[] = [
       ctx.toast.show({
         message: `Terminal bell notifications ${!current ? "enabled" : "disabled"}`,
         variant: "info",
+      });
+    },
+  },
+  {
+    name: "incognito",
+    description: "Toggle incognito mode — chat history won't be saved for the next session",
+    value: "/incognito",
+    action: (ctx) => {
+      if (ctx.isIncognitoLocked) {
+        ctx.toast.show({
+          variant: "info",
+          message: "Incognito only applies to new sessions — this session keeps how it started.",
+        });
+        return;
+      }
+
+      const turningOn = !ctx.incognito;
+      ctx.toggleIncognito();
+
+      // Default to Plan when turning incognito on — a nudge, not a lock: Plan has no
+      // write/edit/bash tools, matching the common "quick private question" use case,
+      // but the user can still switch to Build themselves if they want the agent to
+      // actually save something during this session.
+      if (turningOn) {
+        ctx.setMode(Mode.PLAN);
+      }
+
+      ctx.toast.show({
+        variant: "info",
+        message: turningOn
+          ? "Incognito mode on, defaulted to Plan — your next message starts a session that won't be saved"
+          : "Incognito mode off",
       });
     },
   },

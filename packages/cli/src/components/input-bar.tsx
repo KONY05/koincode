@@ -535,8 +535,8 @@ export function InputBar({
   onQueueFocusedIndexChange,
   messages = [],
   showUpdateStatus = true }: Props) {
-  const { mode, model, modelDisplayName, toggleMode, setMode, setModel, reasoningEffort, setReasoningEffort, voiceInput, toggleVoice, toggleInfoSidebar } = usePromptConfig();
-  const { invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots } = useSessionActions();
+  const { mode, model, modelDisplayName, toggleMode, setMode, setModel, reasoningEffort, setReasoningEffort, voiceInput, toggleVoice, toggleInfoSidebar, incognito, toggleIncognito } = usePromptConfig();
+  const { invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots, isIncognitoLocked = false } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => { });
   const activeMentionRef = useRef<MentionMatch | null>(null);
@@ -754,6 +754,9 @@ export function InputBar({
           toggleVoice,
           toggleInfoSidebar,
           contextUsage: contextUsage ?? null,
+          incognito,
+          toggleIncognito,
+          isIncognitoLocked,
         });
       } else {
         skipUndoRef.current = true;
@@ -761,7 +764,7 @@ export function InputBar({
         skipUndoRef.current = false;
       }
     },
-    [renderer, toast, dialog, navigate, mode, model, modelDisplayName, setMode, setModel, reasoningEffort, setReasoningEffort, invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots, contextUsage, toggleVoice, toggleInfoSidebar],
+    [renderer, toast, dialog, navigate, mode, model, modelDisplayName, setMode, setModel, reasoningEffort, setReasoningEffort, invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots, contextUsage, toggleVoice, toggleInfoSidebar, incognito, toggleIncognito, isIncognitoLocked],
   );
 
   const handleCommandExecute = useCallback(
@@ -1123,13 +1126,15 @@ export function InputBar({
         borderColor={
           disabled
             ? colors.dimSeparator
-            : mode === Mode.BUILD
-              ? colors.primary
-              : colors.planMode
+            : incognito
+              ? colors.info
+              : mode === Mode.BUILD
+                ? colors.primary
+                : colors.planMode
         }
         customBorderChars={{
           ...EmptyBorder,
-          vertical: "┃",
+          vertical: incognito ? "┆" : "┃",
           bottomLeft: "╹",
         }}
         width="100%"

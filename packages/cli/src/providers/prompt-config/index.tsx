@@ -36,6 +36,10 @@ type PromptConfigContextValue = {
   toggleVoice: () => void;
   infoSidebarVisible: boolean;
   toggleInfoSidebar: () => void;
+  /** Decided once per session, before the first message — not a mid-session toggle. See 50-incognito-mode-implementation.md. */
+  incognito: boolean;
+  setIncognito: (v: boolean) => void;
+  toggleIncognito: () => void;
 };
 
 const PromptConfigContext = createContext<PromptConfigContextValue | null>(
@@ -95,6 +99,11 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     () => process.argv.includes("--info") || (readGlobalConfig().infoSidebarVisible ?? false),
   );
 
+  // Not persisted (unlike voiceInput/reasoningEffort/etc.) — same pure in-memory pattern
+  // as `mode`, since a session's incognito-ness is decided fresh each time, not a
+  // sticky cross-restart preference.
+  const [incognito, setIncognitoState] = useState<boolean>(false);
+
   const modelDisplayName = useMemo(() => getModelDisplayName(model), [model]);
 
   const reasoningEffort = useMemo<ReasoningEffortLevel | null>(() => {
@@ -142,6 +151,14 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     });
   }, []);
 
+  const setIncognito = useCallback((v: boolean) => {
+    setIncognitoState(v);
+  }, []);
+
+  const toggleIncognito = useCallback(() => {
+    setIncognitoState((v) => !v);
+  }, []);
+
   return (
     <PromptConfigContext.Provider
       value={{
@@ -159,6 +176,9 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
         toggleVoice,
         infoSidebarVisible,
         toggleInfoSidebar,
+        incognito,
+        setIncognito,
+        toggleIncognito,
       }}
     >
       {children}

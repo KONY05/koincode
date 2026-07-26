@@ -47,7 +47,7 @@ type Props = {
 };
 
 export function StatusBar({ contextUsage, showUpdateStatus = true }: Props) {
-  const { mode, modelDisplayName, voiceInput, infoSidebarVisible, reasoningEffort } = usePromptConfig();
+  const { mode, modelDisplayName, voiceInput, infoSidebarVisible, reasoningEffort, incognito } = usePromptConfig();
   const { colors } = useTheme();
   const updateInfo = useUpdateCheck();
   const { width: terminalWidth } = useTerminalDimensions();
@@ -64,8 +64,29 @@ export function StatusBar({ contextUsage, showUpdateStatus = true }: Props) {
   const showRing = contextUsage !== null && contextUsage !== undefined && contextUsage.percent >= RING_THRESHOLD;
   const ringColor = contextUsage && contextUsage.percent >= 90 ? "red" : "yellow";
 
-  // "Build"/"Plan" is always shown in full — it's short and meant to stay put.
-  const modeLabel = mode === Mode.PLAN ? "Plan" : "Build";
+  const availableForLeft = Math.max(
+    MIN_SEGMENT_WIDTH,
+    terminalWidth -
+      STATUS_BAR_CHROME -
+      (infoSidebarVisible ? SIDEBAR_WIDTH : 0) -
+      RIGHT_SECTION_ESTIMATE,
+  );
+
+  // "Build"/"Plan" is always shown in full — it's short and meant to stay put, and
+  // never truncates (unlike modelDisplayName/updateLabel below). When incognito,
+  // prefix it rather than replace it — the underlying mode still matters (Build can
+  // still write real files even while incognito), so hiding it behind "Incognito"
+  // alone would leave no way to tell which one is active. The full "Incognito · Build"
+  // is the default (unlike modelDisplayName/updateLabel, this whole label is otherwise
+  // exempt from truncation, so it needs its own explicit fits-or-not check); only once
+  // it wouldn't fit at all does it fall back to "Inc · Build" — chosen over shedding it
+  // to nothing, since "Plan"/"Build" has no other on-screen signal and must stay, while
+  // incognito-ness is already reinforced independently by the dashed input-bar/message
+  // border, making the word "Incognito" itself the safer half to compress.
+  const modeShortLabel = mode === Mode.PLAN ? "Plan" : "Build";
+  const modeFullLabel = incognito ? `Incognito · ${modeShortLabel}` : modeShortLabel;
+  const modeAbbrevLabel = incognito ? `Inc · ${modeShortLabel}` : modeShortLabel;
+  const modeLabel = modeFullLabel.length <= availableForLeft ? modeFullLabel : modeAbbrevLabel;
   const voiceLabel = voiceInput ? "voice" : null;
   const mcpLabel = mcpServerCount > 0 ? `${mcpServerCount} mcp` : null;
   const effortLabel = reasoningEffort;
@@ -76,14 +97,6 @@ export function StatusBar({ contextUsage, showUpdateStatus = true }: Props) {
       : updateInfo.status !== "current"
         ? "update available · /update"
         : null;
-
-  const availableForLeft = Math.max(
-    MIN_SEGMENT_WIDTH,
-    terminalWidth -
-      STATUS_BAR_CHROME -
-      (infoSidebarVisible ? SIDEBAR_WIDTH : 0) -
-      RIGHT_SECTION_ESTIMATE,
-  );
 
   function fixedWidthWith(voice: string | null, mcp: string | null, effort: string | null): number {
     const count = 2 + (voice ? 1 : 0) + (mcp ? 1 : 0) + (effort ? 1 : 0) + (updateLabel ? 1 : 0);
@@ -96,9 +109,10 @@ export function StatusBar({ contextUsage, showUpdateStatus = true }: Props) {
     );
   }
 
-  // "Build" itself always fits (availableForLeft has a floor above the length of any mode label),
-  // but voice/mcp/effort are decorative extras — shed the lowest-priority one first
-  // (effort, then mcp, then voice) rather than let a too-narrow terminal hard-clip them mid-word.
+  // modeLabel itself is already guaranteed to fit (it fell back to its abbreviated form above
+  // if the full one wouldn't), but voice/mcp/effort are decorative extras — shed the
+  // lowest-priority one first (effort, then mcp, then voice) rather than let a too-narrow
+  // terminal hard-clip them mid-word.
   let effectiveVoiceLabel = voiceLabel;
   let effectiveMcpLabel = mcpLabel;
   let effectiveEffortLabel = effortLabel;
@@ -144,7 +158,7 @@ export function StatusBar({ contextUsage, showUpdateStatus = true }: Props) {
   return (
     <box flexDirection="row" gap={1} width="100%" justifyContent="space-between">
       <box flexDirection="row" gap={1} flexShrink={1} overflow="hidden">
-        <text wrapMode="none" fg={mode === Mode.PLAN ? colors.planMode : colors.primary}>
+        <text wrapMode="none" fg={incognito ? colors.info : mode === Mode.PLAN ? colors.planMode : colors.primary}>
           {modeLabel}
         </text>
 
