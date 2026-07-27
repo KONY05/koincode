@@ -102,6 +102,25 @@ function summarizeToolCall(part: { toolName: string; input: unknown }): string {
 // because a run that ran out of turns mid-research may have made several tool
 // calls with zero narration attached — text-only collection would find
 // nothing to show even though real work happened.
+const EXPLORATION_TOOLS = new Set(["readFile", "grep", "glob", "listDirectory"]);
+
+// Compact, deduped list of files/patterns the sub-agent actually looked at
+// (readFile/grep/glob/listDirectory calls across the whole run) — appended to
+// every successful return so the parent (and the user) has something to
+// spot-check the sub-agent's cited claims against, instead of just its prose.
+function collectExaminedFiles(messages: AgentMessage[]): string[] {
+  const seen = new Set<string>();
+  for (const m of messages) {
+    if (m.role !== "assistant" || typeof m.content === "string") continue;
+    for (const part of m.content) {
+      if (part.type === "tool-call" && EXPLORATION_TOOLS.has(part.toolName)) {
+        seen.add(summarizeToolCall(part));
+      }
+    }
+  }
+  return [...seen];
+}
+
 function collectPartialProgress(messages: AgentMessage[]): string {
   const parts: string[] = [];
   for (const m of messages) {
@@ -197,6 +216,7 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     `  2. Key findings or changes as short bullet points — specific file paths, values, or facts the parent agent can act on directly, not a narration of your process`,
     `  3. Anything the parent should know before proceeding — blockers, uncertainty, files touched`,
     `- Skip sections that don't apply (e.g. no "changes" section for a pure research task) — don't pad with empty headers`,
+    `- Cite a \`path:line\` for every factual claim about the code (e.g. "chat.ts:158", not "somewhere in chat.ts"). If you're inferring or guessing rather than something a tool call actually confirmed this run, say so explicitly (e.g. "likely X — not confirmed, didn't check Y") instead of stating it as fact.`,
   ];
 
   const subagentPrompt = goalPrompt
@@ -296,7 +316,11 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
       stepResult.finishReason !== "tool-calls" ||
       stepResult.toolCalls.length === 0
     ) {
-      return stepResult.text ?? "";
+      const text = stepResult.text ?? "";
+      const examined = collectExaminedFiles(messages);
+      return examined.length > 0
+        ? `${text}\n\nFiles examined: ${examined.join(", ")}`
+        : text;
     }
 
     // Execute each tool call and collect results.
