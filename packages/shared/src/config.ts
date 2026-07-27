@@ -128,6 +128,8 @@ export type BrowserConfig = {
 export type KoincodeGlobalConfig = {
   themeName?: string;
   defaultModel?: string;
+  /** Model spawnAgent sub-agents use. Unset (default) means inherit the session's current model. */
+  subagentModel?: string;
   apiKeys?: ApiKeys;
   autoModeSwitch?: "confirm" | "auto";
   reasoningEffort?: ReasoningEffortLevel;

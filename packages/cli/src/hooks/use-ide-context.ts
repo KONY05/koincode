@@ -95,9 +95,9 @@ type IdeContextResult = {
 
 export function useIdeContext(): IdeContextResult {
   const [activeFile, setActiveFile] = useState<string | null>(null);
-  const [fileContextEnabled, setFileContextEnabled] = useState(true);
+  const [fileContextEnabled, setFileContextEnabled] = useState(() => _enabled);
   const [selection, setSelection] = useState<IdeSelection | null>(null);
-  const [selectionContextEnabled, setSelectionContextEnabled] = useState(true);
+  const [selectionContextEnabled, setSelectionContextEnabled] = useState(() => _selectionEnabled);
 
   const toggleFileContext = useCallback(() => {
     setFileContextEnabled((prev) => {

@@ -47,6 +47,11 @@ const GPT_5_6_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium",
 // claude-opus-4-7/4-8, claude-fable-5, and claude-sonnet-5 confirmed to additionally support
 // "xhigh" beyond the base low/medium/high (ai-sdk.dev/providers/ai-sdk-providers/anthropic#reasoning).
 const CLAUDE_XHIGH_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high", "xhigh"];
+// claude-opus-5 goes one further than the rest of the Claude 5 generation, adding "max" as its
+// top effort tier (confirmed via Anthropic's official docs: platform.claude.com/docs/en/about-claude/
+// models/whats-new-opus-5#effort-matters-more — "The full ladder is available: low, medium, high,
+// xhigh, and max, with max as the top tier for the deepest possible reasoning.").
+const CLAUDE_OPUS_5_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 // The Gemini 3 Flash family confirmed to additionally support "minimal"
 // (ai-sdk.dev/providers/ai-sdk-providers/google#language-models); Gemini 3.1 Pro does not.
 const GEMINI_3_FLASH_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["minimal", "low", "medium", "high"];
@@ -66,6 +71,15 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: true,
     label: "Claude Fable 5",
     reasoningEffort: CLAUDE_XHIGH_EFFORT_LEVELS,
+  },
+  {
+    id: "claude-opus-5",
+    provider: "anthropic",
+    pricing: { inputUsdPerMillionTokens: 5, outputUsdPerMillionTokens: 25 },
+    contextWindow: 1_000_000,
+    vision: true,
+    label: "Claude Opus 5",
+    reasoningEffort: CLAUDE_OPUS_5_EFFORT_LEVELS,
   },
   {
     id: "claude-opus-4-8",
@@ -88,7 +102,7 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "claude-sonnet-5",
     provider: "anthropic",
-    pricing: { inputUsdPerMillionTokens: 3, outputUsdPerMillionTokens: 15 },
+    pricing: { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 10 },
     contextWindow: 1_000_000,
     vision: true,
     label: "Claude Sonnet 5",

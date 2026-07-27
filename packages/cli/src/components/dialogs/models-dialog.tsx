@@ -44,7 +44,13 @@ function formatBytes(bytes: number): string {
 type ModelsDialogContentProps = {
   models: readonly SupportedChatModel[];
   onSelectModel: (modelId: string) => void;
+  /** When set, prepends a selectable "inherit" row to the frontier tab — used by
+   * /subagent-model to offer going back to the session's own model, a concept
+   * that doesn't apply to /models' plain "pick the session model" flow. */
+  inheritOption?: { label: string; onSelect: () => void };
 };
+
+type FrontierRow = { kind: "inherit" } | { kind: "model"; model: SupportedChatModel };
 
 // ── Custom tab sub-views: pick a provider, then run the model-fields wizard ────────
 
@@ -119,6 +125,7 @@ function ProviderPicker({
 export const ModelsDialogContent = ({
   models,
   onSelectModel,
+  inheritOption,
 }: ModelsDialogContentProps) => {
   const dialog = useDialog();
   const { colors } = useTheme();
@@ -196,6 +203,22 @@ export const ModelsDialogContent = ({
       dialog.close();
     },
     [dialog, onSelectModel],
+  );
+
+  const frontierRows: FrontierRow[] = inheritOption
+    ? [{ kind: "inherit" }, ...frontierModels.map((model) => ({ kind: "model" as const, model }))]
+    : [];
+
+  const handleSelectFrontierRow = useCallback(
+    (row: FrontierRow) => {
+      if (row.kind === "inherit") {
+        inheritOption?.onSelect();
+        dialog.close();
+        return;
+      }
+      handleSelectStatic(row.model);
+    },
+    [inheritOption, dialog, handleSelectStatic],
   );
 
   const handleSelectOllama = useCallback(
@@ -348,7 +371,43 @@ export const ModelsDialogContent = ({
         })}
       </box>
 
-      {(activeTab === "frontier" || activeTab === "free") && (
+      {activeTab === "frontier" && inheritOption && (
+        <DialogSearchList
+          key="frontier-with-inherit"
+          items={frontierRows}
+          onSelect={handleSelectFrontierRow}
+          filterFn={(row, query) =>
+            row.kind === "inherit"
+              ? inheritOption.label.toLowerCase().includes(query.toLowerCase())
+              : row.model.id.toLowerCase().includes(query.toLowerCase()) ||
+                row.model.provider.toLowerCase().includes(query.toLowerCase())
+          }
+          renderItem={(row, isSelected) =>
+            row.kind === "inherit" ? (
+              <box flexGrow={1} paddingX={1}>
+                <text
+                  selectable={false}
+                  fg={isSelected ? "black" : colors.primary}
+                  attributes={TextAttributes.BOLD}
+                >
+                  {inheritOption.label}
+                </text>
+              </box>
+            ) : (
+              <box flexGrow={1} paddingX={1}>
+                <text selectable={false} fg={isSelected ? "black" : "white"}>
+                  {row.model.label}
+                </text>
+              </box>
+            )
+          }
+          getKey={(row) => (row.kind === "inherit" ? "inherit" : row.model.id)}
+          placeholder="Search models"
+          emptyText="No matching models"
+        />
+      )}
+
+      {((activeTab === "frontier" && !inheritOption) || activeTab === "free") && (
         <DialogSearchList
           key={activeTab}
           items={activeTab === "frontier" ? frontierModels : freeModels}

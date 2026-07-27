@@ -307,6 +307,67 @@ function renderToolContent({
     );
   }
 
+  if (toolName === "askUser") {
+    const { question } = (input ?? {}) as { question?: string };
+    const answerOutput =
+      !pending && output != null
+        ? (output as { value?: string; cancelled?: boolean })
+        : null;
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>Asked:</em> {question ?? ""}
+        {pending
+          ? " …"
+          : answerOutput?.cancelled
+            ? " — cancelled"
+            : answerOutput?.value
+              ? ` — ${answerOutput.value}`
+              : ""}
+        {errorText ? ` ${errorText}` : ""}
+      </text>
+    );
+  }
+
+  if (toolName === "manageHook") {
+    const { action, eventType, matcher, scope } = (input ?? {}) as {
+      action?: string;
+      eventType?: string;
+      matcher?: string;
+      scope?: string;
+    };
+    
+    const hookOutput =
+      !pending && output != null
+        ? (output as {
+            message?: string;
+            hooks?: Record<string, unknown>;
+          })
+        : null;
+
+    const summary =
+      action === "list"
+        ? `list ${scope ?? "project"} hooks`
+        : `${action ?? ""} ${eventType ?? ""}${matcher ? ` "${matcher}"` : ""}`;
+
+    const eventCount = hookOutput?.hooks
+      ? Object.keys(hookOutput.hooks).length
+      : null;
+
+    return (
+      <text attributes={TextAttributes.DIM}>
+        <em fg={colors.info}>Hook:</em> {summary}
+        {pending
+          ? " …"
+          : hookOutput?.message
+            ? ` — ${hookOutput.message}`
+            : eventCount != null
+              ? ` — ${eventCount} event type${eventCount !== 1 ? "s" : ""} configured`
+              : ""}
+        {errorText ? ` ${errorText}` : ""}
+      </text>
+    );
+  }
+
   if (toolName === "manageMcp") {
     return (
       <ManageMcpView
@@ -453,11 +514,9 @@ export function BotMessage({
         : part.type.slice("tool-".length);
     const hasInput =
       "input" in part && part.input != null && part.state !== "input-streaming";
-    return (
-      (hasInput && tn.includes("memory")) ||
-      tn === "askUser" ||
-      tn === "manageHook"
-    );
+    const pending =
+      part.state !== "output-available" && part.state !== "output-error";
+    return (hasInput && tn.includes("memory")) || (tn === "askUser" && pending);
   };
 
   const groups = groupConsecutiveParts(parts).filter((group) => {

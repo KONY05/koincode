@@ -50,8 +50,12 @@ export type ResolvedModel = {
 // These are the fallback used when the user hasn't chosen a reasoning effort yet (or the model
 // doesn't support the setting) — a model that can reason should never end up with *less* of it
 // just because the new effort control was never touched.
+// display: "summarized" is required here — Anthropic's `display` field defaults to "omitted"
+// (empty reasoning text) on the newest models (Fable 5, Opus 5, Opus 4.8/4.7, Sonnet 5), which
+// would silently blank out the "Thinking..." UI (bot-message.tsx) for exactly those models
+// without this. Confirmed via platform.claude.com/docs/en/build-with-claude/thinking#controlling-thinking-display.
 const ANTHROPIC_THINKING: ProviderOptions = {
-  anthropic: { thinking: { type: "enabled", budgetTokens: 10000 } },
+  anthropic: { thinking: { type: "enabled", budgetTokens: 10000, display: "summarized" } },
 };
 
 const GOOGLE_THINKING: ProviderOptions = {
@@ -86,13 +90,18 @@ function anthropicEffortOptions(
   if (modelId === "claude-haiku-4-5") {
     return {
       anthropic: {
-        thinking: { type: "enabled", budgetTokens: HAIKU_BUDGET_BY_EFFORT[effort] ?? 10000 },
+        thinking: {
+          type: "enabled",
+          budgetTokens: HAIKU_BUDGET_BY_EFFORT[effort] ?? 10000,
+          display: "summarized",
+        },
       },
     };
   }
   // Adaptive-only and dual-support (claude-sonnet-4-6) models both take the adaptive path —
-  // it's recommended even where the old budget path still works.
-  return { anthropic: { thinking: { type: "adaptive" }, effort } };
+  // it's recommended even where the old budget path still works. display: "summarized" is
+  // required — see the comment on ANTHROPIC_THINKING above.
+  return { anthropic: { thinking: { type: "adaptive", display: "summarized" }, effort } };
 }
 
 // Confirmed against ai.google.dev/gemini-api/docs/thinking's documented min/max/default per

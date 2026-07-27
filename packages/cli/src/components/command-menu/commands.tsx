@@ -88,6 +88,26 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: "subagent-model",
+    description: "Set which model spawnAgent sub-agents use",
+    value: "/subagent-model",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: `Sub-agent Model (current: ${ctx.subagentModelDisplayName ?? "Inherit from session"})`,
+        children: (
+          <ModelsDialogContent
+            models={SUPPORTED_CHAT_MODELS}
+            onSelectModel={ctx.setSubagentModel}
+            inheritOption={{
+              label: "Inherit from session (default)",
+              onSelect: () => ctx.setSubagentModel(null),
+            }}
+          />
+        ),
+      });
+    },
+  },
+  {
     name: "effort",
     description: "Set reasoning effort for the current model",
     value: "/effort",
