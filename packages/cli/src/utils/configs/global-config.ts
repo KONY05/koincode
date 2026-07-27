@@ -65,6 +65,14 @@ export function updateGlobalConfig(
     }
   }
 
+  if (updates.subagentModel !== undefined) {
+    if (updates.subagentModel === "") {
+      delete next.subagentModel;
+    } else {
+      next.subagentModel = updates.subagentModel;
+    }
+  }
+
   if (updates.autoModeSwitch !== undefined) {
     next.autoModeSwitch = updates.autoModeSwitch;
   }

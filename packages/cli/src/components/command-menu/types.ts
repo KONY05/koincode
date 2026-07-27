@@ -14,6 +14,9 @@ export type CommandContext = {
   modelDisplayName: string;
   setMode: (mode: ModeType) => void;
   setModel: (model: string) => void;
+  subagentModel: string | null;
+  subagentModelDisplayName: string | null;
+  setSubagentModel: (model: string | null) => void;
   reasoningEffort: ReasoningEffortLevel | null;
   setReasoningEffort: (effort: ReasoningEffortLevel) => void;
   invokeSkill: (skillName: string) => Promise<void>;

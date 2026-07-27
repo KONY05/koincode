@@ -535,7 +535,7 @@ export function InputBar({
   onQueueFocusedIndexChange,
   messages = [],
   showUpdateStatus = true }: Props) {
-  const { mode, model, modelDisplayName, toggleMode, setMode, setModel, reasoningEffort, setReasoningEffort, voiceInput, toggleVoice, toggleInfoSidebar, incognito, toggleIncognito } = usePromptConfig();
+  const { mode, model, modelDisplayName, toggleMode, setMode, setModel, subagentModel, subagentModelDisplayName, setSubagentModel, reasoningEffort, setReasoningEffort, voiceInput, toggleVoice, toggleInfoSidebar, incognito, toggleIncognito } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots, isIncognitoLocked = false } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => { });
@@ -743,6 +743,9 @@ export function InputBar({
           modelDisplayName,
           setMode,
           setModel,
+          subagentModel,
+          subagentModelDisplayName,
+          setSubagentModel,
           reasoningEffort,
           setReasoningEffort,
           invokeSkill,
@@ -764,7 +767,7 @@ export function InputBar({
         skipUndoRef.current = false;
       }
     },
-    [renderer, toast, dialog, navigate, mode, model, modelDisplayName, setMode, setModel, reasoningEffort, setReasoningEffort, invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots, contextUsage, toggleVoice, toggleInfoSidebar, incognito, toggleIncognito, isIncognitoLocked],
+    [renderer, toast, dialog, navigate, mode, model, modelDisplayName, setMode, setModel, subagentModel, subagentModelDisplayName, setSubagentModel, reasoningEffort, setReasoningEffort, invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots, contextUsage, toggleVoice, toggleInfoSidebar, incognito, toggleIncognito, isIncognitoLocked],
   );
 
   const handleCommandExecute = useCallback(

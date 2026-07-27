@@ -27,6 +27,11 @@ type PromptConfigContextValue = {
   /** `model` resolved for display — custom-model opaque ids swapped for their real modelId. */
   modelDisplayName: string;
   setModel: (model: string) => void;
+  /** Model spawnAgent sub-agents use. `null` means inherit the session's current model (the default). */
+  subagentModel: string | null;
+  /** `subagentModel` resolved for display, or null when inheriting. */
+  subagentModelDisplayName: string | null;
+  setSubagentModel: (model: string | null) => void;
   autoModeSwitch: "confirm" | "auto";
   setAutoModeSwitch: (v: "confirm" | "auto") => void;
   /** Clamped to what `model` actually supports — null when the current model has no reasoning effort control. */
@@ -77,9 +82,23 @@ function resolveInitialModel(): string {
   return DEFAULT_CHAT_MODEL_ID;
 }
 
+// Same validity check as resolveInitialModel's `saved` branch — a stale/deleted
+// custom model id left over in config shouldn't silently break sub-agent spawns,
+// it should just fall back to inheriting the session model.
+function resolveInitialSubagentModel(): string | null {
+  const saved = readGlobalConfig().subagentModel;
+  if (saved && (findSupportedChatModel(saved) || isCustomOrOllamaModelId(saved))) {
+    return saved;
+  }
+  return null;
+}
+
 export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   const [mode, setMode] = useState<ModeType>(Mode.BUILD);
   const [model, setModelState] = useState<string>(resolveInitialModel);
+  const [subagentModel, setSubagentModelState] = useState<string | null>(
+    resolveInitialSubagentModel,
+  );
   const [autoModeSwitch, setAutoModeSwitchState] = useState<"confirm" | "auto">(
     () => readGlobalConfig().autoModeSwitch ?? "confirm",
   );
@@ -125,6 +144,10 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   }, [mode]);
 
   const modelDisplayName = useMemo(() => getModelDisplayName(model), [model]);
+  const subagentModelDisplayName = useMemo(
+    () => (subagentModel ? getModelDisplayName(subagentModel) : null),
+    [subagentModel],
+  );
 
   const reasoningEffort = useMemo<ReasoningEffortLevel | null>(() => {
     const levels = getReasoningEffortLevels(model);
@@ -143,6 +166,11 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     setModelState(m);
     updateGlobalConfig({ defaultModel: m });
     trackModelChanged({ model: m });
+  }, []);
+
+  const setSubagentModel = useCallback((m: string | null) => {
+    setSubagentModelState(m);
+    updateGlobalConfig({ subagentModel: m ?? "" });
   }, []);
 
   const setAutoModeSwitch = useCallback((v: "confirm" | "auto") => {
@@ -210,6 +238,9 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
         model,
         modelDisplayName,
         setModel,
+        subagentModel,
+        subagentModelDisplayName,
+        setSubagentModel,
         autoModeSwitch,
         setAutoModeSwitch,
         reasoningEffort,

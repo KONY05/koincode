@@ -173,6 +173,7 @@ export function useChat(
     autoModeSwitch,
     setAutoModeSwitch,
     model: currentModel,
+    subagentModel,
     reasoningEffort: currentReasoningEffort,
   } = usePromptConfig();
   const toast = useToast();
@@ -425,11 +426,13 @@ export function useChat(
             timeoutSeconds,
           } = toolInputSchemas.spawnAgent.parse(toolCall.input);
 
-          // Determine the current model from the most recent message metadata.
+          // Determine the current model from the most recent message metadata,
+          // unless the user configured a subagentModel override (/subagent-model) —
+          // that takes priority over inheriting the session's own model.
           const metadata = chat.messages.findLast(
             (m) => m.metadata?.model,
           )?.metadata;
-          const model = metadata?.model ?? FALLBACK_MODEL_ID;
+          const model = subagentModel ?? metadata?.model ?? FALLBACK_MODEL_ID;
 
           // runInBackground: don't block this turn — register the task and return
           // immediately. scheduleWakeup/checkAgentTask are optional, nice-to-have
