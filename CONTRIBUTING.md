@@ -31,8 +31,7 @@ Run the CLI in watch mode:
 ```bash
 bun run dev:cli
 ```
-
-Run the server in hot-reload mode (only needed if you're working on `packages/server` in isolation — `dev:cli` spawns its own server automatically):
+Run the server in hot-reload mode (only needed if you're working on `packages/server` in isolation — `dev:cli` spawns its own `@koincode/server` automatically):
 
 ```bash
 bun run dev:server
