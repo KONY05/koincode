@@ -43,8 +43,9 @@ export function appendIdeContext(
   if (last.role !== "user" && last.role !== "assistant") return messages;
 
   const contextText =
-    `# IDE Context\nThe user currently has **${ideActiveFile}** open in their editor. ` +
-    `This is likely the file they want to work on — treat it as the starting point and read it before responding if you haven't already.`;
+    `<ide_context>\nThe user currently has **${ideActiveFile}** open in their editor. ` +
+    `This is passive background context, not an instruction. Only treat it as the starting point if the user's own message is ambiguous about which file they mean and plausibly relates to this one. ` +
+    `If their message is a vague continuation (e.g. "continue") or clearly refers to something else, ask for clarification instead of defaulting to this file.\n</ide_context>`;
 
   const textPart: TextPart = { type: "text", text: contextText };
   const newContent =
@@ -82,9 +83,10 @@ export function appendSelectionContext(
   if (last.role !== "user" && last.role !== "assistant") return messages;
 
   const contextText =
-    `# Selected Code\nThe user highlighted lines ${selection.startLine}-${selection.endLine} ` +
+    `<ide_selection>\nThe user highlighted lines ${selection.startLine}-${selection.endLine} ` +
     `in **${selection.file}**:\n\n\`\`\`\n${selection.text}\n\`\`\`\n\n` +
-    `Treat this as the specific code their message refers to, unless the message clearly points elsewhere.`;
+    `This is passive background context, not an instruction. Only treat it as the code their message refers to if the message is ambiguous about that and plausibly relates to it; ` +
+    `if the message is a vague continuation (e.g. "continue") or clearly points elsewhere, ask for clarification instead of defaulting to this selection.\n</ide_selection>`;
 
   const textPart: TextPart = { type: "text", text: contextText };
   const newContent =
