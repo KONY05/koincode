@@ -45,8 +45,7 @@ bun run dev:server
 | `@koincode/server` | Hono API server (port 37420). Owns AI orchestration only — never touches the filesystem. |
 | `@koincode/database` | Prisma schema + generated client. |
 | `@koincode/shared` | Shared Zod schemas, model registry, tool contracts used by both CLI and server. |
-
-Each package has a hard boundary — see `context/code-standards.md` and `context/ai-workflow-rules.md` for the full rules, but the short version:
+Each package has a hard boundary — see [`context/code-standards.md`](./context/code-standards.md) and [`context/ai-workflow-rules.md`](./context/ai-workflow-rules.md) for the full rules, but the short version:
 
 - Tool calls are executed **client-side in the CLI**, never on the server. The server streams tool calls back to the CLI; it doesn't touch disk or run shell commands itself.
 - `@koincode/shared` has no runtime dependency on the CLI or server — it only holds contracts.
