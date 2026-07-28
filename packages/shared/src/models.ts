@@ -383,6 +383,15 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort: undefined,
   },
   {
+    id: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
+    contextWindow: 1_000_000,
+    vision: false,
+    label: "Nemotron 3 Ultra",
+    reasoningEffort: undefined,
+  },
+  {
     id: "cohere/north-mini-code:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
@@ -403,23 +412,12 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort: undefined,
   },
   {
-    id: "openai/gpt-oss-120b:free",
+    id: "inclusionai/ling-3.0-flash:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-    contextWindow: 131_072,
+    contextWindow: 262_144,
     vision: false,
-    label: "GPT-OSS 120B",
-    // OpenAI's real gpt-oss-120b is a confirmed reasoning model with native low/medium/high
-    // effort levels — the strongest-confidence entry in the OpenRouter-native list.
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
-  },
-  {
-    id: "nvidia/nemotron-3-ultra-550b-a55b:free",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-    contextWindow: 1_000_000,
-    vision: false,
-    label: "Nemotron 3 Ultra",
+    label: "Ling-3.0-flash",
     reasoningEffort: undefined,
   }
 ] as const satisfies readonly SupportedChatModelDefinition[];

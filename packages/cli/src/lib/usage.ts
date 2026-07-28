@@ -6,7 +6,7 @@ import { readGlobalConfig } from "../utils/configs/global-config";
 const USAGE_URLS = {
   anthropic: "https://console.anthropic.com/settings/usage",
   openai: "https://platform.openai.com/usage",
-  google: "https://aistudio.google.com/apikey",
+  google: "https://aistudio.google.com/usage",
   xai: "https://console.x.ai/",
   openrouter: "https://openrouter.ai/activity",
 } as const;
