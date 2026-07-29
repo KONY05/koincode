@@ -378,7 +378,7 @@ export const SUPPORTED_CHAT_MODELS = [
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 262_144,
     vision: false,
-    label: "Laguna S 2.1",
+    label: "Laguna S 2.1 (free)",
     // No identifiable real-world model to confirm reasoning support against.
     reasoningEffort: undefined,
   },
@@ -388,7 +388,7 @@ export const SUPPORTED_CHAT_MODELS = [
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 1_000_000,
     vision: false,
-    label: "Nemotron 3 Ultra",
+    label: "Nemotron 3 Ultra (free)",
     reasoningEffort: undefined,
   },
   {
@@ -397,7 +397,7 @@ export const SUPPORTED_CHAT_MODELS = [
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 256_000,
     vision: false,
-    label: "North Mini Code",
+    label: "North Mini Code (free)",
     // Cohere's public model line has no known reasoning/thinking mode.
     reasoningEffort: undefined,
   },
@@ -407,7 +407,7 @@ export const SUPPORTED_CHAT_MODELS = [
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 262_144,
     vision: true,
-    label: "Gemma 4 31B",
+    label: "Gemma 4 31B (free)",
     // Gemma (unlike Gemini) has no thinking/reasoning mode historically.
     reasoningEffort: undefined,
   },
@@ -417,7 +417,7 @@ export const SUPPORTED_CHAT_MODELS = [
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 262_144,
     vision: false,
-    label: "Ling-3.0-flash",
+    label: "Ling-3.0-flash (free)",
     reasoningEffort: undefined,
   }
 ] as const satisfies readonly SupportedChatModelDefinition[];

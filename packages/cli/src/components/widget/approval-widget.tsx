@@ -110,6 +110,13 @@ export function ApprovalWidget({ approval, onResponse }: Props) {
             <text fg={colors.dimSeparator}>{approval.key}</text>
           </box>
 
+          {/* Model-authored summary of what the command does */}
+          {approval.summary && (
+            <box>
+              <text fg={colors.dimSeparator}>{approval.summary}</text>
+            </box>
+          )}
+
           {/* Command / path being requested */}
           <box>
             <text fg="gray">$ {approval.description}</text>

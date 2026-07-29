@@ -803,6 +803,7 @@ export function useChat(
             description: permInfo.description,
             tier: permInfo.tier,
             sessionOnly: permInfo.sessionOnly,
+            summary: permInfo.summary,
           };
 
           // NOTE: .then is used here (not async/await) because the mutex read-and-update
