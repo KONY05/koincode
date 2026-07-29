@@ -12,7 +12,7 @@ import { useRenderer } from "@opentui/react";
 import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 import { usePromptConfig } from "../../providers/prompt-config";
-import type { Message } from "../../hooks/use-chat";
+import type { InlineSystemEvent, Message } from "../../hooks/use-chat";
 import { Mode, isMcpTool } from "@koincode/shared";
 import { createMarkdownSyntaxStyle } from "../../utils/syntax-style";
 import EditFileDiff from "../tool-view/edit-file";
@@ -25,6 +25,7 @@ import { Spinner } from "../spinner";
 import { getModelDisplayName } from "../../lib/custom-models";
 import { copyToClipboard } from "../../lib/clipboard";
 import { isCompiledBinary } from "../../utils/tree-sitter";
+import { SystemMessage } from "./system-message";
 
 // getTreeSitterClient() auto-starts a parser worker the moment it's constructed, which in a
 // compiled binary fails its WASM load and spams the TUI with errors (see utils/tree-sitter.ts
@@ -46,6 +47,7 @@ type Props = {
   streaming?: boolean;
   interrupted?: boolean;
   isSubagentRunning?: boolean;
+  inlineEvents?: InlineSystemEvent[];
 };
 
 function formatToolName(name: string): string {
@@ -335,7 +337,7 @@ function renderToolContent({
       matcher?: string;
       scope?: string;
     };
-    
+
     const hookOutput =
       !pending && output != null
         ? (output as {
@@ -406,6 +408,10 @@ type PartGroup = {
   type: ClientMessagePart["type"];
   parts: ClientMessagePart[];
   key: string;
+  // Cumulative count of raw `parts` consumed through the end of this group. Used to
+  // place inline system events (e.g. a mid-turn switchMode divider) at the position
+  // they actually occurred, even though hidden/filtered groups don't render.
+  endIndex: number;
 };
 
 function groupConsecutiveParts(parts: ClientMessagePart[]): PartGroup[] {
@@ -417,11 +423,12 @@ function groupConsecutiveParts(parts: ClientMessagePart[]): PartGroup[] {
 
     if (lastGroup && lastGroup.type === part.type) {
       lastGroup.parts.push(part);
+      lastGroup.endIndex = i + 1;
     } else {
       const key = isToolPart(part)
         ? `group-tc-${part.toolCallId}`
         : `group-${part.type}-${i}`;
-      groups.push({ type: part.type, parts: [part], key });
+      groups.push({ type: part.type, parts: [part], key, endIndex: i + 1 });
     }
   }
 
@@ -435,6 +442,7 @@ export function BotMessage({
   streaming = false,
   interrupted = false,
   isSubagentRunning = false,
+  inlineEvents = [],
 }: Props) {
   const { colors } = useTheme();
   const { mode: currentMode } = usePromptConfig();
@@ -485,7 +493,8 @@ export function BotMessage({
         onMouseDown: () => {
           void (async () => {
             const copied =
-              (await copyToClipboard(code)) || renderer.copyToClipboardOSC52(code);
+              (await copyToClipboard(code)) ||
+              renderer.copyToClipboardOSC52(code);
             if (label.isDestroyed) return;
             label.content = copied ? " ✓ copied " : " ✗ no clipboard ";
             label.fg = copied ? colors.success : colors.error;
@@ -533,122 +542,158 @@ export function BotMessage({
     currentMode === Mode.PLAN ? colors.planMode : colors.primary;
   const modeLabel = currentMode === Mode.PLAN ? "Plan" : "Build";
 
+  // Interleave inline system events (e.g. a mid-turn switchMode divider) between the
+  // groups they actually fell between, using each event's raw-parts-array partIndex
+  // against each group's cumulative endIndex. Anything past the last group's endIndex
+  // (still streaming, next part hasn't arrived yet) is flushed after the final group.
+  type RenderItem =
+    | { kind: "group"; group: PartGroup; groupIndex: number }
+    | { kind: "event"; event: InlineSystemEvent };
+
+  const renderItems: RenderItem[] = [];
+  const sortedEvents = [...inlineEvents].sort(
+    (a, b) => a.partIndex - b.partIndex,
+  );
+  let eventCursor = 0;
+
+  groups.forEach((group, groupIndex) => {
+    renderItems.push({ kind: "group", group, groupIndex });
+    while (
+      eventCursor < sortedEvents.length &&
+      sortedEvents[eventCursor]!.partIndex <= group.endIndex
+    ) {
+      renderItems.push({ kind: "event", event: sortedEvents[eventCursor]! });
+      eventCursor++;
+    }
+  });
+
+  while (eventCursor < sortedEvents.length) {
+    renderItems.push({ kind: "event", event: sortedEvents[eventCursor]! });
+    eventCursor++;
+  }
+
   return (
     <box width="100%" alignItems="center">
-      {groups.map((group, i) => (
-        <box key={group.key} width="100%" paddingTop={i === 0 ? 0 : 1}>
-          {group.parts.map((part, j) => {
-            if (shouldHidePart(part)) {
-              return null;
-            }
+      {renderItems.map((item) => {
+        if (item.kind === "event") {
+          return <SystemMessage key={item.event.id} text={item.event.text} />;
+        }
+        const { group, groupIndex: i } = item;
+        return (
+          <box key={group.key} width="100%" paddingTop={i === 0 ? 0 : 1}>
+            {group.parts.map((part, j) => {
+              if (shouldHidePart(part)) {
+                return null;
+              }
 
-            if (part.type === "reasoning") {
-              const trimmed = part.text.trim();
+              if (part.type === "reasoning") {
+                const trimmed = part.text.trim();
 
-              if (!trimmed) return null;
+                if (!trimmed) return null;
 
-              const key = `reasoning-${j}`;
+                const key = `reasoning-${j}`;
 
-              const isExpanded = streaming || openThinking.has(key);
-              
-              return (
-                <box
-                  key={key}
-                  border={["left"]}
-                  borderColor={colors.thinkingBorder}
-                  customBorderChars={{ ...EmptyBorder, vertical: "│" }}
-                  width="100%"
-                  paddingX={2}
-                >
+                const isExpanded = streaming || openThinking.has(key);
+
+                return (
                   <box
-                    flexDirection="row"
-                    gap={1}
-                    height={1}
-                    onMouseDown={() => !streaming && toggleThinking(key)}
-                  >
-                    <text attributes={TextAttributes.DIM}>
-                      {streaming ? (
-                        <em fg={colors.thinking}>Thinking...</em>
-                      ) : (
-                        <em fg={colors.thinking}>Thought about it</em>
-                      )}
-                    </text>
-                    <text
-                      attributes={TextAttributes.DIM}
-                      fg={colors.dimSeparator}
-                    >
-                      {isExpanded ? "▾" : "▸"}
-                    </text>
-                  </box>
-                  {isExpanded && (
-                    <text attributes={TextAttributes.DIM}>{trimmed}</text>
-                  )}
-                </box>
-              );
-            }
-
-            if (isToolPart(part)) {
-              const toolName =
-                part.type === "dynamic-tool"
-                  ? part.toolName
-                  : part.type.slice("tool-".length);
-              const pending =
-                part.state !== "output-available" &&
-                part.state !== "output-error";
-              const hasInput =
-                "input" in part &&
-                part.input != null &&
-                part.state !== "input-streaming";
-              const errorText =
-                part.state === "output-error" ? part.errorText : undefined;
-              const output =
-                part.state === "output-available"
-                  ? (part as unknown as { output: unknown }).output
-                  : undefined;
-
-              return (
-                <box
-                  key={part.toolCallId}
-                  border={["left"]}
-                  borderColor={colors.thinkingBorder}
-                  customBorderChars={{ ...EmptyBorder, vertical: "│" }}
-                  width="100%"
-                  paddingX={2}
-                >
-                  {renderToolContent({
-                    toolName,
-                    input: hasInput ? part.input : undefined,
-                    output,
-                    pending,
-                    errorText,
-                    colors,
-                    syntaxStyle,
-                    treeSitterClient,
-                  })}
-                </box>
-              );
-            }
-
-            if (part.type === "text") {
-              return (
-                <box key={`text-${j}`} paddingX={3} width="100%">
-                  <markdown
-                    content={part.text}
-                    syntaxStyle={syntaxStyle}
-                    treeSitterClient={treeSitterClient}
-                    renderNode={renderCodeBlock as never}
-                    streaming={streaming}
-                    conceal
+                    key={key}
+                    border={["left"]}
+                    borderColor={colors.thinkingBorder}
+                    customBorderChars={{ ...EmptyBorder, vertical: "│" }}
                     width="100%"
-                  />
-                </box>
-              );
-            }
+                    paddingX={2}
+                  >
+                    <box
+                      flexDirection="row"
+                      gap={1}
+                      height={1}
+                      onMouseDown={() => !streaming && toggleThinking(key)}
+                    >
+                      <text attributes={TextAttributes.DIM}>
+                        {streaming ? (
+                          <em fg={colors.thinking}>Thinking...</em>
+                        ) : (
+                          <em fg={colors.thinking}>Thought about it</em>
+                        )}
+                      </text>
+                      <text
+                        attributes={TextAttributes.DIM}
+                        fg={colors.dimSeparator}
+                      >
+                        {isExpanded ? "▾" : "▸"}
+                      </text>
+                    </box>
+                    {isExpanded && (
+                      <text attributes={TextAttributes.DIM}>{trimmed}</text>
+                    )}
+                  </box>
+                );
+              }
 
-            return null;
-          })}
-        </box>
-      ))}
+              if (isToolPart(part)) {
+                const toolName =
+                  part.type === "dynamic-tool"
+                    ? part.toolName
+                    : part.type.slice("tool-".length);
+                const pending =
+                  part.state !== "output-available" &&
+                  part.state !== "output-error";
+                const hasInput =
+                  "input" in part &&
+                  part.input != null &&
+                  part.state !== "input-streaming";
+                const errorText =
+                  part.state === "output-error" ? part.errorText : undefined;
+                const output =
+                  part.state === "output-available"
+                    ? (part as unknown as { output: unknown }).output
+                    : undefined;
+
+                return (
+                  <box
+                    key={part.toolCallId}
+                    border={["left"]}
+                    borderColor={colors.thinkingBorder}
+                    customBorderChars={{ ...EmptyBorder, vertical: "│" }}
+                    width="100%"
+                    paddingX={2}
+                  >
+                    {renderToolContent({
+                      toolName,
+                      input: hasInput ? part.input : undefined,
+                      output,
+                      pending,
+                      errorText,
+                      colors,
+                      syntaxStyle,
+                      treeSitterClient,
+                    })}
+                  </box>
+                );
+              }
+
+              if (part.type === "text") {
+                return (
+                  <box key={`text-${j}`} paddingX={3} width="100%">
+                    <markdown
+                      content={part.text}
+                      syntaxStyle={syntaxStyle}
+                      treeSitterClient={treeSitterClient}
+                      renderNode={renderCodeBlock as never}
+                      streaming={streaming}
+                      conceal
+                      width="100%"
+                    />
+                  </box>
+                );
+              }
+
+              return null;
+            })}
+          </box>
+        );
+      })}
 
       <box paddingX={3} paddingY={1} gap={1} width="100%">
         <box flexDirection="row" gap={2}>
@@ -662,7 +707,9 @@ export function BotMessage({
             <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>
               ›
             </text>
-            <text attributes={TextAttributes.DIM}>{getModelDisplayName(model)}</text>
+            <text attributes={TextAttributes.DIM}>
+              {getModelDisplayName(model)}
+            </text>
             {durationMs != null && (
               <>
                 <text attributes={TextAttributes.DIM} fg={colors.dimSeparator}>

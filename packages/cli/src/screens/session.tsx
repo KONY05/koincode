@@ -25,7 +25,7 @@ import { useToast } from "../providers/toast";
 import { useChat } from "../hooks/use-chat";
 import { usePromptConfig } from "../providers/prompt-config";
 import { SessionActionsProvider } from "../providers/session-actions";
-import type { Message } from "../hooks/use-chat";
+import type { InlineSystemEvent, Message, SystemEvent } from "../hooks/use-chat";
 import { apiClient } from "../lib/api-client";
 import { getErrorMessage } from "../lib/http-errors";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
@@ -53,12 +53,14 @@ function ChatMessage({
   interrupted = false,
   isSubagentRunning = false,
   incognito = false,
+  inlineEvents = [],
 }: {
   msg: Message;
   streaming?: boolean;
   interrupted?: boolean;
   isSubagentRunning?: boolean;
   incognito?: boolean;
+  inlineEvents?: InlineSystemEvent[];
 }) {
   if (msg.role === "user") {
     const text = msg.parts
@@ -102,6 +104,7 @@ function ChatMessage({
       streaming={streaming}
       interrupted={interrupted || msg.metadata?.interrupted}
       isSubagentRunning={isSubagentRunning}
+      inlineEvents={inlineEvents}
     />
   );
 }
@@ -311,39 +314,62 @@ function SessionChat({
   //
   // System events carry an `afterMessageCount` that records how many messages existed when
   // the event fired, which lets us place each divider directly after the message it followed.
-  // eventIdx is a forward-only cursor so every event is visited exactly once.
+  // Events that fired mid-turn (switchMode) also carry a `partIndex` — the position within
+  // that message's own parts array — so they're handed to the message itself and rendered
+  // inline between its parts, rather than after the whole (still-growing) message. Events
+  // without a partIndex (e.g. /compact, which fires between turns) keep the old standalone
+  // divider behavior. eventIdx is a forward-only cursor so every standalone event is visited
+  // exactly once.
   const transcript = useMemo(() => {
     type Item =
-      | { type: "message"; msg: Message; index: number }
+      | { type: "message"; msg: Message; index: number; inlineEvents: InlineSystemEvent[] }
       | { type: "system"; id: string; text: string };
+
+    const inlineByMessageIndex = new Map<number, InlineSystemEvent[]>();
+    const standaloneEvents: SystemEvent[] = [];
+    for (const event of systemEvents) {
+      if (event.partIndex !== undefined) {
+        const targetIndex = event.afterMessageCount - 1;
+        const list = inlineByMessageIndex.get(targetIndex) ?? [];
+        list.push({ id: event.id, text: event.text, partIndex: event.partIndex });
+        inlineByMessageIndex.set(targetIndex, list);
+      } else {
+        standaloneEvents.push(event);
+      }
+    }
 
     const items: Item[] = [];
     let eventIdx = 0;
 
     for (let i = 0; i < messages.length; i++) {
       if (i >= localClearMsgCount) {
-        items.push({ type: "message", msg: messages[i]!, index: i });
+        items.push({
+          type: "message",
+          msg: messages[i]!,
+          index: i,
+          inlineEvents: inlineByMessageIndex.get(i) ?? [],
+        });
       }
       while (
-        eventIdx < systemEvents.length &&
-        systemEvents[eventIdx]!.afterMessageCount <= i + 1
+        eventIdx < standaloneEvents.length &&
+        standaloneEvents[eventIdx]!.afterMessageCount <= i + 1
       ) {
-        if (systemEvents[eventIdx]!.afterMessageCount > localClearMsgCount) {
+        if (standaloneEvents[eventIdx]!.afterMessageCount > localClearMsgCount) {
           items.push({
             type: "system",
-            id: systemEvents[eventIdx]!.id,
-            text: systemEvents[eventIdx]!.text,
+            id: standaloneEvents[eventIdx]!.id,
+            text: standaloneEvents[eventIdx]!.text,
           });
         }
         eventIdx++;
       }
     }
-    while (eventIdx < systemEvents.length) {
-      if (systemEvents[eventIdx]!.afterMessageCount > localClearMsgCount) {
+    while (eventIdx < standaloneEvents.length) {
+      if (standaloneEvents[eventIdx]!.afterMessageCount > localClearMsgCount) {
         items.push({
           type: "system",
-          id: systemEvents[eventIdx]!.id,
-          text: systemEvents[eventIdx]!.text,
+          id: standaloneEvents[eventIdx]!.id,
+          text: standaloneEvents[eventIdx]!.text,
         });
       }
       eventIdx++;
@@ -536,7 +562,7 @@ function SessionChat({
         if (item.type === "system") {
           return <SystemMessage key={item.id} text={item.text} />;
         }
-        const { msg, index } = item;
+        const { msg, index, inlineEvents } = item;
         const isLast = index === messages.length - 1;
         const isLastAssistant = isLast && msg.role === "assistant";
         return (
@@ -549,6 +575,7 @@ function SessionChat({
             }
             isSubagentRunning={isSubagentRunning}
             incognito={isIncognito}
+            inlineEvents={inlineEvents}
           />
         );
       })}

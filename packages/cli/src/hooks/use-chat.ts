@@ -73,6 +73,22 @@ export type SystemEvent = {
   id: string;
   text: string;
   afterMessageCount: number;
+  // Index into the target message's `parts` array at the moment this event fired.
+  // Set only for events that happen mid-turn (e.g. a switchMode tool call), so the
+  // transcript can render the divider inline between that message's parts instead
+  // of after the whole (still-growing) message. Undefined for events that happen
+  // between turns (e.g. /compact), which render as a standalone divider as before.
+  partIndex?: number;
+};
+
+// A SystemEvent that's been resolved to a specific message and confirmed mid-turn
+// (partIndex is required, unlike on SystemEvent). Threaded from session.tsx's transcript
+// builder down through ChatMessage into BotMessage, which uses partIndex to interleave it
+// between that message's own parts.
+export type InlineSystemEvent = {
+  id: string;
+  text: string;
+  partIndex: number;
 };
 
 export type ContextUsage = {
@@ -656,6 +672,7 @@ export function useChat(
                 id: crypto.randomUUID(),
                 text: `Switched to ${target} mode`,
                 afterMessageCount: chat.messages.length,
+                partIndex: chat.messages[chat.messages.length - 1]?.parts.length,
               },
             ]);
             chat.addToolOutput({
@@ -707,12 +724,14 @@ export function useChat(
           setModeRef.current(target);
           _activeModes.set(sessionId, target);
           trackModeSwitched({ from: fromMode, to: target });
+          
           setSystemEvents((prev) => [
             ...prev,
             {
               id: crypto.randomUUID(),
               text: `Switched to ${target} mode`,
               afterMessageCount: chat.messages.length,
+              partIndex: chat.messages[chat.messages.length - 1]?.parts.length,
             },
           ]);
           chat.addToolOutput({
