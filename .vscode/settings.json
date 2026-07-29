@@ -25,6 +25,7 @@
     "networkidle",
     "numstat",
     "ollama",
+    "oneline",
     "opencode",
     "openrouter",
     "opentui",

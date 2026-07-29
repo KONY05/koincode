@@ -149,4 +149,240 @@ AGENTS.md is not a reference manual — it is injected into your own system prom
 - Only scaffold the primary project root, not every configured workspace root.
 - Do not fabricate content — every claim in the generated file should trace back to something actually observed in the repo (or, in the CLAUDE.md-mirroring path, to CLAUDE.md's actual content).`,
   },
+  {
+    name: "project-init",
+    description:
+      "Scaffold AGENTS.md (or CLAUDE.md if already established) and the full context/ directory (project-overview, code-standards, ai-workflow-rules, progress-tracker) for a new or existing project",
+    tools: ["readFile", "listDirectory", "glob", "grep", "shell", "writeFile", "switchMode"],
+    aliases: ["init"],
+    content: `---
+name: project-init
+description: Scaffold AGENTS.md (or CLAUDE.md if already established) and the full context/ directory (project-overview, code-standards, ai-workflow-rules, progress-tracker) for a new or existing project
+tools: [readFile, listDirectory, glob, grep, shell, writeFile, switchMode]
+aliases: [init]
+scope: global
+---
+
+# Instructions
+
+Set up the full context-documentation scaffold for this project: five or six files (depending on Step 2's decision) that give any AI agent (and future contributors) a complete, accurate picture of it. AGENTS.md is the default primary file — this tool is KOINCODE, so it should not default to a vendor-specific file as the source of truth (e.g. CLAUDE.md). CLAUDE.md is only written when the repo already established that convention before this skill ran.
+
+## Step 1 — Analyze the codebase
+
+Before writing anything, gather the facts you need:
+
+- Read the package manifest (package.json, pyproject.toml, Cargo.toml, go.mod, etc.) for the project name, scripts, dependencies, and package manager.
+- Read README.md if it exists.
+- Run \`git log --oneline -20\` (shell) to see what has actually been built so far.
+- Use listDirectory / glob to understand the top-level structure — do not guess it.
+- Check for existing target files: CLAUDE.md, AGENTS.md, context/project-overview.md, context/code-standards.md, context/ai-workflow-rules.md, context/progress-tracker.md. If any already exist, read them so you update them with real changes rather than overwriting blindly — preserve anything still accurate, and only rewrite the parts that have drifted from what you observe in the repo now.
+
+## Step 2 — Decide which file is primary
+
+- If CLAUDE.md already exists at the project root with real (non-empty) content, it stays primary — a Claude Code convention is already established in this repo, and this skill should not fight that. Write/update CLAUDE.md as the full file (template below), and write/update AGENTS.md as a short pointer stub to it.
+- Otherwise — CLAUDE.md is absent, regardless of whether AGENTS.md exists — AGENTS.md is primary. Write/update AGENTS.md as the full file (template below). Do not create CLAUDE.md.
+- This matches the standalone \`init\` skill's own stance: never create a CLAUDE.md that didn't already exist, and treat AGENTS.md as the shared, vendor-neutral convention multiple agents (not just this one) read.
+- If AGENTS.md already exists purely as a pointer stub (e.g. it says "maintained in CLAUDE.md") but CLAUDE.md does not actually exist, that's a broken/stale state — treat AGENTS.md as primary and replace the stub with the full template.
+
+## Step 3 — Ask one clarifying question if needed
+
+If the project's purpose isn't clear from the code and README alone, ask the user one focused question: "What is this project and what is the core user flow?" Do not ask more than one question, and skip this step entirely if the purpose is already obvious from what you read in Step 1.
+
+## Step 4 — Generate the files
+
+Create the context/ directory if it doesn't exist. If the current mode is PLAN, switch to BUILD (switchMode) before writing — writing files requires BUILD mode. Always write the four context/*.md files. Then, per Step 2's decision: write the primary file (CLAUDE.md or AGENTS.md) using the Primary file template, and — only when CLAUDE.md was selected as primary — also write AGENTS.md using the Pointer file template. Use the structures below as templates — the bracketed placeholders describe what belongs in each section, not literal text to copy in.
+
+---
+
+### context/project-overview.md
+
+\`\`\`
+# <Project Name>
+
+## Overview
+<2-3 sentence plain-English description of what the product is and who uses it.>
+
+## Goals
+<Numbered list of 4-8 product goals.>
+
+## Core User Flow
+<Numbered step-by-step description of the primary user journey from start to finish.>
+
+## Features
+<Subsections per major feature area. Each subsection has a short heading and bullet points.>
+
+## Scope
+
+### In Scope
+<Bullet list of what is explicitly included.>
+
+### Out of Scope
+<Bullet list of what is explicitly excluded.>
+
+## Success Criteria
+<Numbered list of observable outcomes that confirm the product works.>
+\`\`\`
+
+---
+
+### context/code-standards.md
+
+\`\`\`
+# Code Standards
+
+## General
+<3-6 project-wide rules about module size, error handling philosophy, and system boundaries.>
+
+## <Primary language, e.g. TypeScript>
+<4-6 language-specific rules. Type system preferences, validation approach, etc.>
+
+## <Primary framework or runtime, e.g. Hono Server / Next.js / CLI>
+<4-6 framework-specific rules for how to structure handlers, components, or commands.>
+
+## <Any additional concern, e.g. Tool Contracts / Styling / Data>
+<Rules specific to that concern.>
+
+## File Organization
+<Bullet list of key directories and their single responsibility.>
+\`\`\`
+
+---
+
+### context/ai-workflow-rules.md
+
+\`\`\`
+# AI Workflow Rules
+
+## Approach
+<2-3 sentences on the spec-driven, incremental build philosophy.>
+
+## Scoping Rules
+<3-5 rules on working one feature at a time.>
+
+## When To Split Work
+<Bullet list of signals that a step is too large and should be split.>
+
+## Handling Missing Requirements
+<3-4 rules on what to do when requirements are ambiguous or missing.>
+
+## Package / Module Boundaries
+<Per-module responsibility rules. Do not reach across defined boundaries.>
+
+## Protected Foundation Components
+<List generated or third-party files that must not be modified without explicit instruction.>
+
+## Keeping Docs In Sync
+<Rules for updating context files when implementation diverges from the spec.>
+
+## Before Moving To The Next Feature
+<Numbered checklist of exit criteria for each feature unit.>
+\`\`\`
+
+---
+
+### context/progress-tracker.md
+
+\`\`\`
+# Progress Tracker
+
+Update this file whenever the current phase, active feature, or implementation state changes.
+
+## Current Phase
+- <Phase name and status>
+
+## Current Goal
+- <Next feature to implement>
+
+## Completed
+<List of completed features, each with a one-sentence description of what was built.>
+
+## In Progress
+- <Feature name, or "None.">
+
+## Next Up
+<Bullet list of upcoming features in priority order.>
+
+## Open Questions
+- <Any unresolved decisions, or "None.">
+
+## Architecture Decisions
+<Bullet list of non-obvious decisions and why they were made.>
+
+## Session Notes
+<Key library versions, environment quirks, or warnings future sessions should know.>
+\`\`\`
+
+---
+
+### Primary file — write as CLAUDE.md if Step 2 selected it, otherwise write as AGENTS.md
+
+\`\`\`
+# <CLAUDE.md or AGENTS.md — match whichever filename you are writing>
+
+<Opening line — pick the one matching the filename above, do not include both:>
+<If writing CLAUDE.md: "This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.">
+<If writing AGENTS.md: "This file provides guidance to AI coding agents working in this repository.">
+
+## Application Building Context
+
+Read the following files in order before implementing or making any architectural decision:
+
+1. \`context/project-overview.md\` — product definition, goals, features, and scope
+2. \`context/code-standards.md\` — implementation rules and conventions
+3. \`context/ai-workflow-rules.md\` — development workflow, scoping rules, and delivery approach
+4. \`context/progress-tracker.md\` — current phase, completed work, open questions, and next steps
+
+Update \`context/progress-tracker.md\` after each meaningful implementation change.
+
+If implementation changes the architecture, scope, or standards documented in the context files, update the relevant file before continuing.
+
+## What This Is
+<One paragraph description of the product.>
+
+## Monorepo / Package Structure
+<Table or bullet list of packages/apps and their purpose. Omit if single-package.>
+
+## Commands
+<Code block of the essential dev, build, test, and database commands.>
+
+## Environment Setup
+<Code block listing required environment variables with brief comments.>
+
+## Architecture
+<Subsections per major layer (CLI, server, database, shared). Each subsection is a short bullet list of the entry point and key files.>
+
+## Key Design Decisions
+<Bullet list of 3-5 non-obvious decisions baked into the architecture.>
+\`\`\`
+
+---
+
+### Pointer file — only write this, as AGENTS.md, when Step 2 selected CLAUDE.md as primary. Skip entirely when AGENTS.md is primary — there is nothing to point to.
+
+\`\`\`
+# AGENTS.md
+
+This project's agent instructions are maintained in [CLAUDE.md](./CLAUDE.md).
+
+If you are an AI agent other than Claude Code, read \`CLAUDE.md\` for codebase guidance — commands, architecture, environment setup, and key design decisions all live there.
+\`\`\`
+
+## Accuracy rules (important)
+
+Every specific claim — a command, a file path, a directory listing, which database/library is actually in use — must trace back to something you directly observed in Step 1: an actual scripts block, an actual directory listing, an actual config/schema file. Do not state a command exists because it sounds plausible for a project like this one. When updating existing files rather than creating fresh ones, re-verify their concrete claims against the current repo too — an existing doc can already be stale.
+
+## Step 5 — Confirm and report
+
+After writing all files, report back with:
+- Which file is primary (CLAUDE.md or AGENTS.md) and why — an existing CLAUDE.md found in Step 2, versus the AGENTS.md default
+- Which files were created vs. updated
+- Any assumptions you made that the user should verify
+- Any open questions you added to progress-tracker.md because the answer wasn't clear from the code
+
+## Notes
+
+- Never create a CLAUDE.md that didn't already exist — AGENTS.md is this skill's default primary file, precisely because this tool isn't vendor-specific and shouldn't default to a vendor-specific filename as the source of truth.
+- If CLAUDE.md already exists, don't remove, rename, or demote it — keep it primary and keep AGENTS.md as its pointer, consistent with whatever convention this repo already established.
+- Do not fabricate content — every claim in every generated file should trace back to something actually observed in the repo during this pass.`,
+  },
 ];
