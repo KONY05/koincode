@@ -574,13 +574,14 @@ export function BotMessage({
 
   return (
     <box width="100%" alignItems="center">
-      {renderItems.map((item) => {
+      {renderItems.map((item, idx) => {
         if (item.kind === "event") {
           return <SystemMessage key={item.event.id} text={item.event.text} />;
         }
         const { group, groupIndex: i } = item;
+        const afterEvent = idx > 0 && renderItems[idx - 1]!.kind === "event";
         return (
-          <box key={group.key} width="100%" paddingTop={i === 0 ? 0 : 1}>
+          <box key={group.key} width="100%" paddingTop={i === 0 || afterEvent ? 0 : 1}>
             {group.parts.map((part, j) => {
               if (shouldHidePart(part)) {
                 return null;
