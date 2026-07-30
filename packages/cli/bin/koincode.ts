@@ -50,6 +50,7 @@ if (process.argv.includes("--server")) {
   // Loaded up front (before the risky startup below) so it's guaranteed available even if the
   // render tree is exactly what crashes — it's deliberately opentui-free. See startup-recovery.ts.
   const { handleStartupCrash } = await import("../src/lib/startup-recovery");
+  const { trackApiKeySaved } = await import("../src/lib/analytics");
 
   const args = process.argv.slice(2);
 
@@ -118,6 +119,7 @@ if (process.argv.includes("--server")) {
 
     if (value) {
       updateGlobalConfig({ apiKeys: { [apiKey]: value } });
+      trackApiKeySaved({ provider: apiKey });
       process.stdout.write(
         `✓ ${flag.replace("--", "").replace("-key", "")} key saved\n`,
       );

@@ -18,6 +18,7 @@ import {
   deleteCustomProvider,
 } from "../../lib/custom-models";
 import { restartServer } from "../../lib/server-manager";
+import { trackApiKeySaved } from "../../lib/analytics";
 import type { ApiKeys, CustomProviderConfig, KoincodeGlobalConfig } from "@koincode/shared";
 import { TEXTAREA_KEY_BINDINGS } from "../input-bar";
 import { ProviderFieldsWizard, ModelFieldsWizard } from "./model-field-steps";
@@ -286,13 +287,15 @@ export function SetupDialogContent() {
 
   const handleSave = useCallback(
     (key: ApiKeyName, value: string) => {
+      const trimmed = value.trim();
       const newConfig = updateGlobalConfig({
-        apiKeys: { [key]: value.trim() || undefined },
+        apiKeys: { [key]: trimmed || undefined },
       });
       setConfig(newConfig);
       setEditingKey(null);
       pop("setup-edit");
       void restartServer().catch(() => {});
+      if (trimmed) trackApiKeySaved({ provider: key });
       toast.show({
         message: "Key saved — server restarting",
         variant: "success",
@@ -473,6 +476,9 @@ export function SetupDialogContent() {
           addCustomProviderWithModel(customView.providerInput, modelInput);
           setCustomProviders(listCustomProviders());
           exitWizard();
+          if (customView.providerInput.apiKey) {
+            trackApiKeySaved({ provider: "custom" });
+          }
           toast.show({ variant: "success", message: "Provider and model added" });
         }}
       />

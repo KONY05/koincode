@@ -62,6 +62,7 @@ import {
   trackFeatureUsed,
 } from "../lib/analytics";
 import { FALLBACK_MODEL_ID } from "../../../shared/src/models";
+import { NO_API_KEY_MESSAGE } from "../screens/home";
 
 export type PendingUserQuestion = {
   question: string;
@@ -1156,8 +1157,7 @@ export function useChat(
       if (!hasApiKeyForModel(params.model)) {
         toast.show({
           variant: "error",
-          message:
-            "No API key configured for this model. Run `koincode --openrouter-key <key>` or use /setup.",
+          message: NO_API_KEY_MESSAGE,
         });
         return;
       }
