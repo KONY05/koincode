@@ -30,6 +30,17 @@ export type ChatMessageMetadata = {
     status: "completed" | "error";
     output: string;
   };
+  /** Ordered stack (oldest first) of this row's own state as it existed
+   * immediately before each subsequent merge. `routes/chat.ts` folds consecutive
+   * same-role messages together — which happens whenever a user turn is left
+   * orphaned by an interrupt/error and the user sends again — so one row can end
+   * up covering several attempts. Each entry is a complete snapshot, not a diff:
+   * popping the last one and promoting its `id`/`parts` fully reconstructs the
+   * pre-merge state, which is what lets `DELETE /:id/messages/last-user` peel off
+   * a single attempt instead of wiping the whole chain. `parts` is deliberately
+   * opaque here — this data is only stored and replayed, never interpreted, and
+   * typing it properly would make this metadata type circular with UIMessage. */
+  mergeHistory?: { id: string; parts: unknown[] }[];
 };
 
 export const BOUNDARY_ROLES = new Set(["clear_boundary", "compact_boundary"]);

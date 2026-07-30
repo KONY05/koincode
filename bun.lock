@@ -18,7 +18,7 @@
     },
     "packages/cli": {
       "name": "koincode",
-      "version": "1.23.2",
+      "version": "1.25.3",
       "bin": {
         "koincode": "bin/npm-wrapper.cjs",
       },
@@ -56,11 +56,11 @@
         "zod": "^4.3.6",
       },
       "optionalDependencies": {
-        "@koincode/darwin-arm64": "1.23.2",
-        "@koincode/darwin-x64": "1.23.2",
-        "@koincode/linux-arm64": "1.23.2",
-        "@koincode/linux-x64": "1.23.2",
-        "@koincode/windows-x64": "1.23.2",
+        "@koincode/darwin-arm64": "1.25.3",
+        "@koincode/darwin-x64": "1.25.3",
+        "@koincode/linux-arm64": "1.25.3",
+        "@koincode/linux-x64": "1.25.3",
+        "@koincode/windows-x64": "1.25.3",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -225,11 +225,21 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
+    "@koincode/darwin-arm64": ["@koincode/darwin-arm64@1.25.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-kRSloiKh4vtCg1qwEv6m9g6Kj4isxlrNCJpo/q6I399pbFLD6bppwe+LI3PWAGE51UyQaPpBA4oqOTrc4Be5+A=="],
+
+    "@koincode/darwin-x64": ["@koincode/darwin-x64@1.25.3", "", { "os": "darwin", "cpu": "x64" }, "sha512-4IhAqQRhsdOENM2T2v1mM5CdlvDHlZxtLUfnV94jh40R8rdQa1zmEhZqzfaSgQJiPfBqYP9aLgnALqZHaEoRQQ=="],
+
     "@koincode/database": ["@koincode/database@workspace:packages/database"],
+
+    "@koincode/linux-arm64": ["@koincode/linux-arm64@1.25.3", "", { "os": "linux", "cpu": "arm64" }, "sha512-5iLZ+JFF/eSwxJkNlHRiDW2/52rw3EBUZoig/qZgTrU3Es/Uj4L01EY/C/tQ/AGfNgc61KyYRQyVeTS9bfjWpQ=="],
+
+    "@koincode/linux-x64": ["@koincode/linux-x64@1.25.3", "", { "os": "linux", "cpu": "x64" }, "sha512-cJShUHMXah14dD+TVCjY+89medXuFp2B1O+pZHfJZFh/uz2L0p2prWTNavYT0rUmGINMzFFdwjGCQM7yB01wag=="],
 
     "@koincode/server": ["@koincode/server@workspace:packages/server"],
 
     "@koincode/shared": ["@koincode/shared@workspace:packages/shared"],
+
+    "@koincode/windows-x64": ["@koincode/windows-x64@1.25.3", "", { "os": "win32", "cpu": "x64" }, "sha512-MJBPt/ruSjv/sOCVk/hNKBYuSOtVWNoGH2jJn7XUr12Vn1PkN5OJGTTAhJxGgESL0JL/20osiDP4G481wZVkHA=="],
 
     "@libsql/client": ["@libsql/client@0.14.0", "", { "dependencies": { "@libsql/core": "^0.14.0", "@libsql/hrana-client": "^0.7.0", "js-base64": "^3.7.5", "libsql": "^0.4.4", "promise-limit": "^2.7.0" } }, "sha512-/9HEKfn6fwXB5aTEEoMeFh4CtG0ZzbncBb1e++OCdVpgKZ/xyMsIVYXm0w7Pv4RUel803vE6LwniB3PqD72R0Q=="],
 

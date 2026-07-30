@@ -62,6 +62,7 @@ import {
   trackFeatureUsed,
 } from "../lib/analytics";
 import { FALLBACK_MODEL_ID } from "../../../shared/src/models";
+import { NO_API_KEY_MESSAGE } from "../screens/home";
 
 export type PendingUserQuestion = {
   question: string;
@@ -73,6 +74,22 @@ export type SystemEvent = {
   id: string;
   text: string;
   afterMessageCount: number;
+  // Index into the target message's `parts` array at the moment this event fired.
+  // Set only for events that happen mid-turn (e.g. a switchMode tool call), so the
+  // transcript can render the divider inline between that message's parts instead
+  // of after the whole (still-growing) message. Undefined for events that happen
+  // between turns (e.g. /compact), which render as a standalone divider as before.
+  partIndex?: number;
+};
+
+// A SystemEvent that's been resolved to a specific message and confirmed mid-turn
+// (partIndex is required, unlike on SystemEvent). Threaded from session.tsx's transcript
+// builder down through ChatMessage into BotMessage, which uses partIndex to interleave it
+// between that message's own parts.
+export type InlineSystemEvent = {
+  id: string;
+  text: string;
+  partIndex: number;
 };
 
 export type ContextUsage = {
@@ -288,17 +305,43 @@ export function useChat(
 
         // Incognito: no Session/Message rows exist server-side to rebuild context
         // from, so send the full conversation every turn instead of just the newest
-        // message(s) — the server takes it as-is (see chat.ts's incognito branch).
+        // message(s) — the server takes it as-is (see chat.ts's incognito branch,
+        // which skips the merge loop below entirely for incognito requests).
         // Each message here already carries its own real mode/model metadata (set by
         // chat.sendMessage at send time, or by the server's messageMetadata callback
         // for a past assistant turn), so unlike the normal path below, nothing needs
         // to be reattached — reattaching the *current* mode/model onto every historical
         // message would corrupt their real per-turn metadata.
         if (isIncognito) {
+          // Mirror routes/chat.ts's merge loop for the outgoing request only. An
+          // interrupt before the first streamed token leaves no assistant entry in
+          // `messages` at all (AbstractChat.makeRequest only pushes the assistant
+          // placeholder once a chunk arrives), so two quick interrupt-then-resend
+          // turns land back to back as two separate role:"user" entries. Since
+          // incognito skips chat.ts's DB-backed merge, nothing else folds them —
+          // and `convertToModelMessages` emits one API message per UIMessage with
+          // no coalescing of its own — so unmerged, they'd reach the provider as two
+          // consecutive user turns, which strict providers (Anthropic) reject. Only
+          // the wire payload is folded; `messages` (== chat.messages) itself is left
+          // untouched so the transcript and deleteLastUserTurn still see every
+          // individual attempt, same as normal mode's DB rows pre-merge.
+          const mergedForWire: Message[] = [];
+          for (const msg of messages) {
+            const prev = mergedForWire[mergedForWire.length - 1];
+            if (prev && prev.role === msg.role) {
+              mergedForWire[mergedForWire.length - 1] = {
+                ...msg,
+                parts: [...prev.parts, ...msg.parts],
+              };
+            } else {
+              mergedForWire.push(msg);
+            }
+          }
+
           return {
             body: {
               id: sessionId,
-              messages,
+              messages: mergedForWire,
               mode: _activeModes.get(sessionId) ?? mode,
               model: message.metadata?.model ?? metadata?.model,
               reasoningEffort: message.metadata?.reasoningEffort ?? metadata?.reasoningEffort,
@@ -656,6 +699,7 @@ export function useChat(
                 id: crypto.randomUUID(),
                 text: `Switched to ${target} mode`,
                 afterMessageCount: chat.messages.length,
+                partIndex: chat.messages[chat.messages.length - 1]?.parts.length,
               },
             ]);
             chat.addToolOutput({
@@ -707,12 +751,14 @@ export function useChat(
           setModeRef.current(target);
           _activeModes.set(sessionId, target);
           trackModeSwitched({ from: fromMode, to: target });
+          
           setSystemEvents((prev) => [
             ...prev,
             {
               id: crypto.randomUUID(),
               text: `Switched to ${target} mode`,
               afterMessageCount: chat.messages.length,
+              partIndex: chat.messages[chat.messages.length - 1]?.parts.length,
             },
           ]);
           chat.addToolOutput({
@@ -803,6 +849,7 @@ export function useChat(
             description: permInfo.description,
             tier: permInfo.tier,
             sessionOnly: permInfo.sessionOnly,
+            summary: permInfo.summary,
           };
 
           // NOTE: .then is used here (not async/await) because the mutex read-and-update
@@ -1110,8 +1157,7 @@ export function useChat(
       if (!hasApiKeyForModel(params.model)) {
         toast.show({
           variant: "error",
-          message:
-            "No API key configured for this model. Run `koincode --openrouter-key <key>` or use /setup.",
+          message: NO_API_KEY_MESSAGE,
         });
         return;
       }

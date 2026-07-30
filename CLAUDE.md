@@ -29,6 +29,7 @@ Bun workspaces under `packages/`:
 | `@koincode/server` | Hono API server (port 37420) |
 | `@koincode/database` | Prisma schema + generated client |
 | `@koincode/shared` | Shared Zod schemas, model registry, tool contracts |
+| `koincode` (`packages/vscode-extension`) | VS Code extension that surfaces the active file and text selection in the terminal agent status bar |
 
 ## Commands
 
@@ -49,7 +50,7 @@ No test framework is configured. TypeScript strict mode (`tsconfig.base.json`) i
 
 ## Environment Setup
 
-Copy `.env.example` to `.env` at the repo root if you need to override defaults — most variables are optional. End-user provider keys live in `~/.koincode/config.json` (written by the CLI's `/setup` flow), not `.env`; `.env` is for local dev/build only:
+End-user provider keys live in `~/.koincode/config.json` (written by the CLI's `/setup` flow), not `.env`; `.env` is for local dev/build only:
 
 ```
 API_URL=http://localhost:37420

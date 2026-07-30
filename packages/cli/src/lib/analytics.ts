@@ -115,6 +115,17 @@ export function trackSessionResumed() {
   track("Session Resumed");
 }
 
+export function trackApiKeyMissing(props: { model: string }) {
+  track("API Key Missing", {
+    ...props,
+    provider: resolveProvider(props.model),
+  });
+}
+
+export function trackApiKeySaved(props: { provider: string }) {
+  track("API Key Saved", props);
+}
+
 export function trackError(props: { source: string; message: string }) {
   track("Error Occurred", {
     source: props.source,

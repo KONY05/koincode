@@ -14,6 +14,7 @@ import { CWD, getGitBranch } from "../utils/helper";
 import { hasApiKeyForModel } from "../lib/usage";
 import { version } from "../../package.json";
 import { useUpdateCheck } from "../hooks/use-update-check";
+import { trackApiKeyMissing } from "../lib/analytics";
 
 const HOME_TIPS = [
   "Press tab to toggle between Plan and Build mode",
@@ -33,7 +34,7 @@ const GIT_BRANCH = getGitBranch();
 // a real filesystem path, since it's compared against candidate directories below.
 const PRIMARY_ROOT: WorkspaceRoot = { label: basename(process.cwd()), path: process.cwd() };
 
-const NO_API_KEY_MESSAGE =
+export const NO_API_KEY_MESSAGE =
   "No API key configured for this model. Run `koincode --openrouter-key <key>` or use /setup.";
 
 export function Home() {
@@ -69,6 +70,7 @@ export function Home() {
   const handleSubmit = useCallback(
     (text: string) => {
       if (!hasApiKeyForModel(model)) {
+        trackApiKeyMissing({ model: model });
         toast.show({ variant: "error", message: NO_API_KEY_MESSAGE });
         return;
       }
@@ -80,6 +82,7 @@ export function Home() {
   const handleInvokeSkill = useCallback(
     async (skillName: string) => {
       if (!hasApiKeyForModel(model)) {
+        trackApiKeyMissing({ model: model });
         toast.show({ variant: "error", message: NO_API_KEY_MESSAGE });
         return;
       }

@@ -1,5 +1,4 @@
-import { useTerminalDimensions } from "@opentui/react";
-
+import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 
 type Props = {
@@ -7,20 +6,19 @@ type Props = {
 };
 
 export function SystemMessage({ text }: Props) {
-  const { width } = useTerminalDimensions();
   const { colors } = useTheme();
 
- const content = ` ${text} `;
-  const halfWidth = Math.max(0, Math.floor(width / 4) - Math.ceil(content.length / 2));
-  const leftDashes = halfWidth;
-  const rightDashes = Math.max(0, Math.floor(width / 2) - content.length - leftDashes - 1);
-
   return (
-    <box flexDirection="row" width="100%" paddingY={1}>
-      <text fg={colors.dimSeparator}>
-        {"─".repeat(leftDashes)}{content}
-        {"─".repeat(rightDashes)}
-      </text>
+    <box width="100%" paddingY={1}>
+      <box
+        width="100%"
+        border={["top"]}
+        borderColor={colors.dimSeparator}
+        customBorderChars={{ ...EmptyBorder, horizontal: "─" }}
+        title={` ${text} `}
+        titleAlignment="center"
+        titleColor={colors.dimSeparator}
+      />
     </box>
   );
 }

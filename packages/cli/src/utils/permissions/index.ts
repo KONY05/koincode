@@ -27,6 +27,8 @@ export type PendingApproval = {
   tier: PermissionTier;
   /** When true, the widget shows "Allow for session" instead of "Allow for project". */
   sessionOnly?: boolean;
+  /** Model-authored human-readable summary of what the command does, e.g. "List files in current directory". */
+  summary?: string;
 };
 
 export type ApprovalResponse =
@@ -49,8 +51,14 @@ export function getPermissionInfo(
 ): PermissionInfo {
   switch (toolName) {
     case "shell": {
-      const { command } = input as { command: string };
-      return getShellPermissionInfo(command, extraSensitivePatterns);
+      const { command, description } = input as {
+        command: string;
+        description?: string;
+      };
+      const info = getShellPermissionInfo(command, extraSensitivePatterns);
+      return info.requiresApproval && description
+        ? { ...info, summary: description }
+        : info;
     }
     case "serverStart": {
       const { command, port } = input as { command: string; port: number };

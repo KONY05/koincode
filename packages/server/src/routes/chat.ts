@@ -188,7 +188,20 @@ const app = new Hono().post("/", submitValidator, async (c) => {
           const prev = deduped[deduped.length - 1];
           if (prev && prev.role === msg.role) {
             mergedAwayIds.add(prev.id);
-            deduped[deduped.length - 1] = { ...msg, parts: [...prev.parts, ...msg.parts] };
+            // Snapshot what `prev` looked like before this fold (carrying forward any
+            // history it had already accumulated) so a later delete can peel back one
+            // attempt at a time instead of destroying the whole merged chain. The
+            // flattened `parts` below — the only thing the model ever sees — is
+            // unchanged by this; mergeHistory is a parallel record for reconstruction.
+            const prevHistory = prev.metadata?.mergeHistory ?? [];
+            deduped[deduped.length - 1] = {
+              ...msg,
+              parts: [...prev.parts, ...msg.parts],
+              metadata: {
+                ...msg.metadata,
+                mergeHistory: [...prevHistory, { id: prev.id, parts: prev.parts }],
+              },
+            };
           } else {
             deduped.push(msg);
           }
