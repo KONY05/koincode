@@ -263,7 +263,64 @@ const app = new Hono()
       return c.json({ error: "No user messages found" }, 404);
     }
 
-    // Delete all messages from the last user message onwards and update session timestamp
+    // One user row can cover several attempts: routes/chat.ts folds consecutive
+    // orphaned user messages (an interrupt or error left them unanswered) into a
+    // single row so providers never receive two user turns in a row, recording each
+    // pre-merge state in metadata.mergeHistory. Delete is therefore a one-layer undo
+    // — peel off just the most recent attempt and restore the row to its previous
+    // state, rather than wiping every attempt the row accumulated. Deleting again
+    // peels back another layer, until the row is a single never-merged message and
+    // the base case below applies.
+    // See context/feature-specs/53-preserve-orphaned-messages-on-delete.md
+    const parsed = (() => {
+      try {
+        return JSON.parse(lastUserMessage.content);
+      } catch {
+        return null;
+      }
+    })();
+    const mergeHistory = parsed?.metadata?.mergeHistory;
+
+    if (Array.isArray(mergeHistory) && mergeHistory.length > 0) {
+      const restored = mergeHistory[mergeHistory.length - 1];
+      const remaining = mergeHistory.slice(0, -1);
+
+      await db.$transaction([
+        // Strictly after, not gte — the row itself is being restored, not removed.
+        // An orphaned turn shouldn't have anything after it, but stay symmetric with
+        // the base case rather than assume.
+        db.message.deleteMany({
+          where: {
+            sessionId: id,
+            order: { gt: lastUserMessage.order },
+          },
+        }),
+        db.message.update({
+          where: { id: lastUserMessage.id },
+          data: {
+            content: JSON.stringify({
+              ...parsed,
+              id: restored.id,
+              parts: restored.parts,
+              metadata: {
+                ...parsed.metadata,
+                // undefined drops the key entirely on stringify, returning the row
+                // to the base case once the last layer has been peeled.
+                mergeHistory: remaining.length > 0 ? remaining : undefined,
+              },
+            }),
+          },
+        }),
+        db.session.update({
+          where: { id },
+          data: { updatedAt: new Date() },
+        }),
+      ]);
+
+      return c.json({ success: true, restored: true });
+    }
+
+    // Base case — a single, never-merged message: delete it and everything after.
     await db.$transaction([
       db.message.deleteMany({
         where: {
@@ -277,7 +334,7 @@ const app = new Hono()
       }),
     ]);
 
-    return c.json({ success: true });
+    return c.json({ success: true, restored: false });
   })
   .post("/:id/compact", async (c) => {
     const id = c.req.param("id");

@@ -1,5 +1,5 @@
 import { basename } from "path";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, type RefObject } from "react";
 import { useParams, useNavigate, useLocation } from "react-router";
 import { useKeyboard } from "@opentui/react";
 import type { InferResponseType } from "hono/client";
@@ -135,12 +135,14 @@ function countMessagesBeforeLastBoundary(rawMessages: unknown[]): number {
 function SessionChat({
   session,
   initialState,
+  hasAutoSubmittedRef,
   onDeleteLastMessage,
   onHandoff,
   isIncognito = false,
 }: {
   session: SessionData;
   initialState: z.infer<typeof initialStateSchema> | null;
+  hasAutoSubmittedRef: RefObject<boolean>;
   onDeleteLastMessage?: () => void;
   onHandoff: () => Promise<void>;
   isIncognito?: boolean;
@@ -167,7 +169,6 @@ function SessionChat({
     () => session.roots,
   );
   const lastEscapePressRef = useRef<number>(0);
-  const hasAutoSubmittedRef = useRef(false);
   const [pendingRevertConfirm, setPendingRevertConfirm] =
     useState<PendingRevertConfirm | null>(null);
 
@@ -237,7 +238,7 @@ function SessionChat({
       }
     };
     void autoSubmit();
-  }, [initialState, initialMessages, submit, toast]);
+  }, [initialState, initialMessages, submit, toast, hasAutoSubmittedRef]);
 
   // Deleting the last turn also reverts any writeFile/editFile mutations it made
   // (shell mutations aren't tracked — not safely revertible). If the turn made no
@@ -599,6 +600,15 @@ export function Session() {
   const location = useLocation();
   const toast = useToast();
 
+  // Guards the "auto-submit first message from NewSession" effect below.
+  // Declared here (not inside SessionChat) so it survives handleDeleteLastMessage's
+  // force-remount of SessionChat — otherwise a fresh ref on remount re-arms the
+  // guard, and if the delete leaves the session with zero persisted messages
+  // (e.g. an errored turn that got merged into a later one server-side, then
+  // that merged row itself deleted), the effect re-fires and silently resubmits
+  // the original first message.
+  const hasAutoSubmittedRef = useRef(false);
+
   const initialState = useMemo(() => {
     const parsed = initialStateSchema.safeParse(location.state);
     return parsed.success ? parsed.data : null;
@@ -733,6 +743,7 @@ export function Session() {
       key={session.id}
       session={session}
       initialState={initialState}
+      hasAutoSubmittedRef={hasAutoSubmittedRef}
       onDeleteLastMessage={handleDeleteLastMessage}
       onHandoff={handleHandoff}
       isIncognito={isIncognito}
