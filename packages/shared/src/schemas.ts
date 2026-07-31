@@ -352,7 +352,7 @@ export const readOnlyToolContracts = {
   }),
   memoryAdd: tool({
     description:
-      "Save a new memory with a unique key. Use this to remember facts, preferences, or context that should persist across sessions.",
+      "Save a new memory with a unique key. Use this to remember facts, preferences, or context that should persist across sessions — call it proactively, without waiting to be asked, as soon as you learn something durable.",
     inputSchema: toolInputSchemas.memoryAdd,
   }),
   memoryUpdate: tool({
