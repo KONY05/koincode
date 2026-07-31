@@ -594,6 +594,8 @@ export function BotMessage({
 
                 const key = `reasoning-${j}`;
 
+                const isPartStreaming = part.state === "streaming";
+
                 const isExpanded = streaming || openThinking.has(key);
 
                 return (
@@ -612,7 +614,7 @@ export function BotMessage({
                       onMouseDown={() => !streaming && toggleThinking(key)}
                     >
                       <text attributes={TextAttributes.DIM}>
-                        {streaming ? (
+                        {isPartStreaming ? (
                           <em fg={colors.thinking}>Thinking...</em>
                         ) : (
                           <em fg={colors.thinking}>Thought about it</em>

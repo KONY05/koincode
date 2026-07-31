@@ -75,9 +75,7 @@ export function buildSystemPrompt({ mode, browserTools, userMemory, skillsManife
     parts.push(getSkillsSection(skillsManifest));
   }
 
-  if (userMemory) {
-    parts.push(getMemorySection(userMemory));
-  }
+  parts.push(getMemorySection(userMemory));
 
   parts.push(getCompactSummarySection());
 
@@ -295,8 +293,9 @@ When asked to create or save a skill, call \`writeSkill\` with the following SKI
 \`\`\`
 ---
 name: kebab-case-name
-description: One sentence — what this skill does
+description: What the skill does AND when to use it, e.g. "Use when the user asks to X, Y, or after Z happens." This line alone decides whether the skill gets loaded — a generic one-sentence summary won't trigger reliably.
 tools: [list, of, tools, needed]
+aliases: [alt-name]  # optional — other command-menu names that should also match
 scope: global | project
 ---
 
@@ -309,6 +308,8 @@ Numbered breakdown for multi-stage tasks.
 ## Notes (optional)
 Edge cases, warnings, or caveats.
 \`\`\`
+
+Keep SKILL.md itself short — a screen or two of directive prose, not a reference manual. It's read in full every time the skill loads, so anything long (full file templates, exhaustive option lists, background reading) belongs in a separate file under \`references/\` that SKILL.md points to and tells the agent to open only when actually needed. Same for large static files — put them under \`assets/\`, don't inline them. \`writeSkill\` only ever writes SKILL.md itself — after calling it, use \`writeFile\` to add any \`references/\`, \`assets/\`, or \`scripts/\` files, writing them under the \`skillDir\` path \`writeSkill\` returned in its result.
 
 **Rules for skill scripts** (files in \`scripts/\`):
 - Never use interactive prompts — agents run in non-interactive shells
@@ -350,12 +351,23 @@ function getCompactSummarySection(): string {
 If the conversation begins with a message like "Here is a summary of the work completed so far…" or "Here is a summary of work completed in a previous session…", that is a compacted context summary. **Read it fully before responding or using any tools.** It contains all necessary context — do not use tools like \`glob\`, \`readFile\`, or \`shell\` to re-derive information already present in the summary. Treat it as your complete working memory for the session.`;
 }
 
-function getMemorySection(memory: string): string {
-  return `# Remembered Context
-
-The following was stored from previous interactions:
+function getMemorySection(memory?: string): string {
+  const stored = memory
+    ? `The following was stored from previous interactions:
 
 ${memory}
 
-Use this to personalize responses and maintain consistency.`;
+Use this to personalize responses and maintain consistency.
+
+`
+    : "";
+
+  return `# Memory
+
+${stored}Call \`memoryAdd\` proactively, the moment you learn something durable — don't wait for the user to tell you to remember it. Save it when you hit:
+- A machine/environment quirk that broke your first approach (a shadowed or aliased command, a nonstandard PATH, a tool behaving differently than expected here) — so the same dead end isn't rediscovered next session.
+- A correction from the user about how you should approach something.
+- A stated user preference (tools, workflow, style).
+
+Don't save project file contents, code, or anything you created this session — that's recoverable by rereading the repo, not memory-worthy. Keep each memory's value a short, durable fact, not a session recap.`;
 }

@@ -27,15 +27,24 @@ export default function PathToolView({
   const { path: inputPath } = input as { path?: string };
   if (typeof inputPath !== "string") return null;
 
-  const outputPath =
+  const outputObj =
     !error && output && typeof output === "object"
-      ? (output as { path?: string }).path
+      ? (output as { path?: string; startLine?: number; endLine?: number })
       : undefined;
-  const path = outputPath || inputPath;
+  const path = outputObj?.path || inputPath;
+
+  const { startLine, endLine } = outputObj ?? {};
+  const range =
+    startLine && endLine
+      ? startLine === endLine
+        ? ` (line ${startLine})`
+        : ` (lines ${startLine}–${endLine})`
+      : "";
 
   return (
     <text attributes={TextAttributes.DIM}>
       <em fg={colors.info}>{label}:</em> {path}
+      {range}
       {pending ? " …" : ""}
       {error ? ` ${error}` : ""}
     </text>
