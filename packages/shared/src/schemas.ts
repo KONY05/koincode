@@ -21,8 +21,8 @@ export type TodoItem = z.infer<typeof todoItemSchema>;
 export const toolInputSchemas = {
   readFile: z.object({
     path: z.string().describe("Relative path to the file to read, or an absolute path to address a secondary workspace root"),
-    offset: z.number().int().min(0).optional().describe("Character offset to start reading from (for paginating large files)"),
-    limit: z.number().int().min(1).optional().describe("Maximum number of characters to read"),
+    offset: z.number().int().min(1).optional().describe("1-indexed line number to start reading from (for paginating large files, or jumping straight to a known line)"),
+    limit: z.number().int().min(1).optional().describe("Maximum number of lines to read"),
   }),
   listDirectory: z.object({
     path: z.string().default(".").describe("Relative directory path to list, or an absolute path to address a secondary workspace root"),
@@ -302,7 +302,7 @@ export const toolInputSchemas = {
 
 export const readOnlyToolContracts = {
   readFile: tool({
-    description: "Read a file from the current project directory. Supports plain text/code files as well as .pdf and .docx, which are extracted to plain text (visual layout, tables, and embedded images are not preserved). For large files that get truncated, call again with an offset to read the next chunk.",
+    description: "Read a file from the current project directory. Supports plain text/code files as well as .pdf and .docx, which are extracted to plain text (visual layout, tables, and embedded images are not preserved). Rejects binary files (images, archives, executables) with an error instead of returning garbage. Reads by line: `offset` is a 1-indexed line number and `limit` a line count, so to read around a known line just pass that line directly — no character math. Content is returned with `line: ` prefixes. The response reports the `startLine`/`endLine` actually returned; if it comes back truncated, call again with the given `nextOffset`. A very long individual line is truncated in the middle of a multi-line read — re-read it alone with `limit: 1` to get more of it (up to a larger cap).",
     inputSchema: toolInputSchemas.readFile,
   }),
   listDirectory: tool({
