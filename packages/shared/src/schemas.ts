@@ -6,8 +6,6 @@ export const Mode = {
   PLAN: "PLAN",
 } as const;
 
-export const modeSchema = z.enum([Mode.BUILD, Mode.PLAN]);
-
 export type ModeType = (typeof Mode)[keyof typeof Mode];
 
 const todoItemSchema = z.object({
@@ -120,7 +118,9 @@ export const toolInputSchemas = {
       .describe("Whether to also accept a custom typed response"),
   }),
   switchMode: z.object({
-    target: modeSchema.describe("The mode to switch into"),
+    // An agent id, not a two-value enum — the selectable set is whatever agents the
+    // user has defined, listed for the model in the system prompt's agent manifest.
+    target: z.string().describe("The id of the agent/mode to switch into"),
     reason: z
       .string()
       .describe("Short explanation of why the switch is needed"),
@@ -143,10 +143,13 @@ export const toolInputSchemas = {
       .string()
       .describe("Short description of what this sub-agent will do"),
     task: z.string().describe("The full task to delegate to the sub-agent"),
-    startingMode: modeSchema
+    startingMode: z
+      .string()
       .optional()
       .default("PLAN")
-      .describe("Starting mode for the sub-agent"),
+      .describe(
+        "Which agent the sub-agent runs as — a built-in mode (\"PLAN\"/\"BUILD\") or the id of a user-defined agent from the Agents list. A user-defined agent brings its own instructions, tool restrictions and model, so prefer one when it matches the task. Unknown ids fall back to BUILD.",
+      ),
     runInBackground: z
       .boolean()
       .optional()
@@ -347,7 +350,7 @@ export const readOnlyToolContracts = {
   }),
   switchMode: tool({
     description:
-      "Switch between PLAN (read-only analysis) and BUILD (file editing and shell) modes. Use when the task requires capabilities not available in the current mode. No-op if already in the target mode.",
+      "Switch the session into a different agent/mode. Built-ins are PLAN (read-only analysis) and BUILD (file editing and shell); any user-defined agents are listed in the Agents section of your instructions. Use when the task requires capabilities the current agent doesn't have. No-op if already in the target.",
     inputSchema: toolInputSchemas.switchMode,
   }),
   memoryAdd: tool({
@@ -474,7 +477,6 @@ export const buildToolContractsWithBrowser = {
 
 export type ToolContracts = typeof buildToolContractsWithBrowser;
 
-export function getToolContracts(mode: ModeType, browserTools?: boolean) {
-  if (mode === Mode.PLAN) return readOnlyToolContracts;
-  return browserTools ? buildToolContractsWithBrowser : buildToolContracts;
-}
+// `getToolContracts` now lives in `agents.ts` — it needs the agent registry to
+// answer, and keeping it here would create a schemas ↔ agents import cycle.
+// Consumers import it from the package root, so their imports are unchanged.

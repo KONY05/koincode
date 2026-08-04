@@ -6,7 +6,6 @@ import type { InferResponseType } from "hono/client";
 import { z } from "zod";
 
 import {
-  modeSchema,
   BOUNDARY_ROLES,
   findRootConflict,
   makeRootLabel,
@@ -41,7 +40,7 @@ const workspaceRootSchema = z.object({ label: z.string(), path: z.string() });
 
 const initialStateSchema = z.object({
   message: z.string(),
-  mode: modeSchema,
+  mode: z.string().min(1),
   model: z.string(),
   pendingRoots: z.array(workspaceRootSchema).optional().default([]),
   isIncognito: z.boolean().optional().default(false),

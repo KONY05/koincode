@@ -3,7 +3,6 @@ import { z } from "zod";
 import { useNavigate, useLocation } from "react-router";
 
 import { basename } from "path";
-import { modeSchema } from "@koincode/shared";
 import { SessionShell } from "../components/session-shell";
 import { UserMessage } from "../components/messages";
 import { useToast } from "../providers/toast";
@@ -16,7 +15,7 @@ const workspaceRootSchema = z.object({ label: z.string(), path: z.string() });
 
 const newSessionStateSchema = z.object({
   message: z.string(),
-  mode: modeSchema,
+  mode: z.string().min(1),
   model: z.string(),
   pendingRoots: z.array(workspaceRootSchema).optional().default([]),
   isIncognito: z.boolean().optional().default(false),

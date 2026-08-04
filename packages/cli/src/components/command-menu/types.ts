@@ -1,6 +1,6 @@
 import type { DialogContextValue } from "../../providers/dialog";
 import type { ToastContextValue } from "../../providers/toast";
-import type { ModeType, ReasoningEffortLevel, WorkspaceRoot } from "@koincode/shared";
+import type { AgentId, ReasoningEffortLevel, WorkspaceRoot } from "@koincode/shared";
 import type { ContextUsage } from "../../hooks/use-chat";
 
 export type CommandContext = {
@@ -9,10 +9,10 @@ export type CommandContext = {
   toast: ToastContextValue;
   dialog: DialogContextValue;
   navigate: (path: string) => void;
-  mode: ModeType;
+  mode: AgentId;
   model: string;
   modelDisplayName: string;
-  setMode: (mode: ModeType) => void;
+  setMode: (mode: AgentId) => void;
   setModel: (model: string) => void;
   subagentModel: string | null;
   subagentModelDisplayName: string | null;

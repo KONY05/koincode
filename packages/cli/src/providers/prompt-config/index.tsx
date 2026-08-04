@@ -8,9 +8,10 @@ import {
   isCustomOrOllamaModelId,
   getReasoningEffortLevels,
   Mode,
-  type ModeType,
+  type AgentId,
   type ReasoningEffortLevel,
 } from "@koincode/shared";
+import { loadPrimaryAgents, type ResolvedAgent } from "../../lib/agents";
 import {
   readGlobalConfig,
   updateGlobalConfig,
@@ -20,9 +21,15 @@ import { trackModelChanged } from "../../lib/analytics";
 import { FALLBACK_MODEL_ID } from "../../../../shared/src/models";
 
 type PromptConfigContextValue = {
-  mode: ModeType;
+  /** Active agent id. Still called `mode` because it *is* the session's mode —
+   *  BUILD and PLAN are now just two entries in a registry user agents also join. */
+  mode: AgentId;
   toggleMode: () => void;
-  setMode: (mode: ModeType) => void;
+  setMode: (mode: AgentId) => void;
+  /** The resolved definition for `mode`, falling back to BUILD (Decision 10). */
+  agent: ResolvedAgent;
+  /** Every agent selectable as a top-level mode, in registry order. */
+  primaryAgents: ResolvedAgent[];
   model: string;
   /** `model` resolved for display — custom-model opaque ids swapped for their real modelId. */
   modelDisplayName: string;
@@ -94,7 +101,7 @@ function resolveInitialSubagentModel(): string | null {
 }
 
 export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
-  const [mode, setMode] = useState<ModeType>(Mode.BUILD);
+  const [mode, setMode] = useState<AgentId>(Mode.BUILD);
   const [model, setModelState] = useState<string>(resolveInitialModel);
   const [subagentModel, setSubagentModelState] = useState<string | null>(
     resolveInitialSubagentModel,
@@ -129,7 +136,7 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   // override rather than something that overwrites the user's actual mode choice.
   // A ref, not state: it's read/written only inside setIncognito's own logic, never
   // rendered, so it doesn't need to trigger a re-render on its own.
-  const modeBeforeIncognitoRef = useRef<ModeType | null>(null);
+  const modeBeforeIncognitoRef = useRef<AgentId | null>(null);
 
   // Mirrors `mode` into a ref so setIncognito/toggleIncognito can read its *current*
   // value without needing `mode` in their own dependency array. This matters: those
@@ -158,9 +165,32 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
     return levels.includes("medium") ? "medium" : (levels[0] ?? null);
   }, [model, reasoningEffortPreference]);
 
+  // Recomputed on every render rather than memoized — `loadPrimaryAgents()` re-scans
+  // the filesystem on each call (see `lib/agents.ts`), so this is always current.
+  // This provider only re-renders on its own state changes (Tab press, model
+  // switch, etc.), not on every keystroke elsewhere in the app, so re-scanning a
+  // handful of small markdown files here is not a hot path.
+  const primaryAgents = loadPrimaryAgents();
+
+  const agent = useMemo(
+    () =>
+      primaryAgents.find((a) => a.id.toLowerCase() === mode.toLowerCase()) ??
+      primaryAgents.find((a) => a.id === Mode.BUILD) ??
+      primaryAgents[0]!,
+    [primaryAgents, mode],
+  );
+
+  // Tab cycles through primary agents in registry order. With only the two
+  // built-ins present this is exactly the old BUILD ↔ PLAN toggle.
   const toggleMode = useCallback(() => {
-    setMode((m) => (m === Mode.BUILD ? Mode.PLAN : Mode.BUILD));
-  }, []);
+    setMode((m) => {
+      const index = primaryAgents.findIndex(
+        (a) => a.id.toLowerCase() === m.toLowerCase(),
+      );
+      const next = primaryAgents[(index + 1) % primaryAgents.length];
+      return next?.id ?? m;
+    });
+  }, [primaryAgents]);
 
   const setModel = useCallback((m: string) => {
     setModelState(m);
@@ -235,6 +265,8 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
         mode,
         toggleMode,
         setMode,
+        agent,
+        primaryAgents,
         model,
         modelDisplayName,
         setModel,

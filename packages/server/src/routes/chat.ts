@@ -16,11 +16,16 @@ import {
 
 import { db } from "@koincode/database/client";
 import {
-  getToolContracts,
-  modeSchema,
+  agentManifestEntrySchema,
+  agentWireSchema,
+  isToolName,
+  resolveAgent,
+  resolveToolContracts,
   IMAGE_PLACEHOLDER_RE,
   parseWorkspaceRoots,
   REASONING_EFFORT_LEVELS,
+  type AgentDefinition,
+  type AgentWire,
   type ChatMessageMetadata,
   type ToolContracts,
 } from "@koincode/shared";
@@ -49,6 +54,34 @@ const instructionFileEntrySchema = z.object({
   content: z.string(),
 });
 
+/**
+ * Turns the request's agent payload into a full `AgentDefinition`. Falls back to
+ * resolving `mode` against the built-in registry when no payload is present —
+ * which covers older clients and any caller that only knows about BUILD/PLAN.
+ */
+function toAgentDefinition(wire: AgentWire | undefined, mode: string): AgentDefinition {
+  if (!wire) return resolveAgent(mode);
+  return {
+    ...wire,
+    // the spread already carries the value, but the
+    // wire type is `string[]` (the schema accepts any string) while `AgentDefinition`
+    // wants `ToolName[]`. Narrowed by filtering rather than an `as` assertion: this is
+    // network input, so nothing guarantees the names are real, and an unchecked
+    // assertion here would let a bogus name travel as a `ToolName` on the type level.
+    // Dropping unknown names matches what `resolveToolContracts` does anyway — doing it
+    // at the boundary just makes that rule visible where the data arrives.
+    //
+    // Deliberately permissive rather than rejecting the request: the CLI already drops
+    // unknown names at load time, so anything reaching here is version skew (a CLI built
+    // against a newer tool list talking to an older long-lived server daemon), and
+    // degrading one tool beats 400-ing the whole turn.
+    tools: wire.tools.filter(isToolName),
+    // Never sent on the wire and never evaluated server-side — the permission overlay is
+    // enforced entirely in the CLI. Explicit `undefined` so that stays obvious.
+    permission: undefined,
+  };
+}
+
 const submitSchema = z.object({
   id: z.string(),
   messages: z
@@ -63,7 +96,11 @@ const submitSchema = z.object({
       }),
     )
     .min(1),
-  mode: modeSchema,
+  // Agent id, not a closed enum — the valid set is whatever the user's
+  // .koincode/agents/ directory contains. Unknown ids resolve to BUILD (Decision 10).
+  mode: z.string().min(1),
+  agent: agentWireSchema.optional(),
+  agentsManifest: z.array(agentManifestEntrySchema).optional().default([]),
   model: z.string().refine(isSupportedChatModel, "Unsupported model"),
   reasoningEffort: z.enum(REASONING_EFFORT_LEVELS).optional(),
   browserTools: z.boolean().optional().default(false),
@@ -107,7 +144,9 @@ function hasPendingToolCalls(message: KoincodeUIMessage) {
 
 
 const app = new Hono().post("/", submitValidator, async (c) => {
-  const { id, messages, mode, model, reasoningEffort, browserTools, skillsManifest, ideActiveFile, ideSelection, instructionFiles, incognito, roots: requestRoots } = c.req.valid("json");
+  const { id, messages, mode, agent: wireAgent, agentsManifest, model, reasoningEffort, browserTools, skillsManifest, ideActiveFile, ideSelection, instructionFiles, incognito, roots: requestRoots } = c.req.valid("json");
+
+  const agent = toAgentDefinition(wireAgent, mode);
 
   const session = incognito
     ? null
@@ -119,7 +158,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
   }
 
   const startTime = Date.now();
-  const tools = { ...getToolContracts(mode, browserTools), ...getMcpTools() };
+  const tools = { ...resolveToolContracts(agent, browserTools), ...getMcpTools() };
   const mcpStatus = getMcpServerStatus();
   const resolvedModel = await resolveChatModel(model, reasoningEffort);
   const memories = await db.memory.findMany({ orderBy: { createdAt: "asc" } });
@@ -308,7 +347,7 @@ const app = new Hono().post("/", submitValidator, async (c) => {
 
   const promptCaching = resolvedModel.promptCaching === true;
   const roots = incognito ? (requestRoots ?? []) : parseWorkspaceRoots(session!.roots);
-  const systemPrompt = buildSystemPrompt({ mode, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus, roots, instructionFiles });
+  const systemPrompt = buildSystemPrompt({ agent, agentsManifest, browserTools, userMemory, skillsManifest, mcpServers: mcpStatus, roots, instructionFiles });
   // Order matters: append the volatile IDE context to the newest message's content
   // *before* marking that message as this turn's cache breakpoint, so the breakpoint's
   // hash covers the final content, not a stale pre-append snapshot.
@@ -479,7 +518,11 @@ const coreMessageSchema = z.object({
 
 const agentStepSchema = z.object({
   messages: z.array(coreMessageSchema).min(1),
-  mode: modeSchema,
+  // Agent id, not a closed enum — the valid set is whatever the user's
+  // .koincode/agents/ directory contains. Unknown ids resolve to BUILD (Decision 10).
+  mode: z.string().min(1),
+  agent: agentWireSchema.optional(),
+  agentsManifest: z.array(agentManifestEntrySchema).optional().default([]),
   model: z.string().refine(isSupportedChatModel, "Unsupported model"),
   instructionFiles: z.array(instructionFileEntrySchema).optional().default([]),
 });
@@ -494,14 +537,15 @@ const appWithAgentStep = app.post(
   "/agent-step",
   agentStepValidator,
   async (c) => {
-    const { messages, mode, model, instructionFiles } = c.req.valid("json");
+    const { messages, mode, agent: wireAgent, model, instructionFiles } = c.req.valid("json");
 
-    const tools = { ...getToolContracts(mode), ...getMcpTools() };
+    const agent = toAgentDefinition(wireAgent, mode);
+    const tools = { ...resolveToolContracts(agent), ...getMcpTools() };
     const resolvedModel = await resolveChatModel(model);
 
     const result = await generateText({
       model: resolvedModel.model,
-      system: buildSystemPrompt({ mode, instructionFiles }),
+      system: buildSystemPrompt({ agent, instructionFiles }),
       messages,
       tools,
       stopWhen: stepCountIs(1),

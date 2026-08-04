@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { TextAttributes } from "@opentui/core";
 import { basename } from "path";
@@ -15,6 +15,7 @@ import { hasApiKeyForModel } from "../lib/usage";
 import { version } from "../../package.json";
 import { useUpdateCheck } from "../hooks/use-update-check";
 import { trackApiKeyMissing } from "../lib/analytics";
+import { getAgentLoadWarnings } from "../lib/agents";
 
 const HOME_TIPS = [
   "Press tab to toggle between Plan and Build mode",
@@ -66,6 +67,11 @@ export function Home() {
   const [tipIndex] = useState(() => Math.floor(Math.random() * HOME_TIPS.length));
   const [incognitoTipIndex] = useState(() => Math.floor(Math.random() * INCOGNITO_TIPS.length));
   const tip = incognito ? INCOGNITO_TIPS[incognitoTipIndex] : HOME_TIPS[tipIndex];
+
+  // Surfaced deterministically (not folded into the rotating tip pool below) — a
+  // dropped permission rule or skipped agent needs to be seen every time, not on a
+  // coin flip disguised as a cosmetic hint.
+  const agentWarnings = useMemo(() => getAgentLoadWarnings(), []);
 
   const handleSubmit = useCallback(
     (text: string) => {
@@ -133,6 +139,15 @@ export function Home() {
         height="100%"
       >
         <Header />
+        {agentWarnings.length > 0 && (
+          <box width="100%" maxWidth={78} paddingX={2} flexDirection="column" alignItems="center">
+            {agentWarnings.map((w) => (
+              <text key={`${w.filePath}:${w.agentId}`} fg={colors.error}>
+                ⚠ {w.agentId}: {w.message}
+              </text>
+            ))}
+          </box>
+        )}
         <box width="100%" maxWidth={78} paddingX={2} flexDirection="column" gap={1}>
           <InputBar onSubmit={handleSubmit} showUpdateStatus={false} />
           <box flexDirection="row" gap={1} flexShrink={0} marginLeft="auto">

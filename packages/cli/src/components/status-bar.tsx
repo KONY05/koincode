@@ -7,7 +7,7 @@ import { usePromptConfig } from "../providers/prompt-config";
 import { useUpdateCheck } from "../hooks/use-update-check";
 import { useIdeContext } from "../hooks/use-ide-context";
 import { useMcpServers } from "../hooks/use-mcp-servers";
-import { Mode } from "@koincode/shared";
+import { agentCanMutate } from "@koincode/shared";
 import type { ContextUsage } from "../hooks/use-chat";
 import { SIDEBAR_WIDTH } from "./info-sidebar";
 
@@ -47,7 +47,7 @@ type Props = {
 };
 
 export function StatusBar({ contextUsage, showUpdateStatus = true }: Props) {
-  const { mode, modelDisplayName, voiceInput, infoSidebarVisible, reasoningEffort, incognito } = usePromptConfig();
+  const { agent, modelDisplayName, voiceInput, infoSidebarVisible, reasoningEffort, incognito } = usePromptConfig();
   const { colors } = useTheme();
   const updateInfo = useUpdateCheck();
   const { width: terminalWidth } = useTerminalDimensions();
@@ -72,18 +72,20 @@ export function StatusBar({ contextUsage, showUpdateStatus = true }: Props) {
       RIGHT_SECTION_ESTIMATE,
   );
 
-  // "Build"/"Plan" is always shown in full — it's short and meant to stay put, and
-  // never truncates (unlike modelDisplayName/updateLabel below). When incognito,
-  // prefix it rather than replace it — the underlying mode still matters (Build can
-  // still write real files even while incognito), so hiding it behind "Incognito"
-  // alone would leave no way to tell which one is active. The full "Incognito · Build"
-  // is the default (unlike modelDisplayName/updateLabel, this whole label is otherwise
-  // exempt from truncation, so it needs its own explicit fits-or-not check); only once
-  // it wouldn't fit at all does it fall back to "Inc · Build" — chosen over shedding it
-  // to nothing, since "Plan"/"Build" has no other on-screen signal and must stay, while
-  // incognito-ness is already reinforced independently by the dashed input-bar/message
-  // border, making the word "Incognito" itself the safer half to compress.
-  const modeShortLabel = mode === Mode.PLAN ? "Plan" : "Build";
+  // The active agent's name is always shown in full and never truncates (unlike
+  // modelDisplayName/updateLabel below) — it's the only on-screen signal of which
+  // agent is running, so it must stay put. When incognito, prefix rather than
+  // replace it: the underlying agent still matters (a writing agent can still touch
+  // real files while incognito), so hiding it behind "Incognito" alone would leave
+  // no way to tell which is active. Full "Incognito · Build" is the default; only if
+  // that wouldn't fit at all does it fall back to "Inc · Build" — compressing the
+  // word "Incognito" is the safer half, since incognito-ness is already reinforced
+  // by the dashed input-bar/message border while the agent name is not.
+  //
+  // Reads `agent.label` rather than deriving from the id: this was
+  // `mode === PLAN ? "Plan" : "Build"`, which rendered *every* user-defined agent as
+  // "Build", so switching into one looked like nothing had happened.
+  const modeShortLabel = agent.label;
   const modeFullLabel = incognito ? `Incognito · ${modeShortLabel}` : modeShortLabel;
   const modeAbbrevLabel = incognito ? `Inc · ${modeShortLabel}` : modeShortLabel;
   const modeLabel = modeFullLabel.length <= availableForLeft ? modeFullLabel : modeAbbrevLabel;
@@ -158,7 +160,7 @@ export function StatusBar({ contextUsage, showUpdateStatus = true }: Props) {
   return (
     <box flexDirection="row" gap={1} width="100%" justifyContent="space-between">
       <box flexDirection="row" gap={1} flexShrink={1} overflow="hidden">
-        <text wrapMode="none" fg={incognito ? colors.info : mode === Mode.PLAN ? colors.planMode : colors.primary}>
+        <text wrapMode="none" fg={incognito ? colors.info : agentCanMutate(agent) ? colors.primary : colors.planMode}>
           {modeLabel}
         </text>
 

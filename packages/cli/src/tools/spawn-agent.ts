@@ -6,9 +6,16 @@
  * No React, no UI — purely async.
  */
 
-import { type ModeType, toolInputSchemas, type WorkspaceRoot } from "@koincode/shared";
+import {
+  resolveAgent,
+  type AgentId,
+  toolInputSchemas,
+  type WorkspaceRoot,
+} from "@koincode/shared";
 import { executeLocalTool } from "./index";
+import { loadAgents } from "../lib/agents";
 import { getPermissionInfo } from "../utils/permissions";
+import { isAllowedByAgentOverlay } from "../utils/permissions/agent-overlay";
 import { isPermittedForProject } from "../utils/configs/project-config";
 import { fetchWithRestart } from "../lib/api-client";
 import { getInstructionFilesForRequest } from "../lib/instruction-files";
@@ -63,7 +70,7 @@ type SpawnAgentInput = {
   name: string;
   description: string;
   task: string;
-  startingMode?: ModeType;
+  startingMode?: AgentId;
   /** The model to use — inherits from parent agent */
   model: string;
   goalPrompt?: string;
@@ -205,8 +212,18 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     roots = [],
   } = input;
 
-  let currentMode: ModeType = startingMode;
+  // The sub-agent runs *as* a registry agent (Feature 54, step d). `startingMode`
+  // is an agent id now — "PLAN"/"BUILD" for the built-ins, or a user-defined agent,
+  // which brings its own instructions, tool restrictions and model with it.
+  const availableAgents = loadAgents();
+  let currentAgent = resolveAgent(startingMode, availableAgents);
+  let currentMode: AgentId = currentAgent.id;
   const maxSteps = maxTurns ?? MAX_STEPS;
+
+  // A user-defined agent's own `model:` wins over the caller's choice — pinning a
+  // model is the main reason to define one (e.g. a cheap reviewer). Falls through to
+  // the inherited/configured model when the agent doesn't pin one.
+  const effectiveModel = currentAgent.model ?? model;
 
   // Wrap the task with sub-agent guardrails — keeps the LLM focused on
   // the specific delegation goal and signals it should be concise.
@@ -219,9 +236,14 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     `- Cite a \`path:line\` for every factual claim about the code (e.g. "chat.ts:158", not "somewhere in chat.ts"). If you're inferring or guessing rather than something a tool call actually confirmed this run, say so explicitly (e.g. "likely X — not confirmed, didn't check Y") instead of stating it as fact.`,
   ];
 
-  const subagentPrompt = goalPrompt
+  // A user-defined agent's markdown body is its standing instructions — it takes the
+  // place of the generic "you are a sub-agent named X" preamble, while the task and
+  // output-shape rules below still apply on top.
+  const rolePrompt = goalPrompt ?? currentAgent.prompt;
+
+  const subagentPrompt = rolePrompt
     ? [
-        goalPrompt,
+        rolePrompt,
         ``,
         `YOUR TASK:`,
         task,
@@ -270,7 +292,18 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
       body: JSON.stringify({
         messages,
         mode: currentMode,
-        model,
+        agent: {
+          id: currentAgent.id,
+          label: currentAgent.label,
+          description: currentAgent.description,
+          kind: currentAgent.kind,
+          tools: [...currentAgent.tools],
+          // The role prompt is already folded into the task message above, so it's
+          // deliberately not repeated as a system-prompt section here.
+          builtin: currentAgent.builtin,
+          allowsBrowserTools: currentAgent.allowsBrowserTools,
+        },
+        model: effectiveModel,
         instructionFiles: getInstructionFilesForRequest(roots),
       }),
       signal,
@@ -344,15 +377,19 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
         continue;
       }
 
-      // switchMode: update local mode silently, no UI.
+      // switchMode: update local agent silently, no UI. Resolved through the registry
+      // so an unknown target degrades to BUILD rather than setting a bogus mode that
+      // would then fail every subsequent tool gate.
       if (tc.toolName === "switchMode") {
         const { target } = toolInputSchemas.switchMode.parse(tc.input);
+        const nextAgent = resolveAgent(target, availableAgents);
         const result =
-          currentMode === target
-            ? `already in ${target} mode`
-            : `switched to ${target} mode`;
-        if (currentMode !== target) {
-          currentMode = target;
+          currentAgent.id === nextAgent.id
+            ? `already in ${nextAgent.id} mode`
+            : `switched to ${nextAgent.id} mode`;
+        if (currentAgent.id !== nextAgent.id) {
+          currentAgent = nextAgent;
+          currentMode = nextAgent.id;
         }
         toolResults.push({
           type: "tool-result",
@@ -397,10 +434,18 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
         continue;
       }
 
-      // Permission gate: use project-level permissions only (no UI prompts).
+      // Permission gate: project-level permissions only (no UI prompts — sub-agents
+      // run headlessly). Grants are read under *this* agent's id, so a sub-agent
+      // running as a restricted custom agent doesn't inherit approvals the user gave
+      // while working in BUILD (Decision 9). Its own `allow` overlay still applies,
+      // bounded by the same normal-tier-only rule as the main session (Decision 6).
       const permInfo = getPermissionInfo(tc.toolName, tc.input);
 
-      if (permInfo.requiresApproval && !isPermittedForProject(permInfo.key)) {
+      if (
+        permInfo.requiresApproval &&
+        !isAllowedByAgentOverlay(permInfo, currentAgent.permission, tc.toolName) &&
+        !isPermittedForProject(permInfo.key, currentAgent.id)
+      ) {
         toolResults.push({
           type: "tool-result",
           toolCallId: tc.toolCallId,
@@ -423,7 +468,7 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
           tc.toolName,
           tc.input,
           currentMode,
-          model,
+          effectiveModel,
           undefined,
           roots,
           tc.toolName === "readFile" ? extractLoadedAgentsMdFromMessages(messages) : undefined,
