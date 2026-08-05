@@ -20,7 +20,10 @@ async function generateTitleFromMessage(message: string, model:string): Promise<
 
     const result = await generateTextWithFallback(model, {
       prompt: `Generate a concise, descriptive title (max 50 characters) for this conversation based on the user's first message:\n\n${message}\n\nReturn only the title, no quotes or extra text.`,
-      maxOutputTokens: 50,
+      // 50 wasn't enough headroom: reasoning-capable free models (e.g. openrouter's
+      // inclusionai/ling-3.0-flash:free) spend the whole budget on hidden reasoning
+      // tokens and never emit the title itself, silently falling back to the raw prompt.
+      maxOutputTokens: 300,
     });
 
     const title = result.text.trim().slice(0, 50);

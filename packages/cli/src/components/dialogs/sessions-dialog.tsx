@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TextAttributes } from "@opentui/core";
-import { format } from "date-fns";
+import { format, isThisMonth, isThisWeek, isToday, isYesterday } from "date-fns";
 import { useNavigate, useLocation } from "react-router";
 import { useKeyboard } from "@opentui/react";
 
@@ -38,6 +38,18 @@ function safeTime(value: string | null | undefined): string {
   if (!value) return "";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : format(date, "hh:mm a");
+}
+
+// Sessions arrive sorted by updatedAt desc, so same-label groups are always contiguous —
+// DialogSearchList relies on that to insert one header per group rather than re-sorting.
+function dateGroupLabel(value: string | null | undefined): string {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "Older";
+  if (isToday(date)) return "Today";
+  if (isYesterday(date)) return "Yesterday";
+  if (isThisWeek(date, { weekStartsOn: 1 })) return "This Week";
+  if (isThisMonth(date)) return "This Month";
+  return "Older";
 }
 
 export const SessionsDialogContent = () => {
@@ -282,6 +294,7 @@ export const SessionsDialogContent = () => {
           items={activeSessions}
           onSelect={handleSelect}
           onHighlight={handleHighlight}
+          getGroupLabel={(s) => dateGroupLabel(s.updatedAt)}
           filterFn={(s, query) => {
             const q = query.toLowerCase();
             const titleMatch = (s.title ?? "").toLowerCase().includes(q);
