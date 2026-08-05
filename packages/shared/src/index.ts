@@ -21,6 +21,7 @@ export {
 export {
   Mode,
   toolInputSchemas,
+  type ImageFileResult,
   readOnlyToolContracts,
   buildToolContracts,
   browserToolContracts,

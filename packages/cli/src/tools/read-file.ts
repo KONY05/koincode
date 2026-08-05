@@ -1,8 +1,9 @@
 import { open, readFile, stat } from "fs/promises";
-import { extname } from "path";
+import { basename, extname } from "path";
+
 
 import { findUnsurfacedAgentsMd, formatWorkspacePath, MAX_FILE_SIZE, resolveFromCwd } from "./utils";
-import { toolInputSchemas, type WorkspaceRoot } from "@koincode/shared";
+import { toolInputSchemas, isVisionModel, type WorkspaceRoot, type ImageFileResult } from "@koincode/shared";
 
 /** Default line budget per read; MAX_FILE_SIZE still caps the payload in characters. */
 const MAX_READ_LINES = 2_000;
@@ -16,13 +17,27 @@ const lineTruncatedSuffix = (cap: number, isSingleLineRequest: boolean) =>
 
 const SAMPLE_BYTES = 4_096;
 
+// Image formats a vision-capable model can read directly via base64 attachment.
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+};
+
+/** 10 MB — matches the cap used in use-image-attachment.ts for user-attached images. */
+const IMAGE_MAX_SIZE = 10 * 1024 * 1024;
+
 // Formats/containers a text-focused agent has no business decoding as utf-8 — doing so
 // silently produces mojibake in the model's context instead of a clear error.
 const BINARY_EXTENSIONS = new Set([
   ".zip", ".tar", ".gz", ".7z", ".rar",
   ".exe", ".dll", ".so", ".dylib", ".class", ".jar", ".war", ".wasm",
   ".bin", ".dat", ".obj", ".o", ".a", ".lib", ".pyc", ".pyo",
-  ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico",
+  ".bmp", ".ico",
   ".mp3", ".mp4", ".mov", ".avi", ".wav", ".flac",
   ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp",
 ]);
@@ -61,7 +76,7 @@ function looksBinary(sample: Buffer): boolean {
  * read the pixels directly). Loses visual layout/embedded images; that
  * trade-off is deliberate for a text-focused coding agent.
  */
-async function extractFileContent(resolved: string): Promise<string> {
+async function extractFileContent(resolved: string, modelId?: string): Promise<string | ImageFileResult> {
   const ext = extname(resolved).toLowerCase();
 
   if (ext === ".pdf") {
@@ -86,6 +101,26 @@ async function extractFileContent(resolved: string): Promise<string> {
     return value;
   }
 
+  if (IMAGE_EXTENSIONS.has(ext)) {
+    const fileStat = await stat(resolved);
+    if (fileStat.size > IMAGE_MAX_SIZE) {
+      throw new Error(`Image file is too large to read (${(fileStat.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`);
+    }
+    if (!modelId || !isVisionModel(modelId)) {
+      throw new Error(`Cannot read image file: the active model does not support vision.`);
+    }
+    const buffer = await readFile(resolved);
+    const mediaType = IMAGE_MIME_TYPES[ext] ?? "application/octet-stream";
+    return {
+      isImage: true,
+      path: "", // filled in by runReadFile after formatWorkspacePath
+      mediaType,
+      data: buffer.toString("base64"),
+      filename: basename(resolved),
+      summary: `${mediaType} · ${(fileStat.size / 1024).toFixed(0)} KB`,
+    };
+  }
+
   const fileStat = await stat(resolved);
   if (BINARY_EXTENSIONS.has(ext) || looksBinary(await readSample(resolved, fileStat.size))) {
     throw new Error(`Cannot read binary file: ${resolved}`);
@@ -98,16 +133,23 @@ export async function runReadFile(
   input: unknown,
   roots: WorkspaceRoot[] = [],
   alreadyLoadedAgentsMd: Map<string, string> = new Map(),
+  modelId?: string,
 ) {
   const { path, offset = 1, limit = MAX_READ_LINES } = toolInputSchemas.readFile.parse(input);
 
   const { resolved } = resolveFromCwd(path);
   const displayPath = formatWorkspacePath(resolved, roots);
 
-  const content = await extractFileContent(resolved);
+  const content = await extractFileContent(resolved, modelId);
+
+  // Image: return the ImageFileResult directly — no line-numbering or pagination.
+  if (typeof content === "object" && content.isImage) {
+    return { ...content, path: displayPath };
+  }
 
   // An empty file has zero lines, not one — "".split("\n") would otherwise yield [""].
-  const lines = content.length === 0 ? [] : content.split("\n");
+  const lines = (content as string).length === 0 ? [] : (content as string).split("\n");
+
   // A trailing newline yields a final "" element that isn't a real line — dropping it keeps
   // totalLines matching what an editor shows, so line numbers here line up with the user's.
   if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();

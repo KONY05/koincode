@@ -16,6 +16,15 @@ const todoItemSchema = z.object({
 
 export type TodoItem = z.infer<typeof todoItemSchema>;
 
+export type ImageFileResult = {
+  isImage: true;
+  path: string;      // display path (formatWorkspacePath output) — filled in by runReadFile
+  mediaType: string; // e.g. "image/png"
+  data: string;      // base64-encoded file bytes
+  filename: string;  // basename only, for the SDK's filename hint
+  summary: string;   // e.g. "image/png · 48 KB"
+};
+
 export const toolInputSchemas = {
   readFile: z.object({
     path: z.string().describe("Relative path to the file to read, or an absolute path to address a secondary workspace root"),
@@ -305,8 +314,31 @@ export const toolInputSchemas = {
 
 export const readOnlyToolContracts = {
   readFile: tool({
-    description: "Read a file from the current project directory. Supports plain text/code files as well as .pdf and .docx, which are extracted to plain text (visual layout, tables, and embedded images are not preserved). Rejects binary files (images, archives, executables) with an error instead of returning garbage. Reads by line: `offset` is a 1-indexed line number and `limit` a line count, so to read around a known line just pass that line directly — no character math. Content is returned with `line: ` prefixes. The response reports the `startLine`/`endLine` actually returned; if it comes back truncated, call again with the given `nextOffset`. A very long individual line is truncated in the middle of a multi-line read — re-read it alone with `limit: 1` to get more of it (up to a larger cap).",
+    description: "Read a file from the current project directory. Supports plain text/code files as well as .pdf and .docx, which are extracted to plain text (visual layout, tables, and embedded images are not preserved). Rejects binary files (archives, executables) with an error instead of returning garbage. Image files (.png, .jpg, .jpeg, .gif, .webp) are supported directly when vision capabilities are available. Reads by line: `offset` is a 1-indexed line number and `limit` a line count, so to read around a known line just pass that line directly — no character math. Content is returned with `line: ` prefixes. The response reports the `startLine`/`endLine` actually returned; if it comes back truncated, call again with the given `nextOffset`. A very long individual line is truncated in the middle of a multi-line read — re-read it alone with `limit: 1` to get more of it (up to a larger cap).",
     inputSchema: toolInputSchemas.readFile,
+    toModelOutput({ output }) {
+      if (
+        output &&
+        typeof output === "object" &&
+        "isImage" in output &&
+        (output as ImageFileResult).isImage
+      ) {
+        const img = output as { data: string; mediaType: string };
+        return {
+          type: "content",
+          value: [
+            {
+              type: "media",
+              data: img.data,
+              mediaType: img.mediaType,
+            },
+          ],
+        };
+      }
+      return typeof output === "string"
+        ? { type: "text", value: output }
+        : { type: "json", value: output };
+    },
   }),
   listDirectory: tool({
     description:

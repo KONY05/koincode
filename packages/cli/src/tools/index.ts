@@ -71,7 +71,7 @@ export async function executeLocalTool(
   try {
     switch (toolName) {
       case "readFile":
-        toolOutput = await runReadFile(input, roots, alreadyLoadedAgentsMd);
+        toolOutput = await runReadFile(input, roots, alreadyLoadedAgentsMd, modelId);
         break;
       case "listDirectory":
         toolOutput = await runListDirectory(input, roots);
