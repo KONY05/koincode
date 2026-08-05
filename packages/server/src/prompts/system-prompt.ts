@@ -212,7 +212,7 @@ function getAgentsManifestSection(
 
   if (subagents.length > 0 && active.tools.includes("spawnAgent")) {
     blocks.push(
-      `**Agents you can delegate to** (via \`spawnAgent\`, passing the agent's id as \`agent\`):\n${subagents
+      `**Agents you can delegate to** (via \`spawnAgent\`, passing the agent's id as \`startingMode\`):\n${subagents
         .map((a) => `- **${a.id}** — ${a.description}`)
         .join(
           "\n",
