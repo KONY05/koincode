@@ -20,6 +20,8 @@ import type { RecorderHandle } from "../lib/voice-recorder";
 import { transcribe } from "../lib/whisper";
 import { readGlobalConfig } from "../utils/configs/global-config";
 import { loadSubagents } from "../lib/agents";
+import { createMentionSyntaxStyle } from "../utils/syntax-style";
+import { findMentionRanges, isMentionQueryCharacter } from "../utils/mentions";
 import type { ContextUsage } from "../hooks/use-chat";
 import { usePasteHandler } from "../hooks/use-paste-handler";
 import { useImageAttachment } from "../hooks/use-image-attachment";
@@ -42,7 +44,6 @@ import { cancelAllRegisteredWork } from "../lib/background/session-background-wo
 const MAX_VISIBLE_MENTIONS = 8;
 const CURRENT_DIRECTORY = process.cwd();
 const MAX_FALLBACK_MENTION_CANDIDATES = 32;
-const MENTION_QUERY_CHARACTER = /[A-Za-z0-9._/-]/;
 const RECURSIVE_MENTION_IGNORED_DIRECTORIES = new Set(["node_modules"]);
 
 // Persist across unmount/remount so an in-progress draft survives widget overlays
@@ -85,10 +86,6 @@ function isWithinCurrentDirectory(targetPath: string) {
     relativePath === "" ||
     (!relativePath.startsWith("..") && !isAbsolute(relativePath))
   );
-}
-
-function isMentionQueryCharacter(character: string) {
-  return MENTION_QUERY_CHARACTER.test(character);
 }
 
 function findActiveMention(
@@ -602,6 +599,13 @@ export function InputBar({
   const { colors } = useTheme();
   const { isTopLayer, push, pop, setResponder } = useKeyboardLayer();
 
+  const mentionSyntaxStyle = useMemo(() => createMentionSyntaxStyle(colors), [colors]);
+  
+  const mentionStyleId = useMemo(
+    () => mentionSyntaxStyle.getStyleId("mention") ?? 0,
+    [mentionSyntaxStyle],
+  );
+
   const sentHistory = useMemo(() => getSentHistory(messages), [messages]);
 
   const setQueueFocusedIndex = useCallback((index: number | null) => {
@@ -692,10 +696,19 @@ export function InputBar({
     handleContentChange(text);
     syncMentionMenu(text, textarea.cursorOffset);
 
+    textarea.clearAllHighlights();
+    for (const mention of findMentionRanges(text)) {
+      textarea.addHighlightByCharRange({
+        start: mention.start,
+        end: mention.end,
+        styleId: mentionStyleId,
+      });
+    }
+
     if (!skipUndoRef.current) {
       detectAndReplaceImagePaths(text);
     }
-  }, [handleContentChange, syncMentionMenu, detectAndReplaceImagePaths]);
+  }, [handleContentChange, syncMentionMenu, detectAndReplaceImagePaths, mentionStyleId]);
 
   const handleSubmit = useCallback(() => {
     if (effectiveDisabled && !streaming) return;
@@ -1241,6 +1254,7 @@ export function InputBar({
                 isTopLayer("mention"))
             }
             keyBindings={TEXTAREA_KEY_BINDINGS}
+            syntaxStyle={mentionSyntaxStyle}
             onContentChange={handleTextareaContentChange}
             placeholder={getInputBarPlaceholder(disabled, streaming, queue.length, voiceInput, voiceState, placeholderExample)}
           />
