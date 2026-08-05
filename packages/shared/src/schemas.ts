@@ -6,8 +6,6 @@ export const Mode = {
   PLAN: "PLAN",
 } as const;
 
-export const modeSchema = z.enum([Mode.BUILD, Mode.PLAN]);
-
 export type ModeType = (typeof Mode)[keyof typeof Mode];
 
 const todoItemSchema = z.object({
@@ -17,6 +15,15 @@ const todoItemSchema = z.object({
 });
 
 export type TodoItem = z.infer<typeof todoItemSchema>;
+
+export type ImageFileResult = {
+  isImage: true;
+  path: string;      // display path (formatWorkspacePath output) — filled in by runReadFile
+  mediaType: string; // e.g. "image/png"
+  data: string;      // base64-encoded file bytes
+  filename: string;  // basename only, for the SDK's filename hint
+  summary: string;   // e.g. "image/png · 48 KB"
+};
 
 export const toolInputSchemas = {
   readFile: z.object({
@@ -120,7 +127,9 @@ export const toolInputSchemas = {
       .describe("Whether to also accept a custom typed response"),
   }),
   switchMode: z.object({
-    target: modeSchema.describe("The mode to switch into"),
+    // An agent id, not a two-value enum — the selectable set is whatever agents the
+    // user has defined, listed for the model in the system prompt's agent manifest.
+    target: z.string().describe("The id of the agent/mode to switch into"),
     reason: z
       .string()
       .describe("Short explanation of why the switch is needed"),
@@ -143,10 +152,13 @@ export const toolInputSchemas = {
       .string()
       .describe("Short description of what this sub-agent will do"),
     task: z.string().describe("The full task to delegate to the sub-agent"),
-    startingMode: modeSchema
+    startingMode: z
+      .string()
       .optional()
       .default("PLAN")
-      .describe("Starting mode for the sub-agent"),
+      .describe(
+        "Which agent the sub-agent runs as — a built-in mode (\"PLAN\"/\"BUILD\") or the id of a user-defined agent from the Agents list. A user-defined agent brings its own instructions, tool restrictions and model, so prefer one when it matches the task. Unknown ids fall back to BUILD.",
+      ),
     runInBackground: z
       .boolean()
       .optional()
@@ -302,8 +314,31 @@ export const toolInputSchemas = {
 
 export const readOnlyToolContracts = {
   readFile: tool({
-    description: "Read a file from the current project directory. Supports plain text/code files as well as .pdf and .docx, which are extracted to plain text (visual layout, tables, and embedded images are not preserved). Rejects binary files (images, archives, executables) with an error instead of returning garbage. Reads by line: `offset` is a 1-indexed line number and `limit` a line count, so to read around a known line just pass that line directly — no character math. Content is returned with `line: ` prefixes. The response reports the `startLine`/`endLine` actually returned; if it comes back truncated, call again with the given `nextOffset`. A very long individual line is truncated in the middle of a multi-line read — re-read it alone with `limit: 1` to get more of it (up to a larger cap).",
+    description: "Read a file from the current project directory. Supports plain text/code files as well as .pdf and .docx, which are extracted to plain text (visual layout, tables, and embedded images are not preserved). Rejects binary files (archives, executables) with an error instead of returning garbage. Image files (.png, .jpg, .jpeg, .gif, .webp) are supported directly when vision capabilities are available. Reads by line: `offset` is a 1-indexed line number and `limit` a line count, so to read around a known line just pass that line directly — no character math. Content is returned with `line: ` prefixes. The response reports the `startLine`/`endLine` actually returned; if it comes back truncated, call again with the given `nextOffset`. A very long individual line is truncated in the middle of a multi-line read — re-read it alone with `limit: 1` to get more of it (up to a larger cap).",
     inputSchema: toolInputSchemas.readFile,
+    toModelOutput({ output }) {
+      if (
+        output &&
+        typeof output === "object" &&
+        "isImage" in output &&
+        (output as ImageFileResult).isImage
+      ) {
+        const img = output as { data: string; mediaType: string };
+        return {
+          type: "content",
+          value: [
+            {
+              type: "media",
+              data: img.data,
+              mediaType: img.mediaType,
+            },
+          ],
+        };
+      }
+      return typeof output === "string"
+        ? { type: "text", value: output }
+        : { type: "json", value: output };
+    },
   }),
   listDirectory: tool({
     description:
@@ -347,7 +382,7 @@ export const readOnlyToolContracts = {
   }),
   switchMode: tool({
     description:
-      "Switch between PLAN (read-only analysis) and BUILD (file editing and shell) modes. Use when the task requires capabilities not available in the current mode. No-op if already in the target mode.",
+      "Switch the session into a different agent/mode. Built-ins are PLAN (read-only analysis) and BUILD (file editing and shell); any user-defined agents are listed in the Agents section of your instructions. Use when the task requires capabilities the current agent doesn't have. No-op if already in the target.",
     inputSchema: toolInputSchemas.switchMode,
   }),
   memoryAdd: tool({
@@ -474,7 +509,6 @@ export const buildToolContractsWithBrowser = {
 
 export type ToolContracts = typeof buildToolContractsWithBrowser;
 
-export function getToolContracts(mode: ModeType, browserTools?: boolean) {
-  if (mode === Mode.PLAN) return readOnlyToolContracts;
-  return browserTools ? buildToolContractsWithBrowser : buildToolContracts;
-}
+// `getToolContracts` now lives in `agents.ts` — it needs the agent registry to
+// answer, and keeping it here would create a schemas ↔ agents import cycle.
+// Consumers import it from the package root, so their imports are unchanged.

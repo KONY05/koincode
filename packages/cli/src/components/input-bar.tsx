@@ -19,6 +19,9 @@ import { checkRecorderAvailable, startRecording } from "../lib/voice-recorder";
 import type { RecorderHandle } from "../lib/voice-recorder";
 import { transcribe } from "../lib/whisper";
 import { readGlobalConfig } from "../utils/configs/global-config";
+import { loadSubagents } from "../lib/agents";
+import { createMentionSyntaxStyle } from "../utils/syntax-style";
+import { findMentionRanges, isMentionQueryCharacter } from "../utils/mentions";
 import type { ContextUsage } from "../hooks/use-chat";
 import { usePasteHandler } from "../hooks/use-paste-handler";
 import { useImageAttachment } from "../hooks/use-image-attachment";
@@ -34,14 +37,13 @@ import { useDialog } from "../providers/dialog";
 import { useTheme } from "../providers/theme";
 import { usePromptConfig } from "../providers/prompt-config";
 import { useSessionActions } from "../providers/session-actions";
-import { Mode, type WorkspaceRoot } from "@koincode/shared";
+import { agentCanMutate, type WorkspaceRoot } from "@koincode/shared";
 import type { Message, QueuedMessage } from "../hooks/use-chat";
 import { cancelAllRegisteredWork } from "../lib/background/session-background-work";
 
 const MAX_VISIBLE_MENTIONS = 8;
 const CURRENT_DIRECTORY = process.cwd();
 const MAX_FALLBACK_MENTION_CANDIDATES = 32;
-const MENTION_QUERY_CHARACTER = /[A-Za-z0-9._/-]/;
 const RECURSIVE_MENTION_IGNORED_DIRECTORIES = new Set(["node_modules"]);
 
 // Persist across unmount/remount so an in-progress draft survives widget overlays
@@ -71,7 +73,7 @@ type MentionMatch = {
 
 type MentionCandidate = {
   path: string;
-  kind: "file" | "directory";
+  kind: "file" | "directory" | "agent";
   /** Absolute path to insert on selection instead of `path` — set only for secondary-workspace-root
    * files, since `path` there is a display-only `<root-label>/...` pseudo-path, not a real filesystem
    * path relative to the primary root. */
@@ -84,10 +86,6 @@ function isWithinCurrentDirectory(targetPath: string) {
     relativePath === "" ||
     (!relativePath.startsWith("..") && !isAbsolute(relativePath))
   );
-}
-
-function isMentionQueryCharacter(character: string) {
-  return MENTION_QUERY_CHARACTER.test(character);
 }
 
 function findActiveMention(
@@ -154,7 +152,38 @@ function findWorkspaceRootForQuery(
   return null;
 }
 
+/**
+ * Delegable agents matching the mention query, rendered as their own group above
+ * file results (Decision 12). Selecting one inserts `@<agent-name>` as plain text —
+ * there is no CLI-side interception. The model sees the mention, already knows the
+ * agent from the system prompt's manifest, and delegates via `spawnAgent` itself,
+ * exactly as skills work. That keeps "what would @reviewer say?" a question rather
+ * than a forced spawn.
+ *
+ * Skipped once the query looks like a path (contains `/`), since an agent name
+ * never does — this is also what keeps a directory sharing an agent's name from
+ * crowding the list after the user starts typing a real path.
+ */
+function getAgentMentionCandidates(query: string): MentionCandidate[] {
+  if (query.includes("/")) return [];
+  const prefix = query.toLowerCase();
+  return loadSubagents()
+    .filter((agent) => agent.id.toLowerCase().startsWith(prefix))
+    .map((agent) => ({ path: agent.id, kind: "agent" as const }));
+}
+
+/** Agents first, then file/directory results — one merged list, agents grouped on top. */
 async function getMentionCandidates(
+  query: string,
+  extraRoots: WorkspaceRoot[] = [],
+): Promise<MentionCandidate[]> {
+  const normalizedQuery = query.startsWith("./") ? query.slice(2) : query;
+  const agents = getAgentMentionCandidates(normalizedQuery);
+  const files = await getFileMentionCandidates(query, extraRoots);
+  return [...agents, ...files];
+}
+
+async function getFileMentionCandidates(
   query: string,
   extraRoots: WorkspaceRoot[] = [],
 ): Promise<MentionCandidate[]> {
@@ -464,7 +493,11 @@ function FileMentionMenu({
 
             <box width={8} alignItems="flex-end" flexShrink={0}>
               <text selectable={false} fg={isSelected ? "black" : "gray"}>
-                {candidate.kind === "directory" ? "Folder" : "File"}
+                {candidate.kind === "agent"
+                  ? "Agent"
+                  : candidate.kind === "directory"
+                    ? "Folder"
+                    : "File"}
               </text>
             </box>
           </box>
@@ -535,7 +568,7 @@ export function InputBar({
   onQueueFocusedIndexChange,
   messages = [],
   showUpdateStatus = true }: Props) {
-  const { mode, model, modelDisplayName, toggleMode, setMode, setModel, subagentModel, subagentModelDisplayName, setSubagentModel, reasoningEffort, setReasoningEffort, voiceInput, toggleVoice, toggleInfoSidebar, incognito, toggleIncognito } = usePromptConfig();
+  const { mode, agent, model, modelDisplayName, toggleMode, setMode, setModel, subagentModel, subagentModelDisplayName, setSubagentModel, reasoningEffort, setReasoningEffort, voiceInput, toggleVoice, toggleInfoSidebar, incognito, toggleIncognito } = usePromptConfig();
   const { invokeSkill, clearSession, handoff, compact, addWorkspaceRoot, workspaceRoots, isIncognitoLocked = false } = useSessionActions();
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => { });
@@ -565,6 +598,13 @@ export function InputBar({
   const dialog = useDialog();
   const { colors } = useTheme();
   const { isTopLayer, push, pop, setResponder } = useKeyboardLayer();
+
+  const mentionSyntaxStyle = useMemo(() => createMentionSyntaxStyle(colors), [colors]);
+  
+  const mentionStyleId = useMemo(
+    () => mentionSyntaxStyle.getStyleId("mention") ?? 0,
+    [mentionSyntaxStyle],
+  );
 
   const sentHistory = useMemo(() => getSentHistory(messages), [messages]);
 
@@ -656,10 +696,19 @@ export function InputBar({
     handleContentChange(text);
     syncMentionMenu(text, textarea.cursorOffset);
 
+    textarea.clearAllHighlights();
+    for (const mention of findMentionRanges(text)) {
+      textarea.addHighlightByCharRange({
+        start: mention.start,
+        end: mention.end,
+        styleId: mentionStyleId,
+      });
+    }
+
     if (!skipUndoRef.current) {
       detectAndReplaceImagePaths(text);
     }
-  }, [handleContentChange, syncMentionMenu, detectAndReplaceImagePaths]);
+  }, [handleContentChange, syncMentionMenu, detectAndReplaceImagePaths, mentionStyleId]);
 
   const handleSubmit = useCallback(() => {
     if (effectiveDisabled && !streaming) return;
@@ -670,7 +719,11 @@ export function InputBar({
     const raw = textarea.plainText.trim();
     if (raw.length === 0) return;
 
-    if (hasImageTags(raw) && !checkVisionModel(model)) {
+    // Validate against the model that will actually serve this turn, not the
+    // session's. An agent pinning its own `model:` (Feature 54, step e) may be
+    // text-only even when the session model has vision — checking the session model
+    // there would wave the image through to a provider that can't accept it.
+    if (hasImageTags(raw) && !checkVisionModel(agent.model ?? model)) {
       return;
     }
 
@@ -687,7 +740,7 @@ export function InputBar({
     skipUndoRef.current = true;
     textarea.setText("");
     skipUndoRef.current = false;
-  }, [effectiveDisabled, streaming, onSubmit, expandPastes, clearPastes, hasImageTags, checkVisionModel, model]);
+  }, [effectiveDisabled, streaming, onSubmit, expandPastes, clearPastes, hasImageTags, checkVisionModel, agent.model, model]);
 
   const handleMentionExecute = useCallback(
     (index: number) => {
@@ -1131,7 +1184,11 @@ export function InputBar({
             ? colors.dimSeparator
             : incognito
               ? colors.info
-              : mode === Mode.BUILD
+              : // Keyed off capability, not id: this was `mode === Mode.BUILD`, which
+                // painted every custom agent purple regardless of what it could do —
+                // an agent with `shell` would have looked read-only. Yellow now means
+                // "this agent can modify things", purple "read-only", for any agent.
+                agentCanMutate(agent)
                 ? colors.primary
                 : colors.planMode
         }
@@ -1197,6 +1254,7 @@ export function InputBar({
                 isTopLayer("mention"))
             }
             keyBindings={TEXTAREA_KEY_BINDINGS}
+            syntaxStyle={mentionSyntaxStyle}
             onContentChange={handleTextareaContentChange}
             placeholder={getInputBarPlaceholder(disabled, streaming, queue.length, voiceInput, voiceState, placeholderExample)}
           />

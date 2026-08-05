@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join, relative, resolve } from "node:path";
 
 import { BUILTIN_SKILLS } from "../skills/builtins";
+import { parseFrontmatter } from "./frontmatter";
 
 export type SkillScope = "project" | "global" | "builtin";
 
@@ -26,29 +27,10 @@ type SkillMeta = {
   scope?: string;
 };
 
-/** Parses a SKILL.md string into `{ meta, body }`. Handles `key: value` and `key: [a, b, c]` fields. */
-function parseFrontmatter(raw: string): { meta: SkillMeta; body: string } {
-  const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { meta: {}, body: raw };
-
-  const meta: Record<string, unknown> = {};
-  for (const line of match[1]!.split("\n")) {
-    const colonIdx = line.indexOf(":");
-    if (colonIdx === -1) continue;
-    const key = line.slice(0, colonIdx).trim();
-    const value = line.slice(colonIdx + 1).trim();
-    if (value.startsWith("[") && value.endsWith("]")) {
-      meta[key] = value
-        .slice(1, -1)
-        .split(",")
-        .map((v) => v.trim())
-        .filter(Boolean);
-    } else {
-      meta[key] = value;
-    }
-  }
-
-  return { meta: meta as SkillMeta, body: (match[2] ?? "").trim() };
+/** Skills' typed view of the shared frontmatter parser's raw key/value map. */
+function parseSkillFrontmatter(raw: string): { meta: SkillMeta; body: string } {
+  const { meta, body } = parseFrontmatter(raw);
+  return { meta: meta as SkillMeta, body };
 }
 
 /** Recursively lists all file paths inside `dir`, returned as paths relative to `base`. */
@@ -81,7 +63,7 @@ function readSkillDir(skillDir: string, scope: SkillScope): ResolvedSkill | null
     return null;
   }
 
-  const { meta } = parseFrontmatter(raw);
+  const { meta } = parseSkillFrontmatter(raw);
   const name = meta.name ?? skillDir.split("/").at(-1) ?? "unknown";
   const files = listFilesRecursive(skillDir).filter((f) => f !== "SKILL.md");
 
@@ -182,4 +164,3 @@ export function getSkillDir(scope: "global" | "project", name: string): string {
   return resolve(homedir(), ".koincode", "skills", name);
 }
 
-export { parseFrontmatter };

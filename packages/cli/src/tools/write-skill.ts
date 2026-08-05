@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { toolInputSchemas } from "@koincode/shared";
-import { getSkillDir, invalidateSkillsCache, parseFrontmatter } from "../lib/skills";
+import { getSkillDir, invalidateSkillsCache } from "../lib/skills";
+import { parseFrontmatter } from "../lib/frontmatter";
 
 /**
  * Creates or updates a skill's SKILL.md file.

@@ -5,6 +5,7 @@ export {
   DEFAULT_CHAT_MODEL_ID,
   findSupportedChatModel,
   isCustomOrOllamaModelId,
+  isResolvableModelId,
   getContextWindow,
   isVisionModel,
   getReasoningEffortLevels,
@@ -19,9 +20,8 @@ export {
 
 export {
   Mode,
-  modeSchema,
   toolInputSchemas,
-  getToolContracts,
+  type ImageFileResult,
   readOnlyToolContracts,
   buildToolContracts,
   browserToolContracts,
@@ -30,6 +30,33 @@ export {
   type ModeType,
   type TodoItem,
 } from "./schemas";
+
+export {
+  AgentKind,
+  agentKindSchema,
+  agentPermissionSchema,
+  agentFrontmatterSchema,
+  agentWireSchema,
+  agentManifestEntrySchema,
+  BUILTIN_AGENTS,
+  BUILD_AGENT_ID,
+  PLAN_AGENT_ID,
+  resolveAgent,
+  resolveToolContracts,
+  getToolContracts,
+  isPrimaryAgent,
+  isSubagent,
+  isToolName,
+  agentCanMutate,
+  type AgentDefinition,
+  type AgentFrontmatter,
+  type AgentWire,
+  type AgentManifestEntry,
+  type AgentKindType,
+  type AgentPermission,
+  type ToolName,
+  type AgentId,
+} from "./agents";
 
 export {
   type ChatMessageMetadata,

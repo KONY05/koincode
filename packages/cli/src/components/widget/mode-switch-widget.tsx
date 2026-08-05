@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { TextAttributes } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
+import type { AgentId } from "@koincode/shared";
 
 import { useTheme } from "../../providers/theme";
 import { useKeyboardLayer } from "../../providers/keyboard-layer";
 import { EmptyBorder } from "../border";
 
 export type PendingModeSwitch = {
-  target: "BUILD";
+  /** Agent id being switched into. Was literally `"BUILD"` when PLAN → BUILD was
+   *  the only confirmable switch; now any agent that can write (Feature 54). */
+  target: AgentId;
   reason: string;
 };
 

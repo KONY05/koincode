@@ -1,28 +1,25 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useDialog } from "../../providers/dialog";
 import { DialogSearchList } from "../dialog-search-list";
-import { Mode, type ModeType } from "@koincode/shared";
-
-const AVAILABLE_MODES: ModeType[] = [Mode.BUILD, Mode.PLAN];
+import type { AgentId } from "@koincode/shared";
+import { loadPrimaryAgents, type ResolvedAgent } from "../../lib/agents";
 
 type AgentsDialogContentProps = {
-  currentMode: ModeType;
-  onSelectMode: (mode: ModeType) => void;
+  currentMode: AgentId;
+  onSelectMode: (mode: AgentId) => void;
 };
 
-function getModeLabel(mode: ModeType) {
-  return mode === Mode.PLAN ? "Plan" : "Build";
-}
-
-export const AgentsDialogContent = ({ 
-  currentMode, 
-  onSelectMode 
+export const AgentsDialogContent = ({
+  currentMode,
+  onSelectMode,
 }: AgentsDialogContentProps) => {
   const dialog = useDialog();
 
+  const agents = useMemo(() => loadPrimaryAgents(), []);
+
   const handleSelect = useCallback(
-    (nextMode: ModeType) => {
-      onSelectMode(nextMode);
+    (agent: ResolvedAgent) => {
+      onSelectMode(agent.id);
       dialog.close();
     },
     [onSelectMode, dialog],
@@ -30,16 +27,25 @@ export const AgentsDialogContent = ({
 
   return (
     <DialogSearchList
-      items={AVAILABLE_MODES}
+      items={agents}
       onSelect={handleSelect}
-      filterFn={(item, query) => getModeLabel(item).toLowerCase().includes(query.toLowerCase())}
+      filterFn={(item, query) => {
+        const q = query.toLowerCase();
+        return (
+          item.label.toLowerCase().includes(q) ||
+          item.description.toLowerCase().includes(q)
+        );
+      }}
       renderItem={(item, isSelected) => (
-        <text selectable={false} fg={isSelected ? "black" : "white"}>
-          {item === currentMode ? " • " : "   "}
-          {getModeLabel(item)}
-        </text>
+        <box flexDirection="row" flexGrow={1} overflow="hidden">
+          <text selectable={false} fg={isSelected ? "black" : "white"}>
+            {item.id.toLowerCase() === currentMode.toLowerCase() ? " • " : "   "}
+            {item.label}
+            {item.scope === "builtin" ? "" : ` [${item.scope}]`}
+          </text>
+        </box>
       )}
-      getKey={(item) => item}
+      getKey={(item) => item.id}
       placeholder="Search agents"
       emptyText="No matching agents"
     />

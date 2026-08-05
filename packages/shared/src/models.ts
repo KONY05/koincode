@@ -433,6 +433,26 @@ export function isCustomOrOllamaModelId(modelId: string): boolean {
   return modelId.startsWith("ollama/") || modelId.startsWith("custom/");
 }
 
+/**
+ * Stricter than `isSupportedChatModel` (server `lib/models.ts`), which accepts any
+ * `custom/` or `ollama/` prefixed string on faith and then throws inside the request
+ * when resolution fails. Used to validate hand-authored model ids (agent files) at
+ * load time instead, where the failure can degrade to a warning.
+ *
+ * `ollama/` is still accepted optimistically: verifying it needs a live call to the
+ * Ollama daemon, which can't happen during a synchronous load, so an unreachable or
+ * deleted Ollama model still surfaces at request time exactly as it does today.
+ */
+export function isResolvableModelId(
+  modelId: string,
+  customModelIds: readonly string[] = [],
+): boolean {
+  if (findSupportedChatModel(modelId)) return true;
+  if (modelId.startsWith("ollama/")) return true;
+  if (modelId.startsWith("custom/")) return customModelIds.includes(modelId);
+  return false;
+}
+
 /** Returns the context window size in tokens for a given model ID. Falls back to 128k for unknown/local models. */
 export function getContextWindow(modelId: string): number {
   const model = findSupportedChatModel(modelId);

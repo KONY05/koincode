@@ -9,9 +9,10 @@ import {
 
 import {
   type ChatMessageMetadata,
+  agentCanMutate,
   getContextWindow,
-  Mode,
-  type ModeType,
+  resolveAgent,
+  type AgentId,
   type ToolContracts,
   toolInputSchemas,
   type WorkspaceRoot,
@@ -23,6 +24,7 @@ import { hasApiKeyForModel } from "../lib/usage";
 import { estimateSessionCost } from "../lib/cost";
 import { executeLocalTool } from "../tools";
 import { loadSkillsManifest } from "../lib/skills";
+import { getAgentPayloadForRequest, loadAgents } from "../lib/agents";
 import {
   getIdeContextForRequest,
   getIdeSelectionForRequest,
@@ -42,6 +44,10 @@ import {
   cancelAllBackgroundWork,
 } from "../lib/background/session-background-work";
 import { getPermissionInfo } from "../utils/permissions";
+import {
+  applyAgentPermissionOverlay,
+  isAllowedByAgentOverlay,
+} from "../utils/permissions/agent-overlay";
 import {
   allowForProject,
   isPermittedForProject,
@@ -111,7 +117,7 @@ export type Message = UIMessage<ChatMessageMetadata, never, ChatTools>;
 export type QueuedMessage = {
   id: string;
   userText: string;
-  mode: ModeType;
+  mode: AgentId;
   model: string;
   reasoningEffort?: ChatMessageMetadata["reasoningEffort"];
   origin?: ChatMessageMetadata["origin"];
@@ -121,7 +127,7 @@ export type QueuedMessage = {
 // Module-level store invisible to React's strict-mode ref tracking.
 // Used by the transport (created inside useMemo) to read the current mode
 // after a mid-turn switchMode without accessing a useRef during render.
-const _activeModes = new Map<string, ModeType>();
+const _activeModes = new Map<string, AgentId>();
 
 // Same pattern as _activeModes — lets executeLocalTool read the session's
 // current workspace roots (which can change mid-session via /add-dir) without
@@ -351,6 +357,7 @@ export function useChat(
                 description: s.description,
                 scope: s.scope,
               })),
+              ...getAgentPayloadForRequest(_activeModes.get(sessionId) ?? mode),
               ideActiveFile: getIdeContextForRequest(),
               ideSelection: getIdeSelectionForRequest(),
               instructionFiles: getInstructionFilesForRequest(_activeRoots.get(sessionId) ?? []),
@@ -389,6 +396,7 @@ export function useChat(
               description: s.description,
               scope: s.scope,
             })),
+            ...getAgentPayloadForRequest(_activeModes.get(sessionId) ?? mode),
             ideActiveFile: getIdeContextForRequest(),
             ideSelection: getIdeSelectionForRequest(),
             instructionFiles: getInstructionFilesForRequest(_activeRoots.get(sessionId) ?? []),
@@ -671,11 +679,17 @@ export function useChat(
           return;
         }
 
-        // switchMode: autonomous mode switching.
+        // switchMode: autonomous agent/mode switching.
         if (toolCall.toolName === "switchMode") {
-          const { target, reason } = toolInputSchemas.switchMode.parse(
+          const { target: requestedTarget, reason } = toolInputSchemas.switchMode.parse(
             toolCall.input,
           );
+
+          // Resolve through the registry so an id the model invented (or an agent file
+          // deleted mid-session) lands on BUILD instead of setting a mode that would
+          // then fail every tool gate. Decision 10.
+          const targetAgent = resolveAgent(requestedTarget, loadAgents());
+          const target = targetAgent.id;
 
           // Same-mode guard — no-op.
           if (_activeModes.get(sessionId) === target) {
@@ -687,8 +701,11 @@ export function useChat(
             return;
           }
 
-          // BUILD → PLAN or auto config → switch silently.
-          if (target === Mode.PLAN || autoModeSwitchRef.current === "auto") {
+          // Confirmation exists to stop the model from silently gaining write access,
+          // so it keys off what the target agent can actually *do*, not its name —
+          // `target === "BUILD"` stopped being a usable proxy for that once an agent
+          // can be any shape. Switching into a read-only agent is always silent.
+          if (!agentCanMutate(targetAgent) || autoModeSwitchRef.current === "auto") {
             const from = _activeModes.get(sessionId)!;
             setModeRef.current(target);
             _activeModes.set(sessionId, target);
@@ -827,21 +844,50 @@ export function useChat(
         // Permission gate for all other tools.
         const extraPatterns = readProjectConfig().sensitivePatterns ?? [];
         // checks if incoming tool call requires approval
-        const permInfo = getPermissionInfo(
+        const rawPermInfo = getPermissionInfo(
           toolCall.toolName,
           toolCall.input,
           extraPatterns,
           _activeRoots.get(sessionId) ?? [],
         );
 
+        // The active agent's permission overlay (Feature 54, Decision 6) sits on top
+        // of the classifier above: it can escalate freely, and de-escalate only where
+        // the classifier said `normal`. `destructive` is a floor no agent file crosses.
+        const activeAgentId = _activeModes.get(sessionId) ?? mode;
+        const activeAgent = resolveAgent(activeAgentId, loadAgents());
+        const overlay = applyAgentPermissionOverlay(
+          rawPermInfo,
+          activeAgent.permission,
+          toolCall.toolName,
+        );
+
+        if (overlay.action === "deny") {
+          chat.addToolOutput({
+            tool: toolCall.toolName as keyof ChatTools,
+            toolCallId: toolCall.toolCallId,
+            output: {
+              denied: true,
+              reason: `Denied by the ${activeAgent.label} agent's permission rule "${overlay.rule}"`,
+            },
+          });
+          return;
+        }
+
+        const permInfo = overlay.action === "ask" ? overlay.info : rawPermInfo;
+
         // checks if tool requires approval and is not permitted for this project or session
         const isSessionApproved =
           permInfo.requiresApproval &&
           sessionApprovedKeysRef.current.has(permInfo.key);
+        const isAgentAllowed =
+          permInfo.requiresApproval &&
+          isAllowedByAgentOverlay(permInfo, activeAgent.permission, toolCall.toolName);
         if (
           permInfo.requiresApproval &&
           !isSessionApproved &&
-          !isPermittedForProject(permInfo.key)
+          !isAgentAllowed &&
+          !isPermittedForProject(permInfo.key, activeAgentId)
         ) {
           const approval: PendingApproval = {
             key: permInfo.key,
@@ -891,7 +937,7 @@ export function useChat(
           if (response.type === "allow-for-session") {
             sessionApprovedKeysRef.current.add(permInfo.key);
           } else if (response.type === "allow-for-project") {
-            allowForProject(permInfo.key);
+            allowForProject(permInfo.key, activeAgentId);
           }
         }
 
@@ -1148,11 +1194,18 @@ export function useChat(
     },
     submit: (params: {
       userText: string;
-      mode: ModeType;
+      mode: AgentId;
       model: string;
       reasoningEffort?: ChatMessageMetadata["reasoningEffort"];
     }) => {
       clearPendingWakeup(sessionId);
+
+      // An agent pinning its own `model:` overrides the session model for turns it
+      // serves (Feature 54, step e). Resolved here, at the single point every user
+      // turn passes through, so the api-key check, the persisted metadata, and the
+      // request body all agree on which model is actually being used.
+      const agentModel = resolveAgent(params.mode, loadAgents()).model;
+      params = agentModel ? { ...params, model: agentModel } : params;
 
       if (!hasApiKeyForModel(params.model)) {
         toast.show({

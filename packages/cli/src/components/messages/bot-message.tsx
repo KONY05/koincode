@@ -13,7 +13,8 @@ import { EmptyBorder } from "../border";
 import { useTheme } from "../../providers/theme";
 import { usePromptConfig } from "../../providers/prompt-config";
 import type { InlineSystemEvent, Message } from "../../hooks/use-chat";
-import { Mode, isMcpTool } from "@koincode/shared";
+import { agentCanMutate, isMcpTool, resolveAgent } from "@koincode/shared";
+import { loadAgents } from "../../lib/agents";
 import { createMarkdownSyntaxStyle } from "../../utils/syntax-style";
 import EditFileDiff from "../tool-view/edit-file";
 import WriteFilePreview from "../tool-view/write-file";
@@ -161,20 +162,27 @@ function renderToolContent({
 
   if (toolName === "switchMode") {
     const { target, reason } = input as { target: string; reason?: string };
-    const modeColor = target === "BUILD" ? colors.primary : colors.planMode;
+    // Resolved against the actual registry rather than a string check
+    const targetAgent = resolveAgent(target, loadAgents());
+    const modeColor = agentCanMutate(targetAgent) ? colors.primary : colors.planMode;
     return (
       <text attributes={TextAttributes.DIM}>
-        <em fg={modeColor}>→ {target}</em>
+        <em fg={modeColor}>→ {targetAgent.label}</em>
         {reason ? ` — ${reason}` : ""}
       </text>
     );
   }
 
   if (toolName === "spawnAgent") {
-    const { name, description } = input as {
+    const { name, description, startingMode } = input as {
       name?: string;
       description?: string;
+      startingMode?: string;
     };
+    // `name`/`description` are arbitrary per-task strings the model picks, not the
+    // agent it actually ran as — without this tag there was no way to see from the
+    // transcript which agent (BUILD/PLAN/a custom one) a sub-agent actually used.
+    const startedAs = resolveAgent(startingMode, loadAgents());
     const backgroundOutput =
       !pending && output != null
         ? (output as { taskId?: string; status?: string }).taskId
@@ -183,7 +191,11 @@ function renderToolContent({
         : null;
     return (
       <text attributes={TextAttributes.DIM}>
-        <em fg={colors.info}>Subagent:</em> {name ?? ""} — {description ?? ""}
+        <em fg={colors.info}>Subagent:</em>{" "}
+        <em fg={agentCanMutate(startedAs) ? colors.primary : colors.planMode}>
+          [{startedAs.label}]
+        </em>{" "}
+        {name ?? ""} — {description ?? ""}
         {backgroundOutput
           ? ` — running in background (task ${backgroundOutput.taskId})`
           : ""}
@@ -445,7 +457,7 @@ export function BotMessage({
   inlineEvents = [],
 }: Props) {
   const { colors } = useTheme();
-  const { mode: currentMode } = usePromptConfig();
+  const { agent: currentAgent } = usePromptConfig();
 
   const [openThinking, setOpenThinking] = useState<Set<string>>(new Set());
 
@@ -538,9 +550,8 @@ export function BotMessage({
     return true;
   });
 
-  const modeColor =
-    currentMode === Mode.PLAN ? colors.planMode : colors.primary;
-  const modeLabel = currentMode === Mode.PLAN ? "Plan" : "Build";
+  const modeColor = agentCanMutate(currentAgent) ? colors.primary : colors.planMode;
+  const modeLabel = currentAgent.label;
 
   // Interleave inline system events (e.g. a mid-turn switchMode divider) between the
   // groups they actually fell between, using each event's raw-parts-array partIndex

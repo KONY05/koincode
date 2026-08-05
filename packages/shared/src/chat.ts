@@ -1,10 +1,12 @@
 import { type LanguageModelUsage } from "ai";
 
 import type { ReasoningEffortLevel, SupportedChatModelId } from "./models";
-import type { ModeType } from "./schemas";
+import type { AgentId } from "./agents";
 
 export type ChatMessageMetadata = {
-  mode?: ModeType;
+  /** Agent id this turn ran under. Persisted, so it may name an agent that no
+   *  longer resolves — `resolveAgent` falls back to BUILD in that case (Decision 10). */
+  mode?: AgentId;
   model?: SupportedChatModelId | string;
   reasoningEffort?: ReasoningEffortLevel;
   /** Known only for models outside the curated list (Ollama's real num_ctx, a custom model's configured value). */
