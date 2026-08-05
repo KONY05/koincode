@@ -37,11 +37,13 @@ export const AgentsDialogContent = ({
         );
       }}
       renderItem={(item, isSelected) => (
-        <text selectable={false} fg={isSelected ? "black" : "white"}>
-          {item.id.toLowerCase() === currentMode.toLowerCase() ? " • " : "   "}
-          {item.label}
-          {item.scope === "builtin" ? "" : ` [${item.scope}]`}
-        </text>
+        <box flexDirection="row" flexGrow={1} overflow="hidden">
+          <text selectable={false} fg={isSelected ? "black" : "white"}>
+            {item.id.toLowerCase() === currentMode.toLowerCase() ? " • " : "   "}
+            {item.label}
+            {item.scope === "builtin" ? "" : ` [${item.scope}]`}
+          </text>
+        </box>
       )}
       getKey={(item) => item.id}
       placeholder="Search agents"
