@@ -607,7 +607,7 @@ export function BotMessage({
 
                 const isPartStreaming = part.state === "streaming";
 
-                const isExpanded = streaming || openThinking.has(key);
+                const isExpanded = openThinking.has(key);
 
                 return (
                   <box

@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname } from "path";
 
 import { toolInputSchemas, type WorkspaceRoot } from "@koincode/shared";
-import { formatWorkspacePath, resolveFromCwd } from "./utils";
+import { formatWorkspacePath, resolveFromCwd, assertNoNul } from "./utils";
 import { captureSnapshot, hashContent } from "../lib/snapshots";
 
 export async function runWriteFile(input: unknown, roots: WorkspaceRoot[]) {
@@ -18,6 +18,9 @@ export async function runWriteFile(input: unknown, roots: WorkspaceRoot[]) {
   }
 
   await mkdir(dirname(resolved), { recursive: true });
+  // Guard against corrupted model payloads: a lone NUL in content would
+  // otherwise be written verbatim and corrupt the file. Reject before writing.
+  assertNoNul(content, "content", displayPath);
   await writeFile(resolved, content, "utf-8");
 
   const beforeHash = await captureSnapshot(beforeContent);

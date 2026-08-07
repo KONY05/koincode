@@ -97,6 +97,23 @@ export function findUnsurfacedAgentsMd(
   return results;
 }
 
+/**
+ * Rejects strings containing NUL (0x00) bytes — a tell-tale sign of a corrupted
+ * model tool-call argument (a literal `\u0000` in malformed/truncated JSON). The
+ * write tooling relays its payload verbatim, so without this guard a lone NUL
+ * would silently corrupt the target file. Throws before anything is written so
+ * a bad argument becomes a visible, retryable tool error instead of file damage.
+ */
+export function assertNoNul(value: string, field: string, path: string): void {
+  const index = value.indexOf("\0");
+  if (index !== -1) {
+    throw new Error(
+      `Rejected edit: ${field} for ${path} contains a NUL byte (0x00) at byte offset ${index}. ` +
+        `This looks like a corrupted tool argument — re-issue the edit without the control character.`,
+    );
+  }
+}
+
 export function truncate(value: string, limit: number) {
   return value.length > limit
     ? `${value.slice(0, limit)}\n... (truncated, ${value.length} total chars)`

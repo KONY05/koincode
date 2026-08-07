@@ -9,7 +9,7 @@ const PROVIDER_FALLBACKS: Partial<Record<SupportedProvider, string[]>> = {
   anthropic:  ["claude-sonnet-4-6", "claude-haiku-4-5"],
   openai:     ["gpt-5-mini", "gpt-4.1-mini"],
   google:     ["gemini-3-flash-preview", "gemini-2.5-flash"],
-  openrouter: [FALLBACK_MODEL_ID, "nvidia/nemotron-3-ultra-550b-a55b:free"],
+  openrouter: [FALLBACK_MODEL_ID, "poolside/laguna-s-2.1:free"],
 };
 
 const GENERATE_TEXT_TIMEOUT_MS = 60_000;
