@@ -83,6 +83,7 @@ export type ModelsDevApiResponse = Record<string, ModelsDevApiProviderEntry>;
 // context/feature-specs/44-reasoning-effort-model-label.md) — kept conservative where the
 // docs didn't name a specific model, rather than guessing and risking a 400 at request time.
 const STANDARD_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high"];
+const KIMI3_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "high", "max"];
 // GPT-5.6 explicitly confirmed to support the full range (ai-sdk.dev/providers/ai-sdk-providers/openai).
 const GPT_5_6_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 // claude-opus-4-7/4-8, claude-fable-5, and claude-sonnet-5 confirmed to additionally support
@@ -319,7 +320,7 @@ export const SUPPORTED_CHAT_MODELS = [
     label: "Kimi K3",
     // Real Kimi K2 splits reasoning into a separate "Kimi K2 Thinking" SKU — the base
     // (non-"-thinking") line isn't reasoning-branded, so left unsupported rather than guessed.
-    reasoningEffort: undefined,
+    reasoningEffort: KIMI3_EFFORT_LEVELS,
   },
   {
     id: "qwen/qwen3.8-max",
@@ -349,7 +350,6 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_048_576,
     vision: true,
     label: "Muse Spark 1.1",
-    // No identifiable real-world model to confirm reasoning support against.
     reasoningEffort: STANDARD_EFFORT_LEVELS,
   },
   {

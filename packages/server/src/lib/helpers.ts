@@ -7,8 +7,8 @@ import { FALLBACK_MODEL_ID } from "../../../shared/src/models";
 
 const PROVIDER_FALLBACKS: Partial<Record<SupportedProvider, string[]>> = {
   anthropic:  ["claude-sonnet-4-6", "claude-haiku-4-5"],
-  openai:     ["gpt-4o-mini", "gpt-4.1-nano"],
-  google:     ["gemini-2.5-flash", "gemini-2.0-flash"],
+  openai:     ["gpt-5-mini", "gpt-4.1-mini"],
+  google:     ["gemini-2.5-flash", "gemini-3-flash-preview"],
   openrouter: [FALLBACK_MODEL_ID, "nvidia/nemotron-3-ultra-550b-a55b:free"],
 };
 
