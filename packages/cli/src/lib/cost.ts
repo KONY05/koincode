@@ -1,29 +1,18 @@
 import type { UIMessage } from "ai";
 
-import { findSupportedChatModel, type ChatMessageMetadata, type ModelPricing, type SupportedProvider } from "@koincode/shared";
+import { getChatModelPricing } from "./enriched-models";
+import type { ChatMessageMetadata, ModelPricing } from "@koincode/shared";
 import { listCustomModels } from "./custom-models";
 
 type UsageMessage = Pick<UIMessage<ChatMessageMetadata>, "role" | "metadata">;
 
-export function getModelPricing(modelId: string): ModelPricing | undefined {
-  const builtIn = findSupportedChatModel(modelId);
-  if (builtIn) return builtIn.pricing;
+export function getModelPricing(modelId: string, metadataPricing?: ModelPricing): ModelPricing | undefined {
+  if (metadataPricing) return metadataPricing;
+  const modelPricing = getChatModelPricing(modelId);
+  if (modelPricing) return modelPricing;
   if (!modelId.startsWith("custom/")) return undefined;
   return listCustomModels().find((m) => m.id === modelId)?.pricing;
 }
-
-// Anthropic's ephemeral (5-minute) prompt-cache multipliers, applied to the model's
-// base input rate — a cache write costs a premium, a cache read is heavily discounted.
-// Used as the default for any provider without its own entry below.
-const CACHE_WRITE_MULTIPLIER = 1.25;
-const CACHE_READ_MULTIPLIER = 0.1;
-
-// Providers whose cache-read discount differs from Anthropic's ~90% off. xAI's cache
-// reads on Grok 4.5 are billed at $0.50/M against a $2/M base rate — a 75% discount,
-// not 90% — so the shared default would understate cost by 2.5x for cached turns.
-const CACHE_READ_MULTIPLIER_BY_PROVIDER: Partial<Record<SupportedProvider, number>> = {
-  xai: 0.25,
-};
 
 /** Sums cost across every assistant turn using the pricing of the model that produced it. */
 export function estimateSessionCost(messages: UsageMessage[]): number {
@@ -34,12 +23,8 @@ export function estimateSessionCost(messages: UsageMessage[]): number {
     const modelId = msg.metadata?.model;
     if (!usage || !modelId) continue;
 
-    const pricing = getModelPricing(String(modelId));
+    const pricing = getModelPricing(String(modelId), msg.metadata?.pricing);
     if (!pricing) continue;
-
-    const provider = findSupportedChatModel(String(modelId))?.provider;
-    const cacheReadMultiplier =
-      (provider && CACHE_READ_MULTIPLIER_BY_PROVIDER[provider]) ?? CACHE_READ_MULTIPLIER;
 
     const outputTokens = usage.outputTokens ?? 0;
     const cacheReadTokens = usage.inputTokenDetails?.cacheReadTokens ?? 0;
@@ -51,10 +36,16 @@ export function estimateSessionCost(messages: UsageMessage[]): number {
       usage.inputTokenDetails?.noCacheTokens ??
       Math.max((usage.inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens, 0);
 
+    // Use absolute cache rates from models.dev when available. When absent (old messages
+    // or providers that don't report cache pricing), treat cache tokens as regular input
+    // tokens — a conservative fallback that slightly overstates cost rather than understating.
+    const cacheReadRate = pricing.cacheReadUsdPerMillionTokens ?? pricing.inputUsdPerMillionTokens;
+    const cacheWriteRate = pricing.cacheWriteUsdPerMillionTokens ?? pricing.inputUsdPerMillionTokens;
+
     total +=
       (noCacheTokens / 1_000_000) * pricing.inputUsdPerMillionTokens +
-      (cacheReadTokens / 1_000_000) * pricing.inputUsdPerMillionTokens * cacheReadMultiplier +
-      (cacheWriteTokens / 1_000_000) * pricing.inputUsdPerMillionTokens * CACHE_WRITE_MULTIPLIER +
+      (cacheReadTokens / 1_000_000) * cacheReadRate +
+      (cacheWriteTokens / 1_000_000) * cacheWriteRate +
       (outputTokens / 1_000_000) * pricing.outputUsdPerMillionTokens;
   }
   return total;

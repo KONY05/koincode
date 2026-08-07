@@ -10,13 +10,13 @@ import {
 import {
   type ChatMessageMetadata,
   agentCanMutate,
-  getContextWindow,
   resolveAgent,
   type AgentId,
   type ToolContracts,
   toolInputSchemas,
   type WorkspaceRoot,
 } from "@koincode/shared";
+import { getChatContextWindow } from "../lib/enriched-models";
 import { apiClient, fetchWithRestart } from "../lib/api-client";
 import { extractLoadedAgentsMd, getInstructionFilesForRequest } from "../lib/instruction-files";
 import { sweepOrphanSnapshots } from "../lib/snapshots";
@@ -1127,8 +1127,8 @@ export function useChat(
     const contextWindow =
       lastWithUsage.metadata.model === currentModel
         ? (lastWithUsage.metadata.contextWindow ??
-          getContextWindow(currentModel))
-        : getContextWindow(currentModel);
+          getChatContextWindow(currentModel))
+        : getChatContextWindow(currentModel);
 
     return {
       tokensUsed,

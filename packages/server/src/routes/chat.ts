@@ -368,7 +368,12 @@ const app = new Hono().post("/", submitValidator, async (c) => {
     generateMessageId: generateId,
     messageMetadata({ part }) {
       if (part.type === "start") {
-        return { mode, model, ...(resolvedModel.contextWindow ? { contextWindow: resolvedModel.contextWindow } : {}) };
+        return {
+          mode,
+          model,
+          ...(resolvedModel.contextWindow ? { contextWindow: resolvedModel.contextWindow } : {}),
+          ...(resolvedModel.pricing ? { pricing: resolvedModel.pricing } : {}),
+        };
       }
 
       if (part.type !== "finish") return undefined;

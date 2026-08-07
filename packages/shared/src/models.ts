@@ -1,6 +1,12 @@
 export type ModelPricing = {
   inputUsdPerMillionTokens: number;
   outputUsdPerMillionTokens: number;
+  /** Absolute cache token rates sourced from models.dev at request time.
+   * Optional — only present when the provider reports cache pricing and
+   * models.dev has fetched successfully. When absent, cache tokens are
+   * treated as regular input tokens in cost calculations. */
+  cacheReadUsdPerMillionTokens?: number;
+  cacheWriteUsdPerMillionTokens?: number;
 };
 
 export type SupportedProvider =
@@ -26,7 +32,7 @@ export type SupportedProvider =
 export const REASONING_EFFORT_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
 export type ReasoningEffortLevel = (typeof REASONING_EFFORT_LEVELS)[number];
 
-type SupportedChatModelDefinition = {
+export type SupportedChatModelDefinition = {
   id: string;
   provider: SupportedProvider;
   pricing: ModelPricing;
@@ -38,10 +44,46 @@ type SupportedChatModelDefinition = {
   reasoningEffort?: readonly ReasoningEffortLevel[];
 };
 
+export type ModelsDevModelEntry = {
+  id?: string;
+  name?: string;
+  cost?: {
+    input?: number;
+    output?: number;
+    cache_read?: number;
+    cache_write?: number;
+  };
+  limit?: {
+    context?: number;
+    output?: number;
+  };
+  attachment?: boolean;
+  reasoning?: boolean;
+  reasoning_options?: Array<{
+    type?: string;
+    values?: string[];
+    min?: number;
+    max?: number;
+  }>;
+  modalities?: {
+    input?: string[];
+    output?: string[];
+  };
+};
+
+export type ModelsDevApiProviderEntry = {
+  id?: string;
+  name?: string;
+  models?: Record<string, ModelsDevModelEntry>;
+};
+
+export type ModelsDevApiResponse = Record<string, ModelsDevApiProviderEntry>;
+
 // Confirmed per-model against ai-sdk.dev's provider docs (see links in
 // context/feature-specs/44-reasoning-effort-model-label.md) — kept conservative where the
 // docs didn't name a specific model, rather than guessing and risking a 400 at request time.
 const STANDARD_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high"];
+const KIMI3_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "high", "max"];
 // GPT-5.6 explicitly confirmed to support the full range (ai-sdk.dev/providers/ai-sdk-providers/openai).
 const GPT_5_6_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 // claude-opus-4-7/4-8, claude-fable-5, and claude-sonnet-5 confirmed to additionally support
@@ -272,13 +314,23 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "moonshotai/kimi-k3",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 3, outputUsdPerMillionTokens: 15 },
+    pricing: { inputUsdPerMillionTokens: 2.90, outputUsdPerMillionTokens: 14 },
     contextWindow: 1_048_576,
     vision: true,
     label: "Kimi K3",
     // Real Kimi K2 splits reasoning into a separate "Kimi K2 Thinking" SKU — the base
     // (non-"-thinking") line isn't reasoning-branded, so left unsupported rather than guessed.
-    reasoningEffort: undefined,
+    reasoningEffort: KIMI3_EFFORT_LEVELS,
+  },
+  {
+    id: "qwen/qwen3.8-max",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 6 },
+    contextWindow: 1_000_000,
+    vision: true,
+    label: "Qwen3.8 Max",
+    // Qwen3.5+ ship hybrid thinking enabled by default (Qwen docs).
+    reasoningEffort: STANDARD_EFFORT_LEVELS,
   },
   {
     id: "z-ai/glm-5.2",
@@ -298,8 +350,17 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_048_576,
     vision: true,
     label: "Muse Spark 1.1",
-    // No identifiable real-world model to confirm reasoning support against.
-    reasoningEffort: undefined,
+    reasoningEffort: STANDARD_EFFORT_LEVELS,
+  },
+  {
+    id: "deepseek/deepseek-v4-flash-0731",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.09, outputUsdPerMillionTokens: 0.18 },
+    contextWindow: 1_000_000,
+    vision: false,
+    label: "DeepSeek V4 Flash 0731",
+    // Same DeepSeek V4 thinking/non-thinking support as the Pro variant.
+    reasoningEffort: STANDARD_EFFORT_LEVELS,
   },
   {
     id: "qwen/qwen3.7-max",
@@ -309,26 +370,6 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
     label: "Qwen3.7 Max",
     // Qwen3.5+ ship hybrid thinking enabled by default (Qwen docs).
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
-  },
-  {
-    id: "minimax/minimax-m3",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.30, outputUsdPerMillionTokens: 1.20 },
-    contextWindow: 1_000_000,
-    vision: true,
-    label: "MiniMax M3",
-    // MiniMax M2 confirmed "interleaved thinking" (explicit reasoning traces).
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
-  },
-  {
-    id: "deepseek/deepseek-v4-pro",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.435, outputUsdPerMillionTokens: 0.87 },
-    contextWindow: 1_048_576,
-    vision: false,
-    label: "DeepSeek V4 Pro",
-    // DeepSeek V4 confirmed to support thinking and non-thinking modes (DeepSeek API docs).
     reasoningEffort: STANDARD_EFFORT_LEVELS,
   },
   {
@@ -342,16 +383,6 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort: undefined,
   },
   {
-    id: "deepseek/deepseek-v4-flash",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.089, outputUsdPerMillionTokens: 0.18 },
-    contextWindow: 1_048_576,
-    vision: false,
-    label: "DeepSeek V4 Flash",
-    // Same DeepSeek V4 thinking/non-thinking support as the Pro variant.
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
-  },
-  {
     id: "moonshotai/kimi-k2.7-code",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0.74, outputUsdPerMillionTokens: 3.50 },
@@ -360,6 +391,16 @@ export const SUPPORTED_CHAT_MODELS = [
     label: "Kimi K2.7 Code",
     // Coding-specialized variant, not reasoning-branded — left unsupported.
     reasoningEffort: undefined,
+  },
+  {
+    id: "deepseek/deepseek-v4-pro",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.435, outputUsdPerMillionTokens: 0.87 },
+    contextWindow: 1_048_576,
+    vision: false,
+    label: "DeepSeek V4 Pro",
+    // DeepSeek V4 confirmed to support thinking and non-thinking modes (DeepSeek API docs).
+    reasoningEffort: STANDARD_EFFORT_LEVELS,
   },
   {
     id: "qwen/qwen3.7-plus",
@@ -371,15 +412,15 @@ export const SUPPORTED_CHAT_MODELS = [
     // Same Qwen3.5+ hybrid thinking support as Qwen3.7 Max.
     reasoningEffort: STANDARD_EFFORT_LEVELS,
   },
+
   // ── OpenRouter free (require OPENROUTER_API_KEY, $0 per token) ────────────
   {
-    id: "poolside/laguna-s-2.1:free",
+    id: "inclusionai/ling-3.0-flash:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 262_144,
     vision: false,
-    label: "Laguna S 2.1 (free)",
-    // No identifiable real-world model to confirm reasoning support against.
+    label: "Ling-3.0-flash (free)",
     reasoningEffort: undefined,
   },
   {
@@ -389,6 +430,16 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_000_000,
     vision: false,
     label: "Nemotron 3 Ultra (free)",
+    reasoningEffort: undefined,
+  },
+  {
+    id: "poolside/laguna-s-2.1:free",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
+    contextWindow: 262_144,
+    vision: false,
+    label: "Laguna S 2.1 (free)",
+    // No identifiable real-world model to confirm reasoning support against.
     reasoningEffort: undefined,
   },
   {
@@ -410,23 +461,17 @@ export const SUPPORTED_CHAT_MODELS = [
     label: "Gemma 4 31B (free)",
     // Gemma (unlike Gemini) has no thinking/reasoning mode historically.
     reasoningEffort: undefined,
-  },
-  {
-    id: "inclusionai/ling-3.0-flash:free",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-    contextWindow: 262_144,
-    vision: false,
-    label: "Ling-3.0-flash (free)",
-    reasoningEffort: undefined,
   }
 ] as const satisfies readonly SupportedChatModelDefinition[];
 
 export type SupportedChatModel = (typeof SUPPORTED_CHAT_MODELS)[number];
 export type SupportedChatModelId = SupportedChatModel["id"];
 
-export function findSupportedChatModel(modelId: string) {
-  return SUPPORTED_CHAT_MODELS.find((model) => model.id === modelId);
+export function findSupportedChatModel(
+  modelId: string,
+  modelsList: readonly SupportedChatModelDefinition[] = SUPPORTED_CHAT_MODELS,
+) {
+  return modelsList.find((model) => model.id === modelId);
 }
 
 export function isCustomOrOllamaModelId(modelId: string): boolean {
@@ -446,28 +491,120 @@ export function isCustomOrOllamaModelId(modelId: string): boolean {
 export function isResolvableModelId(
   modelId: string,
   customModelIds: readonly string[] = [],
+  modelsList: readonly SupportedChatModelDefinition[] = SUPPORTED_CHAT_MODELS,
 ): boolean {
-  if (findSupportedChatModel(modelId)) return true;
+  if (findSupportedChatModel(modelId, modelsList)) return true;
   if (modelId.startsWith("ollama/")) return true;
   if (modelId.startsWith("custom/")) return customModelIds.includes(modelId);
   return false;
 }
 
 /** Returns the context window size in tokens for a given model ID. Falls back to 128k for unknown/local models. */
-export function getContextWindow(modelId: string): number {
-  const model = findSupportedChatModel(modelId);
+export function getContextWindow(
+  modelId: string,
+  modelsList: readonly SupportedChatModelDefinition[] = SUPPORTED_CHAT_MODELS,
+): number {
+  const model = findSupportedChatModel(modelId, modelsList);
   return model?.contextWindow ?? 128_000;
 }
 
 /** Returns true if the model supports image inputs (vision). Falls back to false for unknown/local models. */
-export function isVisionModel(modelId: string): boolean {
-  const model = findSupportedChatModel(modelId);
+export function isVisionModel(
+  modelId: string,
+  modelsList: readonly SupportedChatModelDefinition[] = SUPPORTED_CHAT_MODELS,
+): boolean {
+  const model = findSupportedChatModel(modelId, modelsList);
   return model?.vision ?? false;
 }
 
 /** Returns the reasoning effort levels a model accepts, or null if it doesn't support the setting. */
-export function getReasoningEffortLevels(modelId: string): readonly ReasoningEffortLevel[] | null {
-  return findSupportedChatModel(modelId)?.reasoningEffort ?? null;
+export function getReasoningEffortLevels(
+  modelId: string,
+  modelsList: readonly SupportedChatModelDefinition[] = SUPPORTED_CHAT_MODELS,
+): readonly ReasoningEffortLevel[] | null {
+  return findSupportedChatModel(modelId, modelsList)?.reasoningEffort ?? null;
+}
+
+/**
+ * Enriches a KOINCODE supported model definition with dynamic pricing, context window,
+ * vision capabilities, and reasoning effort levels fetched from models.dev/api.json.
+ */
+export function enrichModelWithModelsDevData(
+  model: SupportedChatModelDefinition,
+  apiData: ModelsDevApiResponse | null,
+): SupportedChatModelDefinition {
+  if (!apiData) return model;
+
+  let devModel: ModelsDevModelEntry | undefined;
+  const providerGroup = apiData[model.provider];
+  if (providerGroup?.models) {
+    devModel = providerGroup.models[model.id];
+  }
+
+  if (!devModel) {
+    for (const pKey of Object.keys(apiData)) {
+      const pEntry = apiData[pKey];
+      if (pEntry?.models) {
+        if (pEntry.models[model.id]) {
+          devModel = pEntry.models[model.id];
+          break;
+        }
+        for (const mKey of Object.keys(pEntry.models)) {
+          const m = pEntry.models[mKey];
+          if (m?.id === model.id) {
+            devModel = m;
+            break;
+          }
+        }
+        if (devModel) break;
+      }
+    }
+  }
+
+  if (!devModel) return model;
+
+  const pricing: ModelPricing = {
+    inputUsdPerMillionTokens: devModel.cost?.input ?? model.pricing.inputUsdPerMillionTokens,
+    outputUsdPerMillionTokens: devModel.cost?.output ?? model.pricing.outputUsdPerMillionTokens,
+    ...(devModel.cost?.cache_read !== undefined ? { cacheReadUsdPerMillionTokens: devModel.cost.cache_read } : {}),
+    ...(devModel.cost?.cache_write !== undefined ? { cacheWriteUsdPerMillionTokens: devModel.cost.cache_write } : {}),
+  };
+
+  const contextWindow = devModel.limit?.context ?? model.contextWindow;
+
+  // The only thing that makes a model vision-capable is accepting image inputs. models.dev's
+  // `attachment` flag (file uploads incl. PDFs) does NOT count: PDFs and other files are read
+  // and transcoded locally in the CLI's read-file tool, so an "attachment: true" model with no
+  // image modality is not vision-capable for our purposes. When models.dev is silent about
+  // input modalities, the static value stands.
+  const hasImageModality = Array.isArray(devModel.modalities?.input)
+    ? devModel.modalities.input.includes("image")
+    : undefined;
+  const vision = hasImageModality ?? model.vision;
+
+  let reasoningEffort: readonly ReasoningEffortLevel[] | undefined = model.reasoningEffort;
+  const effortOption = devModel.reasoning_options?.find(
+    (opt) => opt.type === "effort" && Array.isArray(opt.values),
+  );
+  if (effortOption?.values) {
+    const valid = effortOption.values.filter((v): v is ReasoningEffortLevel =>
+      (REASONING_EFFORT_LEVELS as readonly string[]).includes(v),
+    );
+    // No overlap with our level set means models.dev is describing a vocabulary we don't
+    // speak (provider-specific tiers), not "this model has no effort dial" — keep the
+    // hand-verified static array rather than silently removing the /effort control.
+    if (valid.length > 0) reasoningEffort = valid;
+  } else if (devModel.reasoning === false) {
+    reasoningEffort = undefined;
+  }
+
+  return {
+    ...model,
+    pricing,
+    contextWindow,
+    vision,
+    reasoningEffort,
+  };
 }
 
 export type OllamaModelsResponse = {
@@ -476,4 +613,4 @@ export type OllamaModelsResponse = {
 
 export const DEFAULT_CHAT_MODEL_ID: SupportedChatModelId = "claude-sonnet-5";
 
-export const FALLBACK_MODEL_ID: SupportedChatModelId = "nvidia/nemotron-3-ultra-550b-a55b:free";
+export const FALLBACK_MODEL_ID: SupportedChatModelId = "inclusionai/ling-3.0-flash:free";

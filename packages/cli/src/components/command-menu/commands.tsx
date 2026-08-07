@@ -1,4 +1,4 @@
-import { SUPPORTED_CHAT_MODELS, getReasoningEffortLevels } from "@koincode/shared";
+import { getChatModelsList, getChatReasoningEffortLevels } from "../../lib/enriched-models";
 import {
   AgentsDialogContent,
   ContextDialogContent,
@@ -80,7 +80,7 @@ export const COMMANDS: Command[] = [
         title: "Select Model",
         children: (
           <ModelsDialogContent
-            models={SUPPORTED_CHAT_MODELS}
+            models={getChatModelsList()}
             onSelectModel={ctx.setModel}
           />
         ),
@@ -96,7 +96,7 @@ export const COMMANDS: Command[] = [
         title: `Sub-agent Model (current: ${ctx.subagentModelDisplayName ?? "Inherit from session"})`,
         children: (
           <ModelsDialogContent
-            models={SUPPORTED_CHAT_MODELS}
+            models={getChatModelsList()}
             onSelectModel={ctx.setSubagentModel}
             inheritOption={{
               label: "Inherit from session (default)",
@@ -112,7 +112,7 @@ export const COMMANDS: Command[] = [
     description: "Set reasoning effort for the current model",
     value: "/effort",
     action: (ctx) => {
-      const levels = getReasoningEffortLevels(ctx.model);
+      const levels = getChatReasoningEffortLevels(ctx.model);
       if (!levels) {
         ctx.toast.show({
           variant: "error",

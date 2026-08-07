@@ -1,4 +1,5 @@
-import { toolInputSchemas, isVisionModel } from "@koincode/shared";
+import { toolInputSchemas } from "@koincode/shared";
+import { isChatVisionModel } from "../../lib/enriched-models";
 import { getPage } from "./browser-session";
 
 type ImagePart = { type: "image"; data: string; mimeType: "image/jpeg" };
@@ -19,7 +20,7 @@ export async function runBrowserScreenshot(
     .catch(() => "");
   const pageText = `URL: ${url}\nTitle: ${title}\n\nPage text:\n${bodyText.slice(0, 2000)}`;
 
-  if (modelId && isVisionModel(modelId)) {
+  if (modelId && isChatVisionModel(modelId)) {
     const buffer = await page.screenshot({
       type: "jpeg",
       quality: 85,

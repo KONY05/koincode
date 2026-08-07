@@ -9,13 +9,18 @@ export {
   getContextWindow,
   isVisionModel,
   getReasoningEffortLevels,
+  enrichModelWithModelsDevData,
   REASONING_EFFORT_LEVELS,
   type ModelPricing,
   type SupportedProvider,
   type SupportedChatModel,
+  type SupportedChatModelDefinition,
   type SupportedChatModelId,
   type OllamaModelsResponse,
   type ReasoningEffortLevel,
+  type ModelsDevModelEntry,
+  type ModelsDevApiProviderEntry,
+  type ModelsDevApiResponse,
 } from "./models";
 
 export {
