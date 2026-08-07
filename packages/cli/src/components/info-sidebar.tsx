@@ -14,6 +14,14 @@ function formatNumber(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+// Adaptive cost formatting: on very cheap models a $0.000012 cost is meaningful only with
+// several decimals, while $0.25 reads fine with two. Format to the full precision (6 decimals)
+// then trim trailing zeros so each value shows exactly as many decimals as it needs.
+function formatCost(cost: number): string {
+  if (cost === 0) return "0";
+  return cost.toFixed(6).replace(/\.?0+$/, "");
+}
+
 function SectionLabel({ children }: { children: string }) {
   const { colors } = useTheme();
   return (
@@ -93,7 +101,7 @@ export function InfoSidebar({ sessionTitle, contextUsage, sessionCost, visible, 
           <>
             <text>{formatNumber(contextUsage.tokensUsed)} tokens</text>
             <text>{contextUsage.percent}% used</text>
-            <text>≈ ${sessionCost.toFixed(2)} spent</text>
+            <text>≈ ${formatCost(sessionCost)} spent</text>
           </>
         ) : (
           <text attributes={TextAttributes.DIM}>No usage yet</text>
