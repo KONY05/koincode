@@ -415,21 +415,21 @@ export const SUPPORTED_CHAT_MODELS = [
 
   // ── OpenRouter free (require OPENROUTER_API_KEY, $0 per token) ────────────
   {
-    id: "inclusionai/ling-3.0-flash:free",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-    contextWindow: 262_144,
-    vision: false,
-    label: "Ling-3.0-flash (free)",
-    reasoningEffort: undefined,
-  },
-  {
     id: "nvidia/nemotron-3-ultra-550b-a55b:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 1_000_000,
     vision: false,
     label: "Nemotron 3 Ultra (free)",
+    reasoningEffort: undefined,
+  },
+  {
+    id: "inclusionai/ling-3.0-tiny:free",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
+    contextWindow: 262_144,
+    vision: false,
+    label: "Ling 3.0 Tiny (free)",
     reasoningEffort: undefined,
   },
   {
@@ -613,4 +613,4 @@ export type OllamaModelsResponse = {
 
 export const DEFAULT_CHAT_MODEL_ID: SupportedChatModelId = "claude-sonnet-5";
 
-export const FALLBACK_MODEL_ID: SupportedChatModelId = "inclusionai/ling-3.0-flash:free";
+export const FALLBACK_MODEL_ID: SupportedChatModelId = "nvidia/nemotron-3-ultra-550b-a55b:free";

@@ -11,7 +11,10 @@ import {
   type AgentId,
   toolInputSchemas,
   type WorkspaceRoot,
+  type AuxCostEntry,
+  type ModelPricing,
 } from "@koincode/shared";
+import type { LanguageModelUsage } from "ai";
 import { executeLocalTool } from "./index";
 import { loadAgents } from "../lib/agents";
 import { getPermissionInfo } from "../utils/permissions";
@@ -55,6 +58,9 @@ type AgentStepResponse = {
     type: string;
   }>;
   finishReason: string;
+  usage?: LanguageModelUsage;
+  model?: string;
+  pricing?: ModelPricing;
 };
 
 // type SubagentDefinition = {
@@ -84,6 +90,12 @@ type SpawnAgentInput = {
    * calls have no root to bound the walk against, so it's silently a no-op). Also fixes
    * tool-output paths always rendering absolute instead of root-relative for the same reason. */
   roots?: WorkspaceRoot[];
+  /** When set, each /agent-step request carries this session id so the server can
+   *  persist the step's token usage against the session (recovered on reload). */
+  sessionId?: string;
+  /** Invoked with each step's usage/model so the parent session can reflect the
+   *  cost live in the info bar as the sub-agent runs. */
+  onUsage?: (entry: AuxCostEntry) => void;
 };
 
 // Compact one-liner for a tool call the sub-agent made but never narrated —
@@ -210,6 +222,8 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     timeoutSeconds,
     signal,
     roots = [],
+    sessionId,
+    onUsage,
   } = input;
 
   // The sub-agent runs *as* a registry agent (Feature 54, step d). `startingMode`
@@ -305,6 +319,7 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
         },
         model: effectiveModel,
         instructionFiles: getInstructionFilesForRequest(roots),
+        ...(sessionId ? { sessionId } : {}),
       }),
       signal,
     });
@@ -319,6 +334,17 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     }
 
     const stepResult = (await response.json()) as AgentStepResponse;
+
+    // Surface this step's token usage/model so the parent session can reflect
+    // the cost live in the info bar (the server also persists it via sessionId).
+    if (stepResult.usage) {
+      onUsage?.({
+        kind: "agent-step",
+        model: stepResult.model ?? effectiveModel,
+        ...(stepResult.pricing ? { pricing: stepResult.pricing } : {}),
+        usage: stepResult.usage,
+      });
+    }
 
     // Build assistant message content from text + tool calls.
     const assistantContent: AssistantContentPart[] = [];

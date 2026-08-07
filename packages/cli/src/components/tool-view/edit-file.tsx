@@ -107,11 +107,6 @@ export default function EditFileDiff({
           width="100%"
         />
       )}
-      {!!error && (
-        <text fg={colors.error} paddingLeft={2}>
-          {error}
-        </text>
-      )}
     </box>
   );
 }

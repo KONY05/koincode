@@ -33,6 +33,7 @@ const LEGACY_MIGRATIONS = new Set([
 //   "20260801000000_add_some_column": `ALTER TABLE "Foo" ADD COLUMN "bar" TEXT;`,
 const MIGRATIONS: Record<string, string> = {
   "20260715120000_add_session_roots": `ALTER TABLE "Session" ADD COLUMN "roots" TEXT NOT NULL DEFAULT '[]';`,
+  "20260807090000_add_session_aux_cost": `ALTER TABLE "Session" ADD COLUMN "auxCost" TEXT NOT NULL DEFAULT '[]';`,
 };
 
 export async function runMigrations(): Promise<void> {
@@ -61,6 +62,7 @@ export async function runMigrations(): Promise<void> {
         "title" TEXT NOT NULL,
         "cwd" TEXT,
         "roots" TEXT NOT NULL DEFAULT '[]',
+        "auxCost" TEXT NOT NULL DEFAULT '[]',
         "gitBranch" TEXT,
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP

@@ -2,35 +2,48 @@ import { Hono } from "hono";
 // import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { generateId } from "ai";
+import { generateId, type LanguageModelUsage } from "ai";
 
 import { db } from "@koincode/database/client";
 import { logger, getLastBoundaryIndex, generateTextWithFallback } from "../lib/helpers";
+import { appendSessionAuxCost, parseAuxCost } from "../lib/session-cost";
 import { buildCompactionPrompt } from "../prompts/compaction-prompt";
 import { buildHandoffPrompt } from "../prompts/handoff-prompt";
-import { parseWorkspaceRoots, serializeWorkspaceRoots, makeRootLabel, findRootConflict } from "@koincode/shared";
+import { parseWorkspaceRoots, serializeWorkspaceRoots, makeRootLabel, findRootConflict, type ModelPricing } from "@koincode/shared";
 
+
+type GeneratedTitle = {
+  title: string;
+  modelId?: string;
+  usage?: LanguageModelUsage;
+  pricing?: ModelPricing;
+};
 
 /** One-shot title generation using the model user is currently using **/
-async function generateTitleFromMessage(message: string, model:string): Promise<string> {
+async function generateTitleFromMessage(message: string, model: string): Promise<GeneratedTitle> {
+  const fallbackTitle = message.slice(0, 50) || "New Conversation";
   try {
     if (!message || message.length < 10) {
-      return message.slice(0, 50) || "New Conversation";
+      return { title: fallbackTitle };
     }
 
     const result = await generateTextWithFallback(model, {
       prompt: `Generate a concise, descriptive title (max 50 characters) for this conversation based on the user's first message:\n\n${message}\n\nReturn only the title, no quotes or extra text.`,
-      // 50 wasn't enough headroom: reasoning-capable free models (e.g. openrouter's
-      // inclusionai/ling-3.0-flash:free) spend the whole budget on hidden reasoning
+      // 50 wasn't enough headroom: reasoning-capable free models (e.g. openrouter's free models) spend the whole budget on hidden reasoning
       // tokens and never emit the title itself, silently falling back to the raw prompt.
       maxOutputTokens: 300,
     });
 
     const title = result.text.trim().slice(0, 50);
-    return title || message.slice(0, 50);
+    return {
+      title: title || fallbackTitle,
+      usage: result.usage,
+      modelId: result.resolvedModelId,
+      pricing: result.pricing,
+    };
   } catch (error) {
     logger.error("Failed to generate title:", error);
-    return message.slice(0, 50) || "New Conversation";
+    return { title: fallbackTitle };
   }
 }
 
@@ -143,7 +156,14 @@ const app = new Hono()
       })
       .filter((m) => m !== null);
 
-    return c.json({ ...session, roots: parseWorkspaceRoots(session.roots), messages });
+    // Override auxCost with the parsed array (over the raw string from the spread)
+    // so the CLI can fold these extra-LLM-call costs into the info bar session cost.
+    return c.json({
+      ...session,
+      roots: parseWorkspaceRoots(session.roots),
+      auxCost: parseAuxCost(session.auxCost),
+      messages,
+    });
   })
   .post("/", createSessionValidator, async (c) => {
     // MOCK: Uncomment to simulate slow session loading
@@ -168,11 +188,21 @@ const app = new Hono()
 
     // Generate better title in background without blocking
     generateTitleFromMessage(title, model)
-      .then((generatedTitle) => {
-        return db.session.update({
+      .then(async ({ title: generatedTitle, usage, modelId, pricing }) => {
+        await db.session.update({
           where: { id: session.id },
           data: { title: generatedTitle },
         });
+        // The title call is a real model call with token usage/cost — record it
+        // in the session's aux cost so the info bar counts it too.
+        if (usage) {
+          await appendSessionAuxCost(session.id, {
+            kind: "title",
+            model: modelId ?? model,
+            ...(pricing ? { pricing } : {}),
+            usage,
+          });
+        }
       })
       .catch((err) => {
         logger.error(`Failed to update title for session ${session.id}:`, err);
@@ -386,6 +416,11 @@ const app = new Hono()
       .filter(Boolean)
       .join("\n\n");
 
+    // Capture the summarization call's usage/model so the persisted assistant
+    // summary message carries them and counts toward this session's cost.
+    let summaryUsage: LanguageModelUsage | undefined;
+    let summaryModel: string = model;
+    let summaryPricing: ModelPricing | undefined;
     const summary = await (async () => {
       if (assistantMessages.length < 2 || !conversationText.trim()) {
         return "No significant conversation to summarize yet.";
@@ -400,6 +435,9 @@ const app = new Hono()
           ],
           maxOutputTokens: 1200,
         });
+        summaryUsage = result.usage;
+        summaryModel = result.resolvedModelId;
+        summaryPricing = result.pricing;
         return result.text.trim();
       } catch (err) {
         logger.error("Failed to generate compact summary:", err);
@@ -446,7 +484,12 @@ const app = new Hono()
               id: assistantMsgId,
               role: "assistant",
               parts: [{ type: "text", text: summary }],
-              metadata: { model, mode },
+              metadata: {
+                model: summaryModel,
+                mode,
+                ...(summaryPricing ? { pricing: summaryPricing } : {}),
+                ...(summaryUsage ? { usage: summaryUsage } : {}),
+              },
             }),
             order: nextOrder + 2,
           },
@@ -514,6 +557,11 @@ const app = new Hono()
       .filter(Boolean)
       .join("\n\n");
 
+    // Capture the summarization call's usage/model so the seeded assistant
+    // message carries them and counts toward the new session's cost.
+    let handoffUsage: LanguageModelUsage | undefined;
+    let handoffModel: string | undefined;
+    let handoffPricing: ModelPricing | undefined;
     const summaryText = await (async () => {
       try {
         const result = await generateTextWithFallback(model, {
@@ -525,6 +573,9 @@ const app = new Hono()
           ],
           maxOutputTokens: 1200,
         });
+        handoffUsage = result.usage;
+        handoffModel = result.resolvedModelId;
+        handoffPricing = result.pricing;
         return result.text.trim();
       } catch (err) {
         logger.error("Failed to generate handoff summary:", err);
@@ -566,7 +617,12 @@ const app = new Hono()
             id: assistantMsgId,
             role: "assistant",
             parts: [{ type: "text", text: summaryText }],
-            metadata: { model, mode },
+            metadata: {
+              model: handoffModel ?? model,
+              mode,
+              ...(handoffPricing ? { pricing: handoffPricing } : {}),
+              ...(handoffUsage ? { usage: handoffUsage } : {}),
+            },
           }),
           order: 1,
         },
