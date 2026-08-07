@@ -14,6 +14,7 @@ import {
   useMemo,
   type RefObject,
 } from "react";
+
 import { checkRecorderAvailable, startRecording } from "../lib/voice-recorder";
 // warmRecorder and isRecorderReady imported when voice is re-enabled
 import type { RecorderHandle } from "../lib/voice-recorder";
@@ -25,7 +26,6 @@ import { findMentionRanges, isMentionQueryCharacter } from "../utils/mentions";
 import type { ContextUsage } from "../hooks/use-chat";
 import { usePasteHandler } from "../hooks/use-paste-handler";
 import { useImageAttachment } from "../hooks/use-image-attachment";
-
 import { EmptyBorder } from "./border";
 import { StatusBar } from "./status-bar";
 import { CommandMenu } from "./command-menu";

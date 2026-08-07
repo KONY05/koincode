@@ -10,7 +10,13 @@ import { useToast } from "../providers/toast";
 const CURRENT_DIRECTORY = process.cwd();
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
-const IMAGE_PATH_RE = /(?:^|\s)((?:\/|\.\/|~\/|\.\.\/)?[^\s]+\.(?:png|jpe?g|gif|webp))(?=\s|$)/gi;
+// Anchored, absolute/relative paths may contain spaces (e.g. "Images & Videos" or a
+// filename like "Screenshot 2026-08-07 at 19.01.31.png"), so their components are matched as
+// space-separated tokens (lazily to stop at the first valid extension). Bare filenames keep the
+// strict no-space form to avoid swallowing prose. Surrounding quotes/parens act as boundaries but
+// are not captured, so a quoted path " '/a b.png' " still resolves to the clean path.
+const IMAGE_PATH_RE =
+  /(?:^|[\s"'(])((?:\/|\.\/|~\/|\.\.\/)\S+?(?:[ ]\S+?)*?\.(?:png|jpe?g|gif|webp)|\S+\.(?:png|jpe?g|gif|webp))(?=[\s.,:;!?)"']|$)/gi;
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
 const MIME_TYPES: Record<string, string> = {

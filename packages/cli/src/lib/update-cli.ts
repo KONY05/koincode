@@ -85,7 +85,7 @@ export async function downloadSelfUpdate(
 
   try {
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(300_000), // 5 minutes
       redirect: "follow",
     });
     if (!res.ok) throw new Error(`Download failed: ${res.status}`);
