@@ -44,6 +44,6 @@ export function createMarkdownSyntaxStyle(colors: ThemeColors): SyntaxStyle {
  * landed in the draft text. */
 export function createMentionSyntaxStyle(colors: ThemeColors): SyntaxStyle {
   return SyntaxStyle.fromStyles({
-    mention: { fg: "black", bg: RGBA.fromHex(colors.selection), bold: true },
+    mention: { fg: RGBA.fromHex(colors.selection), bold: true },
   });
 }
