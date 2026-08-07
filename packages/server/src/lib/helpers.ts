@@ -1,14 +1,15 @@
 import { generateText } from "ai";
 
-import { BOUNDARY_ROLES, findSupportedChatModel, type SupportedProvider } from "@koincode/shared";
+import { BOUNDARY_ROLES, type SupportedProvider } from "@koincode/shared";
 import { resolveChatModel } from "./models";
+import { findEnrichedSupportedChatModel } from "./models-registry";
 import { FALLBACK_MODEL_ID } from "../../../shared/src/models";
 
 const PROVIDER_FALLBACKS: Partial<Record<SupportedProvider, string[]>> = {
   anthropic:  ["claude-sonnet-4-6", "claude-haiku-4-5"],
   openai:     ["gpt-4o-mini", "gpt-4.1-nano"],
-  google:     ["gemini-2.0-flash", "gemini-2.5-flash"],
-  openrouter: [FALLBACK_MODEL_ID, "google/gemma-4-31b-it:free"],
+  google:     ["gemini-2.5-flash", "gemini-2.0-flash"],
+  openrouter: [FALLBACK_MODEL_ID, "nvidia/nemotron-3-ultra-550b-a55b:free"],
 };
 
 const GENERATE_TEXT_TIMEOUT_MS = 60_000;
@@ -25,7 +26,7 @@ export async function generateTextWithFallback(
   options: Omit<Parameters<typeof generateText>[0], "model">,
   timeoutMs = GENERATE_TEXT_TIMEOUT_MS,
 ): Promise<Awaited<ReturnType<typeof generateText>>> {
-  const provider = findSupportedChatModel(preferredModelId)?.provider;
+  const provider = findEnrichedSupportedChatModel(preferredModelId)?.provider;
   const fallbacks = provider ? (PROVIDER_FALLBACKS[provider] ?? []) : [];
   const modelsToTry = [preferredModelId, ...fallbacks.filter((m) => m !== preferredModelId)];
 

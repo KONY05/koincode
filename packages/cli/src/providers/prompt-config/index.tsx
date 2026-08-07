@@ -3,14 +3,16 @@ import type { ReactNode } from "react";
 
 import {
   DEFAULT_CHAT_MODEL_ID,
-  SUPPORTED_CHAT_MODELS,
-  findSupportedChatModel,
   isCustomOrOllamaModelId,
-  getReasoningEffortLevels,
   Mode,
   type AgentId,
   type ReasoningEffortLevel,
 } from "@koincode/shared";
+import {
+  findChatModel,
+  getChatModelsList,
+  getChatReasoningEffortLevels,
+} from "../../lib/enriched-models";
 import { loadPrimaryAgents, type ResolvedAgent } from "../../lib/agents";
 import {
   readGlobalConfig,
@@ -63,14 +65,14 @@ type PromptConfigProviderProps = {
 };
 
 function firstModelForProvider(provider: "anthropic" | "openai" | "google" | "xai"): string {
-  return SUPPORTED_CHAT_MODELS.find((m) => m.provider === provider)!.id;
+  return getChatModelsList().find((m) => m.provider === provider)!.id;
 }
 
 function resolveInitialModel(): string {
   const config = readGlobalConfig();
 
   const saved = config.defaultModel;
-  if (saved && (findSupportedChatModel(saved) || isCustomOrOllamaModelId(saved)))
+  if (saved && (findChatModel(saved) || isCustomOrOllamaModelId(saved)))
     return saved;
 
   const keys = config.apiKeys ?? {};
@@ -94,7 +96,7 @@ function resolveInitialModel(): string {
 // it should just fall back to inheriting the session model.
 function resolveInitialSubagentModel(): string | null {
   const saved = readGlobalConfig().subagentModel;
-  if (saved && (findSupportedChatModel(saved) || isCustomOrOllamaModelId(saved))) {
+  if (saved && (findChatModel(saved) || isCustomOrOllamaModelId(saved))) {
     return saved;
   }
   return null;
@@ -157,7 +159,7 @@ export function PromptConfigProvider({ children }: PromptConfigProviderProps) {
   );
 
   const reasoningEffort = useMemo<ReasoningEffortLevel | null>(() => {
-    const levels = getReasoningEffortLevels(model);
+    const levels = getChatReasoningEffortLevels(model);
     if (!levels) return null;
     if (reasoningEffortPreference && levels.includes(reasoningEffortPreference)) {
       return reasoningEffortPreference;

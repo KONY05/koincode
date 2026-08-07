@@ -15,7 +15,7 @@ import {
 import { apiClient } from "../../lib/api-client";
 import {
   DEFAULT_OLLAMA_BASE_URL,
-  type SupportedChatModel,
+  type SupportedChatModelDefinition,
   type OllamaModelsResponse,
   type CustomModelConfig,
   type CustomProviderConfig,
@@ -26,7 +26,7 @@ type Tab = "frontier" | "free" | "custom" | "ollama";
 
 const UNDO_DURATION_MS = 5000;
 
-function isFree(model: SupportedChatModel): boolean {
+function isFree(model: SupportedChatModelDefinition): boolean {
   return (
     model.pricing.inputUsdPerMillionTokens === 0 &&
     model.pricing.outputUsdPerMillionTokens === 0
@@ -42,7 +42,7 @@ function formatBytes(bytes: number): string {
 }
 
 type ModelsDialogContentProps = {
-  models: readonly SupportedChatModel[];
+  models: readonly SupportedChatModelDefinition[];
   onSelectModel: (modelId: string) => void;
   /** When set, prepends a selectable "inherit" row to the frontier tab — used by
    * /subagent-model to offer going back to the session's own model, a concept
@@ -50,7 +50,7 @@ type ModelsDialogContentProps = {
   inheritOption?: { label: string; onSelect: () => void };
 };
 
-type FrontierRow = { kind: "inherit" } | { kind: "model"; model: SupportedChatModel };
+type FrontierRow = { kind: "inherit" } | { kind: "model"; model: SupportedChatModelDefinition };
 
 // ── Custom tab sub-views: pick a provider, then run the model-fields wizard ────────
 
@@ -160,8 +160,8 @@ export const ModelsDialogContent = ({
 
   const frontierModels = models.filter(
     (m) => !isFree(m),
-  ) as SupportedChatModel[];
-  const freeModels = models.filter(isFree) as SupportedChatModel[];
+  );
+  const freeModels = models.filter(isFree);
 
   // loadingLocal: the ollama tab is active but we haven't received the live detection result yet
   const loadingLocal = activeTab === "ollama" && ollamaData === null;
@@ -198,7 +198,7 @@ export const ModelsDialogContent = ({
   }, [commitDeleteModel]);
 
   const handleSelectStatic = useCallback(
-    (model: SupportedChatModel) => {
+    (model: SupportedChatModelDefinition) => {
       onSelectModel(model.id);
       dialog.close();
     },

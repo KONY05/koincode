@@ -8,10 +8,13 @@ import { initializeMcp, shutdownMcp } from "./lib/mcp-manager";
 import { SERVER_PORT } from "@koincode/shared";
 import { runMigrations } from "./lib/migrations";
 
+import { initModelsDevRegistry } from "./lib/models-registry";
+
 import sessions from "./routes/sessions";
 import chat from "./routes/chat";
 import memory from "./routes/memory";
 import ollamaModels from "./routes/ollama-models";
+import models from "./routes/models";
 import mcp from "./routes/mcp";
 import images from "./routes/images";
 import snapshots from "./routes/snapshots";
@@ -24,6 +27,9 @@ try {
   logger.error("Startup failed:", e instanceof Error ? e.message : e);
   process.exit(1);
 }
+
+// Non-fatal — initialize models.dev registry asynchronously
+initModelsDevRegistry();
 
 // Non-fatal — server starts even if MCP connections fail
 initializeMcp().catch((err) => {
@@ -79,6 +85,7 @@ const routes = app
   .route("/chat", chat)
   .route("/memory", memory)
   .route("/ollama-models", ollamaModels)
+  .route("/models", models)
   .route("/mcp", mcp)
   .route("/images", images)
   .route("/snapshots", snapshots);

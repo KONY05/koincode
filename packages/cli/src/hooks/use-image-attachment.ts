@@ -2,7 +2,8 @@ import { readFile, stat } from "node:fs/promises";
 import { resolve, extname, basename } from "node:path";
 import { useRef, useCallback } from "react";
 import type { TextareaRenderable } from "@opentui/core";
-import { isVisionModel, IMAGE_PLACEHOLDER_RE } from "@koincode/shared";
+import { IMAGE_PLACEHOLDER_RE } from "@koincode/shared";
+import { isChatVisionModel } from "../lib/enriched-models";
 import { apiClient } from "../lib/api-client";
 import { useToast } from "../providers/toast";
 
@@ -147,7 +148,7 @@ export function useImageAttachment({ textareaRef, skipUndoRef }: UseImageAttachm
   }, []);
 
   const checkVisionModel = useCallback((model: string): boolean => {
-    if (!isVisionModel(model)) {
+    if (!isChatVisionModel(model)) {
       toast.show({
         message: "This model does not support images. Switch to a vision-capable model or remove images to send.",
         variant: "error",

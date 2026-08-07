@@ -11,18 +11,22 @@ import type { LanguageModelV3 } from "@ai-sdk/provider";
 import { extractReasoningMiddleware, wrapLanguageModel, type LanguageModel } from "ai";
 
 import {
-  findSupportedChatModel,
   isCustomOrOllamaModelId,
-  getReasoningEffortLevels,
   GLOBAL_CONFIG_FILE,
   type KoincodeGlobalConfig,
   type CustomModelConfig,
   type CustomProviderConfig,
+  type ModelPricing,
   type ReasoningEffortLevel,
   type SupportedChatModel,
   type SupportedChatModelId,
   type SupportedProvider,
 } from "@koincode/shared";
+import {
+  findEnrichedSupportedChatModel,
+  getEnrichedReasoningEffortLevels,
+  getModelsDevApiData,
+} from "./models-registry";
 import { resolveOllamaBaseURL } from "./ollama";
 
 type AnthropicModelId = Extract<SupportedChatModel, { provider: "anthropic" }>["id"];
@@ -35,6 +39,10 @@ export type ResolvedModel = {
   provider: SupportedProvider;
   modelId: string;
   providerOptions?: ProviderOptions;
+  /** Pricing for the actual provider path taken (direct or OpenRouter fallback).
+   * Includes cache rates from models.dev when available.
+   * Persisted into message metadata so cost calculations use the rate actually charged. */
+  pricing?: ModelPricing;
   /** Known only for models outside the curated list (Ollama's real num_ctx, a custom model's configured value). */
   contextWindow?: number;
   /**
@@ -164,6 +172,23 @@ function readConfigKey(
   }
 }
 
+function resolvePricing(
+  modelId: string,
+  providerBucket: string,
+  fallback: ModelPricing,
+): ModelPricing {
+  const apiData = getModelsDevApiData();
+  if (!apiData) return fallback;
+  const entry = apiData[providerBucket]?.models?.[modelId];
+  if (!entry?.cost) return fallback;
+  return {
+    inputUsdPerMillionTokens: entry.cost.input ?? fallback.inputUsdPerMillionTokens,
+    outputUsdPerMillionTokens: entry.cost.output ?? fallback.outputUsdPerMillionTokens,
+    ...(entry.cost.cache_read !== undefined ? { cacheReadUsdPerMillionTokens: entry.cost.cache_read } : {}),
+    ...(entry.cost.cache_write !== undefined ? { cacheWriteUsdPerMillionTokens: entry.cost.cache_write } : {}),
+  };
+}
+
 function requireOpenRouterKey(): string {
   const key = process.env.OPENROUTER_API_KEY ?? readConfigKey("openrouter");
   if (!key) {
@@ -176,13 +201,14 @@ function requireOpenRouterKey(): string {
 
 /** True only when `effort` was given and this model's registry entry actually lists it as supported. */
 function supportsEffort(modelId: string, effort: ReasoningEffortLevel | undefined): effort is ReasoningEffortLevel {
-  return effort != null && (getReasoningEffortLevels(modelId)?.includes(effort) ?? false);
+  return effort != null && (getEnrichedReasoningEffortLevels(modelId)?.includes(effort) ?? false);
 }
 
 function resolveViaOpenRouter(
   modelId: string,
   provider: SupportedProvider,
   effort?: ReasoningEffortLevel,
+  fallbackPricing?: ModelPricing,
 ): ResolvedModel {
   const openrouter = createOpenRouter({ apiKey: requireOpenRouterKey() });
   // openrouter-native models already carry their full provider/name ID.
@@ -195,6 +221,7 @@ function resolveViaOpenRouter(
   // and this package's own types. OpenAI models cache automatically on OpenRouter with
   // no config needed, same as calling OpenAI directly, so nothing to set for them here.
   const settings = provider === "anthropic" ? { cache_control: { type: "ephemeral" as const } } : undefined;
+
   return {
     model: openrouter.chat(routerModelId, settings),
     provider,
@@ -202,10 +229,13 @@ function resolveViaOpenRouter(
     // OpenRouter normalizes reasoning effort itself, regardless of underlying provider — this
     // also closes the previous gap where Anthropic/Google's thinking silently disappeared here.
     providerOptions: supportsEffort(modelId, effort) ? openrouterEffortOptions(effort) : undefined,
+    pricing: fallbackPricing
+      ? resolvePricing(routerModelId, "openrouter", fallbackPricing)
+      : undefined,
   };
 }
 
-function resolveAnthropicModel(modelId: AnthropicModelId, effort?: ReasoningEffortLevel): ResolvedModel {
+function resolveAnthropicModel(modelId: AnthropicModelId, effort?: ReasoningEffortLevel, fallbackPricing?: ModelPricing): ResolvedModel {
   if (!process.env.ANTHROPIC_API_KEY) {
     const key = readConfigKey("anthropic");
     if (key) process.env.ANTHROPIC_API_KEY = key;
@@ -218,13 +248,14 @@ function resolveAnthropicModel(modelId: AnthropicModelId, effort?: ReasoningEffo
       providerOptions: supportsEffort(modelId, effort)
         ? anthropicEffortOptions(modelId, effort)
         : ANTHROPIC_THINKING,
+      pricing: fallbackPricing ? resolvePricing(modelId, "anthropic", fallbackPricing) : undefined,
       promptCaching: true,
     };
   }
-  return resolveViaOpenRouter(modelId, "anthropic", effort);
+  return resolveViaOpenRouter(modelId, "anthropic", effort, fallbackPricing);
 }
 
-function resolveOpenAIModel(modelId: OpenAIModelId, effort?: ReasoningEffortLevel): ResolvedModel {
+function resolveOpenAIModel(modelId: OpenAIModelId, effort?: ReasoningEffortLevel, fallbackPricing?: ModelPricing): ResolvedModel {
   if (!process.env.OPENAI_API_KEY) {
     const key = readConfigKey("openai");
     if (key) process.env.OPENAI_API_KEY = key;
@@ -235,12 +266,13 @@ function resolveOpenAIModel(modelId: OpenAIModelId, effort?: ReasoningEffortLeve
       provider: "openai",
       modelId,
       providerOptions: supportsEffort(modelId, effort) ? openaiEffortOptions(effort) : undefined,
+      pricing: fallbackPricing ? resolvePricing(modelId, "openai", fallbackPricing) : undefined,
     };
   }
-  return resolveViaOpenRouter(modelId, "openai", effort);
+  return resolveViaOpenRouter(modelId, "openai", effort, fallbackPricing);
 }
 
-function resolveGoogleModel(modelId: GoogleModelId, effort?: ReasoningEffortLevel): ResolvedModel {
+function resolveGoogleModel(modelId: GoogleModelId, effort?: ReasoningEffortLevel, fallbackPricing?: ModelPricing): ResolvedModel {
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     const key = readConfigKey("google");
     if (key) process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
@@ -253,12 +285,13 @@ function resolveGoogleModel(modelId: GoogleModelId, effort?: ReasoningEffortLeve
       providerOptions: supportsEffort(modelId, effort)
         ? googleEffortOptions(modelId, effort)
         : GOOGLE_THINKING,
+      pricing: fallbackPricing ? resolvePricing(modelId, "google", fallbackPricing) : undefined,
     };
   }
-  return resolveViaOpenRouter(modelId, "google", effort);
+  return resolveViaOpenRouter(modelId, "google", effort, fallbackPricing);
 }
 
-function resolveXaiModel(modelId: XaiModelId, effort?: ReasoningEffortLevel): ResolvedModel {
+function resolveXaiModel(modelId: XaiModelId, effort?: ReasoningEffortLevel, fallbackPricing?: ModelPricing): ResolvedModel {
   if (!process.env.XAI_API_KEY) {
     const key = readConfigKey("xai");
     if (key) process.env.XAI_API_KEY = key;
@@ -269,31 +302,33 @@ function resolveXaiModel(modelId: XaiModelId, effort?: ReasoningEffortLevel): Re
       provider: "xai",
       modelId,
       providerOptions: supportsEffort(modelId, effort) ? xaiEffortOptions(effort) : undefined,
+      pricing: fallbackPricing ? resolvePricing(modelId, "xai", fallbackPricing) : undefined,
     };
   }
-  return resolveViaOpenRouter(modelId, "xai", effort);
+  return resolveViaOpenRouter(modelId, "xai", effort, fallbackPricing);
 }
 
 function resolveSupportedChatModel(model: SupportedChatModel, effort?: ReasoningEffortLevel): ResolvedModel {
   const provider = model.provider;
+  const fallbackPricing = model.pricing;
   switch (provider) {
     case "anthropic":
-      return resolveAnthropicModel(model.id, effort);
+      return resolveAnthropicModel(model.id, effort, fallbackPricing);
     case "openai":
-      return resolveOpenAIModel(model.id, effort);
+      return resolveOpenAIModel(model.id, effort, fallbackPricing);
     case "google":
-      return resolveGoogleModel(model.id, effort);
+      return resolveGoogleModel(model.id, effort, fallbackPricing);
     case "xai":
-      return resolveXaiModel(model.id, effort);
+      return resolveXaiModel(model.id, effort, fallbackPricing);
     case "openrouter":
-      return resolveViaOpenRouter(model.id, "openrouter", effort);
+      return resolveViaOpenRouter(model.id, "openrouter", effort, fallbackPricing);
     default:
       return assertUnsupportedProvider(provider);
   }
 }
 
 export function isSupportedChatModel(modelId: string): boolean {
-  return findSupportedChatModel(modelId) != null || isCustomOrOllamaModelId(modelId);
+  return findEnrichedSupportedChatModel(modelId) != null || isCustomOrOllamaModelId(modelId);
 }
 
 function readGlobalConfig(): KoincodeGlobalConfig {
@@ -389,7 +424,7 @@ export async function resolveChatModel(
 ): Promise<ResolvedModel> {
   if (modelId.startsWith("ollama/")) return resolveOllamaModel(modelId);
   if (modelId.startsWith("custom/")) return resolveCustomModel(modelId);
-  const model = findSupportedChatModel(modelId);
+  const model = findEnrichedSupportedChatModel(modelId);
   if (!model) throw new Error(`Unsupported model: ${modelId}`);
-  return resolveSupportedChatModel(model, effort);
+  return resolveSupportedChatModel(model as SupportedChatModel, effort);
 }

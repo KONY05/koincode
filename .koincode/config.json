@@ -14,5 +14,10 @@
         "hooks": []
       }
     ]
+  },
+  "agentPermissions": {
+    "BUILD": {
+      "shell:bin:gh": "allowed"
+    }
   }
 }

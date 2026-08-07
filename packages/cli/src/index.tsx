@@ -10,12 +10,14 @@ import { Home } from "./screens/home";
 import { NewSession } from "./screens/new-session";
 import { Session } from "./screens/session";
 import { ensureIdeExtension } from "./lib/ide-extension";
+import { prefetchEnrichedModels } from "./lib/enriched-models";
 import { closeBrowser } from "./tools/browser/browser-session";
 import { handleFocusSequence } from "./lib/terminal-focus";
 import { cancelAllRegisteredWork } from "./lib/background/session-background-work";
 
 ensureIdeExtension();
 trackAppStarted();
+await prefetchEnrichedModels();
 await initTreeSitter();
 
 const router = createMemoryRouter([

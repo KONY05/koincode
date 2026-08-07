@@ -3,7 +3,8 @@ import { basename, extname } from "path";
 
 
 import { findUnsurfacedAgentsMd, formatWorkspacePath, MAX_FILE_SIZE, resolveFromCwd } from "./utils";
-import { toolInputSchemas, isVisionModel, type WorkspaceRoot, type ImageFileResult } from "@koincode/shared";
+import { toolInputSchemas, type WorkspaceRoot, type ImageFileResult } from "@koincode/shared";
+import { isChatVisionModel } from "../lib/enriched-models";
 
 /** Default line budget per read; MAX_FILE_SIZE still caps the payload in characters. */
 const MAX_READ_LINES = 2_000;
@@ -106,7 +107,7 @@ async function extractFileContent(resolved: string, modelId?: string): Promise<s
     if (fileStat.size > IMAGE_MAX_SIZE) {
       throw new Error(`Image file is too large to read (${(fileStat.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`);
     }
-    if (!modelId || !isVisionModel(modelId)) {
+    if (!modelId || !isChatVisionModel(modelId)) {
       throw new Error(`Cannot read image file: the active model does not support vision.`);
     }
     const buffer = await readFile(resolved);

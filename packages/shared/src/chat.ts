@@ -1,6 +1,6 @@
 import { type LanguageModelUsage } from "ai";
 
-import type { ReasoningEffortLevel, SupportedChatModelId } from "./models";
+import type { ReasoningEffortLevel, SupportedChatModelId, ModelPricing } from "./models";
 import type { AgentId } from "./agents";
 
 export type ChatMessageMetadata = {
@@ -11,6 +11,10 @@ export type ChatMessageMetadata = {
   reasoningEffort?: ReasoningEffortLevel;
   /** Known only for models outside the curated list (Ollama's real num_ctx, a custom model's configured value). */
   contextWindow?: number;
+  /** Pricing at the time of the request for the actual provider path taken (direct or OpenRouter).
+   * Includes absolute cache rates from models.dev when available.
+   * Persisted so cost calculations use the rate actually charged rather than a registry lookup. */
+  pricing?: ModelPricing;
   durationMs?: number;
   usage?: LanguageModelUsage;
   interrupted?: boolean;
