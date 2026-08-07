@@ -1,7 +1,7 @@
 import type { UIMessage } from "ai";
 
 import { getChatModelPricing } from "./enriched-models";
-import type { ChatMessageMetadata, ModelPricing } from "@koincode/shared";
+import type { AuxCostEntry, ChatMessageMetadata, ModelPricing } from "@koincode/shared";
 import { listCustomModels } from "./custom-models";
 
 type UsageMessage = Pick<UIMessage<ChatMessageMetadata>, "role" | "metadata">;
@@ -49,4 +49,20 @@ export function estimateSessionCost(messages: UsageMessage[]): number {
       (outputTokens / 1_000_000) * pricing.outputUsdPerMillionTokens;
   }
   return total;
+}
+
+/** Sums cost across auxiliary LLM calls (title generation, sub-agent steps) that
+ *  produced no assistant message row. Each entry carries its own usage + model,
+ *  so we fold them into `estimateSessionCost` as pseudo assistant messages. */
+export function estimateAuxCost(entries: AuxCostEntry[]): number {
+  return estimateSessionCost(
+    entries.map((entry) => ({
+      role: "assistant" as const,
+      metadata: {
+        model: entry.model,
+        ...(entry.pricing ? { pricing: entry.pricing } : {}),
+        usage: entry.usage,
+      } as ChatMessageMetadata,
+    })),
+  );
 }

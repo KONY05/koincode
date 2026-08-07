@@ -17,6 +17,7 @@ model Session {
   title           String
   cwd             String?
   roots           String    @default("[]")
+  auxCost         String    @default("[]")
   gitBranch       String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

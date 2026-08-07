@@ -30,6 +30,7 @@ import {
   type ToolContracts,
 } from "@koincode/shared";
 import { logger, getLastBoundaryIndex } from "../lib/helpers";
+import { appendSessionAuxCost } from "../lib/session-cost";
 import { getMcpTools, getMcpServerStatus } from "../lib/mcp-manager";
 import { buildSystemPrompt } from "../prompts/system-prompt";
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
@@ -530,6 +531,10 @@ const agentStepSchema = z.object({
   agentsManifest: z.array(agentManifestEntrySchema).optional().default([]),
   model: z.string().refine(isSupportedChatModel, "Unsupported model"),
   instructionFiles: z.array(instructionFileEntrySchema).optional().default([]),
+  // When the sub-agent runs inside a session, the caller passes its id so the
+  // step's token usage/cost can be recorded against that session. Optional —
+  // sub-agent runs without a session (or incognito) simply don't get recorded.
+  sessionId: z.string().optional(),
 });
 
 const agentStepValidator = zValidator("json", agentStepSchema, (result, c) => {
@@ -542,7 +547,14 @@ const appWithAgentStep = app.post(
   "/agent-step",
   agentStepValidator,
   async (c) => {
-    const { messages, mode, agent: wireAgent, model, instructionFiles } = c.req.valid("json");
+    const {
+      messages,
+      mode,
+      agent: wireAgent,
+      model,
+      instructionFiles,
+      sessionId,
+    } = c.req.valid("json");
 
     const agent = toAgentDefinition(wireAgent, mode);
     const tools = { ...resolveToolContracts(agent), ...getMcpTools() };
@@ -558,10 +570,25 @@ const appWithAgentStep = app.post(
       providerOptions: resolvedModel.providerOptions,
     });
 
+    // A sub-agent step is a real model call — record its usage/cost against the
+    // session it ran in (fire-and-forget; no-op when no session id / incognito),
+    // and hand the usage back so the CLI can reflect it live in the info bar too.
+    if (result.usage && sessionId) {
+      void appendSessionAuxCost(sessionId, {
+        kind: "agent-step",
+        model: resolvedModel.modelId,
+        ...(resolvedModel.pricing ? { pricing: resolvedModel.pricing } : {}),
+        usage: result.usage,
+      });
+    }
+
     return c.json({
       text: result.text,
       toolCalls: result.toolCalls,
       finishReason: result.finishReason,
+      usage: result.usage,
+      model: resolvedModel.modelId,
+      ...(resolvedModel.pricing ? { pricing: resolvedModel.pricing } : {}),
     });
   },
 );

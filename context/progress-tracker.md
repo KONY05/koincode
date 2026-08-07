@@ -29,6 +29,8 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## In Progress
 
+- **Accurate session cost tracking for auxiliary calls** — Compact and handoff summaries persist their actual model usage and provider price card on synthetic assistant messages; title generation and sub-agent steps persist equivalent entries in `Session.auxCost`, which the CLI adds to the info sidebar total. Fresh database base schema includes `auxCost`, and auxiliary estimates prefer their persisted price card over current registry pricing. Sub-agent live responses carry the same price card so the info sidebar matches the persisted/dashboard-facing total.
+
 - **NPM binary distribution (Feature 33)** — Distribute compiled standalone binaries through npm so `npm i -g koincode` installs a native binary with no Bun/Node runtime needed at execution time. Platform-specific npm packages (`koincode-darwin-arm64`, `koincode-darwin-x64`, `koincode-linux-x64`, `koincode-linux-arm64`, `koincode-windows-x64`) published alongside the main `koincode` package via `optionalDependencies`. Thin Node wrapper (`bin/npm-wrapper.js`) resolves the correct platform binary with signal forwarding; falls back to Bun JS bundle for unsupported platforms. Self-update for curl/iex installs: background binary download + replace, with permission-denied fallback. `--update` CLI flag for manual updates. CI workflow updated to publish platform packages before main package. Spec: `context/feature-specs/33-npm-binary-distribution.md`.
 
 ## Recently Completed (Phase 2 — continued)

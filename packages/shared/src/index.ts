@@ -65,6 +65,7 @@ export {
 
 export {
   type ChatMessageMetadata,
+  type AuxCostEntry,
   BOUNDARY_ROLES,
   IMAGE_PLACEHOLDER_RE,
 } from "./chat";

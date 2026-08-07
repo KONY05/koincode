@@ -49,6 +49,20 @@ export type ChatMessageMetadata = {
   mergeHistory?: { id: string; parts: unknown[] }[];
 };
 
+/** One extra-LLM-call cost record (a model call that produced no normal assistant
+ *  message row — e.g. title generation or a sub-agent step). Persisted on the
+ *  Session as `auxCost` JSON and folded into the info bar's session cost by the
+ *  CLI on top of the message-derived `estimateSessionCost`. */
+export type AuxCostEntry = {
+  /** What kind of call this was: "title" | "agent-step". */
+  kind: string;
+  /** Model id that actually produced the tokens (the resolved chat model). */
+  model?: string;
+  /** Pricing at the time of the request for the provider path actually used. */
+  pricing?: ModelPricing;
+  usage?: LanguageModelUsage;
+};
+
 export const BOUNDARY_ROLES = new Set(["clear_boundary", "compact_boundary"]);
 
 export const IMAGE_PLACEHOLDER_RE = /\[#image:(i\d+)\]/g;

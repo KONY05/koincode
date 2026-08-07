@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 
-import { BOUNDARY_ROLES, type SupportedProvider } from "@koincode/shared";
+import { BOUNDARY_ROLES, type ModelPricing, type SupportedProvider } from "@koincode/shared";
 import { resolveChatModel } from "./models";
 import { findEnrichedSupportedChatModel } from "./models-registry";
 import { FALLBACK_MODEL_ID } from "../../../shared/src/models";
@@ -8,11 +8,18 @@ import { FALLBACK_MODEL_ID } from "../../../shared/src/models";
 const PROVIDER_FALLBACKS: Partial<Record<SupportedProvider, string[]>> = {
   anthropic:  ["claude-sonnet-4-6", "claude-haiku-4-5"],
   openai:     ["gpt-5-mini", "gpt-4.1-mini"],
-  google:     ["gemini-2.5-flash", "gemini-3-flash-preview"],
+  google:     ["gemini-3-flash-preview", "gemini-2.5-flash"],
   openrouter: [FALLBACK_MODEL_ID, "nvidia/nemotron-3-ultra-550b-a55b:free"],
 };
 
 const GENERATE_TEXT_TIMEOUT_MS = 60_000;
+
+type GeneratedTextWithFallbackResult = Awaited<ReturnType<typeof generateText>> & {
+  /** The concrete model that completed the successful attempt (may be a fallback). */
+  resolvedModelId: string;
+  /** Price card for the actual provider path used at request time. */
+  pricing?: ModelPricing;
+};
 
 /**
  * Runs generateText with the preferred model, falling back through same-provider
@@ -25,7 +32,7 @@ export async function generateTextWithFallback(
   preferredModelId: string,
   options: Omit<Parameters<typeof generateText>[0], "model">,
   timeoutMs = GENERATE_TEXT_TIMEOUT_MS,
-): Promise<Awaited<ReturnType<typeof generateText>>> {
+): Promise<GeneratedTextWithFallbackResult> {
   const provider = findEnrichedSupportedChatModel(preferredModelId)?.provider;
   const fallbacks = provider ? (PROVIDER_FALLBACKS[provider] ?? []) : [];
   const modelsToTry = [preferredModelId, ...fallbacks.filter((m) => m !== preferredModelId)];
@@ -35,11 +42,17 @@ export async function generateTextWithFallback(
     try {
       const abortSignal = AbortSignal.timeout(timeoutMs);
       const resolved = await resolveChatModel(modelId);
-      return await generateText({
+      const result = await generateText({
         ...options,
         model: resolved.model,
         abortSignal,
       } as Parameters<typeof generateText>[0]);
+      
+      return {
+        ...result,
+        resolvedModelId: resolved.modelId,
+        ...(resolved.pricing ? { pricing: resolved.pricing } : {}),
+      };
     } catch (err) {
       const isTimeout = err instanceof Error && err.name === "TimeoutError";
       logger.warn(

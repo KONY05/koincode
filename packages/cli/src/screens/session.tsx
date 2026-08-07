@@ -9,6 +9,7 @@ import {
   BOUNDARY_ROLES,
   findRootConflict,
   makeRootLabel,
+  type AuxCostEntry,
   type WorkspaceRoot,
 } from "@koincode/shared";
 import { getGitBranch } from "../utils/helper";
@@ -147,6 +148,9 @@ function SessionChat({
   isIncognito?: boolean;
 }) {
   const rawSessionMessages = session.messages as unknown[];
+  // Hono's generated response type expands the full `LanguageModelUsage` tree for
+  // `auxCost`; narrow it at this API boundary so it doesn't exhaust TypeScript.
+  const initialAuxCost = (session as unknown as { auxCost: AuxCostEntry[] }).auxCost;
 
   const [initialMessages] = useState<Message[]>(() =>
     rawSessionMessages.filter(
@@ -194,7 +198,15 @@ function SessionChat({
     error,
     markInstructionBoundary,
     deleteLastUserTurn,
-  } = useChat(session.id, initialMessages, [], workspaceRoots, localClearMsgCount, isIncognito);
+  } = useChat(
+    session.id,
+    initialMessages,
+    [],
+    workspaceRoots,
+    localClearMsgCount,
+    isIncognito,
+    initialAuxCost,
+  );
 
   // Background-task deliveries (spawnAgent runInBackground, backgrounded
   // shell) share the same underlying queue as real queued user messages —
@@ -634,6 +646,7 @@ export function Session() {
       createdAt: now,
       updatedAt: now,
       roots: [{ label: basename(cwd), path: cwd }, ...initialState.pendingRoots],
+      auxCost: [],
       messages: [],
     } as SessionData;
   });

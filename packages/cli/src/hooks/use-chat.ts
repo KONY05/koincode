@@ -15,13 +15,14 @@ import {
   type ToolContracts,
   toolInputSchemas,
   type WorkspaceRoot,
+  type AuxCostEntry,
 } from "@koincode/shared";
 import { getChatContextWindow } from "../lib/enriched-models";
 import { apiClient, fetchWithRestart } from "../lib/api-client";
 import { extractLoadedAgentsMd, getInstructionFilesForRequest } from "../lib/instruction-files";
 import { sweepOrphanSnapshots } from "../lib/snapshots";
 import { hasApiKeyForModel } from "../lib/usage";
-import { estimateSessionCost } from "../lib/cost";
+import { estimateSessionCost, estimateAuxCost } from "../lib/cost";
 import { executeLocalTool } from "../tools";
 import { loadSkillsManifest } from "../lib/skills";
 import { getAgentPayloadForRequest, loadAgents } from "../lib/agents";
@@ -189,6 +190,9 @@ export function useChat(
   // fixed for this hook instance's whole lifetime, never toggled mid-session. Safe to
   // capture directly in the transport's closure below rather than a reactive dep.
   isIncognito = false,
+  // Auxiliary LLM costs (title gen, sub-agent steps) persisted on the session and
+  // loaded at open — folded into sessionCost on top of the message-derived cost.
+  initialAuxCost: AuxCostEntry[] = [],
 ) {
   const {
     mode,
@@ -226,6 +230,13 @@ export function useChat(
     useState<SystemEvent[]>(initialSystemEvents);
 
   const [isSubagentRunning, setIsSubagentRunning] = useState(false);
+
+  // Auxiliary LLM costs for this session: seeded from what the server persisted
+  // (title gen, previous sub-agent steps) and extended live as sub-agents run.
+  const [auxCost, setAuxCost] = useState<AuxCostEntry[]>(initialAuxCost);
+  const recordAuxCost = useCallback((entry: AuxCostEntry) => {
+    setAuxCost((prev) => [...prev, entry]);
+  }, []);
 
   // MCP servers approved for the lifetime of this session (server name → approved).
   const approvedMcpServersRef = useRef<Set<string>>(new Set());
@@ -561,6 +572,8 @@ export function useChat(
               maxTurns,
               timeoutSeconds,
               roots: _activeRoots.get(sessionId) ?? [],
+              sessionId,
+              onUsage: recordAuxCost,
             });
             chat.addToolOutput({
               tool: "spawnAgent" as keyof ChatTools,
@@ -1139,8 +1152,8 @@ export function useChat(
   }, [chat.messages, currentModel]);
 
   const sessionCost = useMemo(
-    () => estimateSessionCost(chat.messages),
-    [chat.messages],
+    () => estimateSessionCost(chat.messages) + estimateAuxCost(auxCost),
+    [chat.messages, auxCost],
   );
 
   const resolveApproval = useCallback((response: ApprovalResponse) => {
