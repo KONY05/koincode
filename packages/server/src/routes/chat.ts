@@ -543,6 +543,15 @@ const agentStepValidator = zValidator("json", agentStepSchema, (result, c) => {
   }
 });
 
+// Cap on how long a single sub-agent step may run before its request is aborted.
+// Raised well above the old 60 s — a long-running background sub-agent accumulates
+// context every step, so a single step can legitimately take a couple of minutes.
+// Kept well under the server's socket idleTimeout (255 s, index.ts) so our own
+// AbortSignal fires and we can return gracefully, rather than the socket being
+// yanked at 255 s. A step that crosses this cap is returned as a graceful
+// finishReason "error" (below) instead of surfacing as an unhandled 500.
+const AGENT_STEP_TIMEOUT_MS = 180_000;
+
 const appWithAgentStep = app.post(
   "/agent-step",
   agentStepValidator,
@@ -560,15 +569,32 @@ const appWithAgentStep = app.post(
     const tools = { ...resolveToolContracts(agent), ...getMcpTools() };
     const resolvedModel = await resolveChatModel(model);
 
-    const result = await generateText({
-      model: resolvedModel.model,
-      system: buildSystemPrompt({ agent, instructionFiles }),
-      messages,
-      tools,
-      stopWhen: stepCountIs(1),
-      abortSignal: AbortSignal.timeout(60_000),
-      providerOptions: resolvedModel.providerOptions,
-    });
+    let result: Awaited<ReturnType<typeof generateText>>;
+    try {
+      result = await generateText({
+        model: resolvedModel.model,
+        system: buildSystemPrompt({ agent, instructionFiles }),
+        messages,
+        tools,
+        stopWhen: stepCountIs(1),
+        abortSignal: AbortSignal.timeout(AGENT_STEP_TIMEOUT_MS),
+        providerOptions: resolvedModel.providerOptions,
+      });
+    } catch (err) {
+      // A sub-agent step that crosses the wall-clock cap shouldn't blow up the whole
+      // background task as a masked 500. Return it gracefully as an errored step so
+      // the CLI can conclude the loop and surface whatever partial progress exists.
+      if (err instanceof Error && err.name === "TimeoutError") {
+        return c.json({
+          text: `(Sub-agent step timed out after ${AGENT_STEP_TIMEOUT_MS}ms — returning partial progress.)`,
+          toolCalls: [],
+          finishReason: "error",
+          model: resolvedModel.modelId,
+          ...(resolvedModel.pricing ? { pricing: resolvedModel.pricing } : {}),
+        });
+      }
+      throw err;
+    }
 
     // A sub-agent step is a real model call — record its usage/cost against the
     // session it ran in (fire-and-forget; no-op when no session id / incognito),
