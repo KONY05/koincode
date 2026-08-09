@@ -1,4 +1,4 @@
-import { TextAttributes } from "@opentui/core";
+import { RGBA, TextAttributes } from "@opentui/core";
 
 import { agentCanMutate, resolveAgent, type AgentId } from "@koincode/shared";
 import { EmptyBorder } from "../border";
@@ -13,8 +13,8 @@ type Props = {
   incognito?: boolean;
 };
 
-/** Renders `message` with each `@mention` span wrapped in the same black-on-`selection`
- * pill the input bar highlights while composing (Feature: mention highlighting), so a
+/** Renders `message` with each `@mention` span wrapped in the selection color same as the
+ * input bar highlights while composing (Feature: mention highlighting), so a
  * mention reads the same before and after send. Falls back to the plain string — no
  * `<span>` wrapper — when there's nothing to highlight. */
 function renderWithMentionHighlights(message: string, colors: ThemeColors) {
@@ -29,7 +29,7 @@ function renderWithMentionHighlights(message: string, colors: ThemeColors) {
       nodes.push(message.slice(cursor, range.start));
     }
     nodes.push(
-      <span key={index} fg="black" bg={colors.selection} attributes={TextAttributes.BOLD}>
+      <span key={index} fg={RGBA.fromHex(colors.selection)} attributes={TextAttributes.BOLD}>
         {message.slice(range.start, range.end)}
       </span>,
     );
