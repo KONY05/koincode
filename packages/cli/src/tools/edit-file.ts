@@ -13,8 +13,6 @@ const unescape = (s: string) => s.replace(/\\n/g, "\n").replace(/\\t/g, "\t").re
 export async function runEditFile(input: unknown, roots: WorkspaceRoot[]) {
   const parsed = toolInputSchemas.editFile.parse(input);
   const path = parsed.path;
-  const oldString = unescape(parsed.oldString);
-  const newString = unescape(parsed.newString);
   const { resolved } = resolveFromCwd(path);
   const displayPath = formatWorkspacePath(resolved, roots);
   const content = await readFile(resolved, "utf-8");
@@ -23,7 +21,12 @@ export async function runEditFile(input: unknown, roots: WorkspaceRoot[]) {
   // before we overwrite it. Optimistic concurrency check, see the re-read below.
   const baseHash = hashContent(content);
 
-  // Try exact match first
+  // Prefer the raw, unmodified payload strings so edits to text that genuinely
+  // contains literal backslashes (e.g. "\n" inside a string literal) aren't
+  // mangled. unescape (literal \n -> real newline) is only applied as a
+  // fallback, for models that emit literal escapes instead of real characters.
+  let oldString = parsed.oldString;
+  let newString = parsed.newString;
   let occurrences = content.split(oldString).length - 1;
 
   // If exact match fails, try with normalized whitespace
@@ -31,6 +34,18 @@ export async function runEditFile(input: unknown, roots: WorkspaceRoot[]) {
     const normalizedContent = normalize(content);
     const normalizedOldString = normalize(oldString);
     occurrences = normalizedContent.split(normalizedOldString).length - 1;
+  }
+
+  // Still no match: retry with the unescaped interpretation of the payload.
+  if (occurrences === 0) {
+    oldString = unescape(parsed.oldString);
+    newString = unescape(parsed.newString);
+    occurrences = content.split(oldString).length - 1;
+    if (occurrences === 0) {
+      const normalizedContent = normalize(content);
+      const normalizedOldString = normalize(oldString);
+      occurrences = normalizedContent.split(normalizedOldString).length - 1;
+    }
   }
 
   if (occurrences === 0) {
