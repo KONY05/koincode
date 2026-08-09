@@ -13,8 +13,8 @@ type Props = {
   incognito?: boolean;
 };
 
-/** Renders `message` with each `@mention` span wrapped in the same black-on-`selection`
- * pill the input bar highlights while composing (Feature: mention highlighting), so a
+/** Renders `message` with each `@mention` span wrapped in the selection color same as the
+ * input bar highlights while composing (Feature: mention highlighting), so a
  * mention reads the same before and after send. Falls back to the plain string — no
  * `<span>` wrapper — when there's nothing to highlight. */
 function renderWithMentionHighlights(message: string, colors: ThemeColors) {

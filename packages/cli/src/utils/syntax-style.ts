@@ -39,9 +39,7 @@ export function createMarkdownSyntaxStyle(colors: ThemeColors): SyntaxStyle {
 }
 
 /** Single-style syntax style for highlighting `@file`/`@agent` mentions in the input bar's
- * textarea — same black-on-`colors.selection` pill already used for the selected row in
- * `FileMentionMenu`, so a mention reads the same whether it's still in the picker or has
- * landed in the draft text. */
+ * textarea — using `colors.selection`. */
 export function createMentionSyntaxStyle(colors: ThemeColors): SyntaxStyle {
   return SyntaxStyle.fromStyles({
     mention: { fg: RGBA.fromHex(colors.selection), bold: true },
