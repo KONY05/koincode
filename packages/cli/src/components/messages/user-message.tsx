@@ -1,4 +1,4 @@
-import { TextAttributes } from "@opentui/core";
+import { RGBA, TextAttributes } from "@opentui/core";
 
 import { agentCanMutate, resolveAgent, type AgentId } from "@koincode/shared";
 import { EmptyBorder } from "../border";
@@ -29,7 +29,7 @@ function renderWithMentionHighlights(message: string, colors: ThemeColors) {
       nodes.push(message.slice(cursor, range.start));
     }
     nodes.push(
-      <span key={index} fg="black" bg={colors.selection} attributes={TextAttributes.BOLD}>
+      <span key={index} fg={RGBA.fromHex(colors.selection)} attributes={TextAttributes.BOLD}>
         {message.slice(range.start, range.end)}
       </span>,
     );
