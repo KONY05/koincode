@@ -19,6 +19,7 @@
 import { spawn, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
+import { Readable } from "node:stream";
 
 import { PID_FILE } from "@koincode/shared";
 import { version as currentVersion } from "../../package.json";
@@ -45,7 +46,8 @@ export function detectInstallMethod(): InstallMethod {
 
 export async function checkForUpdate(): Promise<string | null> {
   const res = await fetch("https://registry.npmjs.org/koincode/latest", {
-    signal: AbortSignal.timeout(8000),
+    // Generous for slow networks — this only gates the version check. (15s)
+    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`Registry returned ${res.status}`);
   const data = await res.json();
@@ -67,9 +69,106 @@ function getBinaryAssetName(): string {
   return `koincode-${platform}-${arch}${suffix}`;
 }
 
+/* -------- Download progress rendering -------- */
+
+const ANSI_WHITE = "\u001b[37m";
+// ANSI-256 "gold" (bright yellow) — mirrors the header's Koin(white)/Code(gold) split.
+const ANSI_GOLD = "\u001b[38;5;220m";
+const ANSI_DIM = "\u001b[90m";
+const ANSI_RESET = "\u001b[0m";
+const CLEAR_LINE = "\u001b[2K\r";
+
+const KOINCODE_LETTERS = "KOINCODE";
+
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null; // null when the server didn't send Content-Length
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${bytes} B`;
+}
+
+/**
+ * Renders a single-line download readout. Instead of a block bar, the
+ * "koincode" wordmark is revealed letter by letter (~12.5% per letter) as
+ * bytes arrive, keeping the header's brand treatment: the first half is
+ * white, the second half is gold. The line itself only shows the percentage
+ * (bytes as a fallback when the server didn't send Content-Length — GitHub
+ * releases always do).
+ */
+function renderProgressLine(downloaded: number, total: number | null): string {
+  const pct =
+    total !== null && total > 0
+      ? Math.min(100, Math.round((downloaded / total) * 100))
+      : null;
+  const revealed = pct !== null
+    ? Math.floor((pct / 100) * KOINCODE_LETTERS.length)
+    : 0;
+  const half = Math.ceil(KOINCODE_LETTERS.length / 2);
+
+  let word = "";
+  for (let i = 0; i < KOINCODE_LETTERS.length; i++) {
+    if (i > 0) word += " ";
+    const letter = KOINCODE_LETTERS[i];
+    const color = i < revealed ? (i < half ? ANSI_WHITE : ANSI_GOLD) : ANSI_DIM;
+    word += color + letter + ANSI_RESET;
+  }
+
+  const readout = pct !== null ? `${pct}%` : formatBytes(downloaded);
+  return `  ${word}  ${readout}`;
+}
+
+/**
+ * Progress renderer for the curl download path. Uses raw terminal escapes
+ * (a single \r-redrawn line), so it works both after the TUI has torn down
+ * (/update) and in the headless --update path. No-ops when stdout is not a TTY.
+ */
+function createDownloadProgress(): {
+  onProgress: (p: UpdateProgress) => void;
+  finish: () => void;
+} {
+  let rendered = false;
+  return {
+    onProgress(p) {
+      if (!process.stdout.isTTY) return;
+      process.stdout.write(CLEAR_LINE + renderProgressLine(p.downloaded, p.total));
+      rendered = true;
+    },
+    finish() {
+      if (rendered) process.stdout.write(CLEAR_LINE + "\n");
+    },
+  };
+}
+
+/* -------- Self update (curl/iex installs) -------- */
+
+/**
+ * A stalled connection (not a slow one) can otherwise hang forever, so we keep
+ * timeouts — but they no longer penalize slow-but-alive networks:
+ *
+ * - STALLED_TIMEOUT_MS aborts only when no data arrives for a full 2 minutes.
+ *   Every received chunk resets the clock, so a slow download can take as long
+ *   as it needs as long as it keeps making progress.
+ * - MAX_TOTAL_MS is a hard backstop against a connection that trickles bytes
+ *   forever without ever completing.
+ *
+ * The rendered progress bar is what tells the user "still working" during the
+ * wait — previously this stage was a silent 5-minute total timeout with zero
+ * feedback, which made slow updates look hung and fail.
+ */
+const STALLED_TIMEOUT_MS = 120_000; // abort if no data for 2 minutes
+const MAX_TOTAL_MS = 30 * 60_000; // hard cap: 30 minutes
+
 /**
  * Self-update for curl/iex installs. Downloads the new binary from GitHub
  * Releases and atomically replaces the current binary on disk.
+ *
+ * Reports download progress via options.onProgress (used to render the branded
+ * progress bar); the background auto-download path omits it and stays silent.
  *
  * On Unix: writes to a temp file in the same directory, then renames over the
  * current binary (atomic on same filesystem).
@@ -78,19 +177,51 @@ function getBinaryAssetName(): string {
  */
 export async function downloadSelfUpdate(
   newVersion: string,
+  options: { onProgress?: (p: UpdateProgress) => void } = {},
 ): Promise<"downloaded" | "permission-denied" | "error"> {
   const binPath = process.execPath;
   const assetName = getBinaryAssetName();
   const url = `https://github.com/KONY05/koincode/releases/download/v${newVersion}/${assetName}`;
 
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  let lastActivityAt = Date.now();
+  const stallTimer = setInterval(() => {
+    const now = Date.now();
+    if (now - lastActivityAt > STALLED_TIMEOUT_MS) {
+      controller.abort(new Error("Download stalled — no data received for 2 minutes"));
+    } else if (now - startedAt > MAX_TOTAL_MS) {
+      controller.abort(new Error("Download exceeded 30 minutes"));
+    }
+  }, 15_000);
+  const stopStallTimer = () => clearInterval(stallTimer);
+
   try {
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(300_000), // 5 minutes
+      signal: controller.signal,
       redirect: "follow",
     });
     if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+    if (!res.body) throw new Error("Download failed: no response body");
 
-    const buffer = Buffer.from(await res.arrayBuffer());
+    const totalHeader = res.headers.get("content-length");
+    const total = totalHeader ? Number(totalHeader) : null;
+
+    // Stream the body so the user sees progress instead of a frozen line.
+    const body = Readable.fromWeb(
+      res.body as unknown as import("node:stream/web").ReadableStream,
+    );
+    const chunks: Buffer[] = [];
+    let downloaded = 0;
+    for await (const chunk of body) {
+      lastActivityAt = Date.now();
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      chunks.push(buf);
+      downloaded += buf.length;
+      options.onProgress?.({ downloaded, total });
+    }
+    const buffer = Buffer.concat(chunks);
+
     const suffix = isWindows ? ".exe" : "";
     const tmpPath = path.join(
       path.dirname(binPath),
@@ -132,6 +263,8 @@ export async function downloadSelfUpdate(
   } catch (err: unknown) {
     Sentry.captureException(err, { extra: { stage: "download", url } });
     return "error";
+  } finally {
+    stopStallTimer();
   }
 }
 
@@ -185,7 +318,6 @@ function runNpmUpdate(
   newVersion: string,
 ): void {
   destroyRenderer();
-  killServer();
 
   const { cmd, args } = detectPackageManager();
   process.stdout.write(`\nInstalling koincode v${newVersion}...\n\n`);
@@ -203,6 +335,10 @@ function runNpmUpdate(
 
   child.on("close", (code) => {
     if (code === 0) {
+      // The background server is killed only after a confirmed success — a slow
+      // or failed update shouldn't take down a working server (same rationale
+      // as the --update path).
+      killServer();
       process.stdout.write(
         `\nkoincode updated to v${newVersion} — run koincode to start the new version.\n\n`,
       );
@@ -216,9 +352,8 @@ function runNpmUpdate(
 
 /**
  * In-app update — called from the /update command menu.
- * Tears down the TUI and kills the background server before updating,
- * so the user sees install output in a raw terminal.
- * Routes to npm update or self-update based on install method.
+ * Tears down the TUI and installs, so the user sees install output in a raw
+ * terminal. Routes to npm update or self-update based on install method.
  */
 export function runUpdate(
   destroyRenderer: () => void,
@@ -229,10 +364,13 @@ export function runUpdate(
     runNpmUpdate(destroyRenderer, newVersion);
   } else {
     destroyRenderer();
-    killServer();
-    process.stdout.write(`\nDownloading koincode v${newVersion}...\n\n`);
-    downloadSelfUpdate(newVersion).then((result) => {
+    process.stdout.write(`\nDownloading koincode v${newVersion}...\n`);
+    const progress = createDownloadProgress();
+    downloadSelfUpdate(newVersion, { onProgress: progress.onProgress }).then((result) => {
+      progress.finish();
       if (result === "downloaded") {
+        // Kill the old server only once the new binary is confirmed on disk.
+        killServer();
         process.stdout.write(
           `\nkoincode updated to v${newVersion} — run koincode to start the new version.\n\n`,
         );
@@ -297,7 +435,11 @@ export async function runCliUpdate(): Promise<void> {
       });
     } else {
       process.stdout.write(`Downloading koincode v${newVersion}...\n`);
-      const result = await downloadSelfUpdate(newVersion);
+      const progress = createDownloadProgress();
+      const result = await downloadSelfUpdate(newVersion, {
+        onProgress: progress.onProgress,
+      });
+      progress.finish();
       if (result === "downloaded") {
         // Stop the old server so the next launch respawns from the new binary (see the npm
         // branch above for the full rationale). Only on a confirmed successful download.
