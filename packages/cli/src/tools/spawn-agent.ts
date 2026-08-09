@@ -376,10 +376,22 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
       stepResult.toolCalls.length === 0
     ) {
       const text = stepResult.text ?? "";
+
+      // An errored step is most often a server-side step timeout, which the server
+      // returns gracefully (finishReason "error") instead of a masked 500. Don't
+      // let the work the sub-agent already produced vanish behind the timeout note
+      // — append its accumulated progress, mirroring the local timeout / max-steps
+      // fallbacks below.
+      const partial =
+        stepResult.finishReason === "error"
+          ? collectPartialProgress(messages)
+          : "";
+      const body = partial ? text + "\n\n" + partial : text;
+
       const examined = collectExaminedFiles(messages);
       return examined.length > 0
-        ? `${text}\n\nFiles examined: ${examined.join(", ")}`
-        : text;
+        ? `${body}\n\nFiles examined: ${examined.join(", ")}`
+        : body;
     }
 
     // Execute each tool call and collect results.
