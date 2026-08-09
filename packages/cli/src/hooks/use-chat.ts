@@ -66,7 +66,6 @@ import {
   trackMessageSent,
   trackToolExecuted,
   trackModeSwitched,
-  trackFeatureUsed,
 } from "../lib/analytics";
 import { FALLBACK_MODEL_ID } from "../../../shared/src/models";
 import { NO_API_KEY_MESSAGE } from "../screens/home";
@@ -503,7 +502,11 @@ export function useChat(
           // even if the model never calls either.
           if (runInBackground) {
             const taskId = createBackgroundTask(name, description);
-            trackFeatureUsed({ feature: "subagent-background" });
+            trackToolExecuted({
+              tool: "spawnAgent_background",
+              mode: _activeModes.get(sessionId)!,
+              success: true,
+            });
 
             const controller = new AbortController();
             const deregister = registerBackgroundWork(sessionId, () =>
@@ -561,7 +564,6 @@ export function useChat(
           }
 
           setIsSubagentRunning(true);
-          trackFeatureUsed({ feature: "subagent" });
           try {
             const result = await runSpawnAgent({
               name,
@@ -575,12 +577,22 @@ export function useChat(
               sessionId,
               onUsage: recordAuxCost,
             });
+            trackToolExecuted({
+              tool: "spawnAgent",
+              mode: _activeModes.get(sessionId)!,
+              success: true,
+            });
             chat.addToolOutput({
               tool: "spawnAgent" as keyof ChatTools,
               toolCallId: toolCall.toolCallId,
               output: { result },
             });
           } catch (error) {
+            trackToolExecuted({
+              tool: "spawnAgent",
+              mode: _activeModes.get(sessionId)!,
+              success: false,
+            });
             chat.addToolOutput({
               tool: "spawnAgent" as keyof ChatTools,
               toolCallId: toolCall.toolCallId,
@@ -602,7 +614,11 @@ export function useChat(
             toolInputSchemas.scheduleWakeup.parse(toolCall.input);
 
           clearPendingWakeup(sessionId);
-          trackFeatureUsed({ feature: "schedule-wakeup" });
+          trackToolExecuted({
+            tool: "scheduleWakeup",
+            mode: _activeModes.get(sessionId)!,
+            success: true,
+          });
 
           const fire = (userText: string) => {
             _pendingWakeups.delete(sessionId);
@@ -996,8 +1012,19 @@ export function useChat(
               : undefined,
           );
           
+          // A backgrounded shell is tracked as "shell_background" instead of
+          // "shell" — exactly one Tool Executed event per execution, so
+          // analytics sees either a foreground shell or a backgrounded one,
+          // never both.
+          const isBackgroundShell =
+            toolCall.toolName === "shell" &&
+            output &&
+            typeof output === "object" &&
+            "pid" in output &&
+            !("exitCode" in output);
+
           trackToolExecuted({
-            tool: toolCall.toolName,
+            tool: isBackgroundShell ? "shell_background" : toolCall.toolName,
             mode: _activeModes.get(sessionId)!,
             success: true,
           });
@@ -1007,15 +1034,8 @@ export function useChat(
           // listener wired up here — same "delivers automatically, no polling
           // required" guarantee spawnAgent's runInBackground already has,
           // via the same shared registry (background-tasks.ts).
-          if (
-            toolCall.toolName === "shell" &&
-            output &&
-            typeof output === "object" &&
-            "pid" in output &&
-            !("exitCode" in output)
-          ) {
+          if (isBackgroundShell) {
             const taskId = String((output as { pid: number }).pid);
-            trackFeatureUsed({ feature: "shell-background" });
 
             const shellInput = toolInput as
               | { command?: string; description?: string }
