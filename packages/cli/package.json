@@ -1,6 +1,6 @@
 {
   "name": "koincode",
-  "version": "1.28.8",
+  "version": "1.28.9",
   "module": "src/index.tsx",
   "type": "module",
   "files": [
@@ -33,11 +33,11 @@
     "koincode": "bin/npm-wrapper.cjs"
   },
   "optionalDependencies": {
-    "@koincode/darwin-arm64": "1.28.8",
-    "@koincode/darwin-x64": "1.28.8",
-    "@koincode/linux-x64": "1.28.8",
-    "@koincode/linux-arm64": "1.28.8",
-    "@koincode/windows-x64": "1.28.8"
+    "@koincode/darwin-arm64": "1.28.9",
+    "@koincode/darwin-x64": "1.28.9",
+    "@koincode/linux-x64": "1.28.9",
+    "@koincode/linux-arm64": "1.28.9",
+    "@koincode/windows-x64": "1.28.9"
   },
   "scripts": {
     "version": "node bin/sync-platform-versions.cjs",
@@ -47,7 +47,9 @@
     "compile:all": "bun bin/compile.ts",
     "compile:test": "bun bin/compile.ts --single --preview",
     "smoke-test": "bash bin/smoke-test.sh",
-    "test:wrapper": "node bin/npm-wrapper.cjs"
+    "test:wrapper": "node bin/npm-wrapper.cjs",
+    "test:model-dev": "bun run ./src/tests/model-dev.test.ts",
+    "kill-server": "bun run ./src/scripts/kill-server.ts"
   },
   "devDependencies": {
     "@ai-sdk/react": "^3.0.186",

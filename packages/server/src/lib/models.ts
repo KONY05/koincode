@@ -8,7 +8,11 @@ import { xai } from "@ai-sdk/xai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
-import { extractReasoningMiddleware, wrapLanguageModel, type LanguageModel } from "ai";
+import {
+  extractReasoningMiddleware,
+  wrapLanguageModel,
+  type LanguageModel,
+} from "ai";
 
 import {
   isCustomOrOllamaModelId,
@@ -29,10 +33,17 @@ import {
 } from "./models-registry";
 import { resolveOllamaBaseURL } from "./ollama";
 
-type AnthropicModelId = Extract<SupportedChatModel, { provider: "anthropic" }>["id"];
-type OpenAIModelId = Extract<SupportedChatModel, { provider: "openai"    }>["id"];
-type GoogleModelId = Extract<SupportedChatModel, { provider: "google"    }>["id"];
-type XaiModelId = Extract<SupportedChatModel, { provider: "xai"       }>["id"];
+type AnthropicModelId = Extract<
+  SupportedChatModel,
+  { provider: "anthropic" }
+>["id"];
+type OpenAIModelId = Extract<SupportedChatModel, { provider: "openai" }>["id"];
+type GoogleModelId = Extract<SupportedChatModel, { provider: "google" }>["id"];
+type XaiModelId = Extract<SupportedChatModel, { provider: "xai" }>["id"];
+type OpenRouterModelId = Extract<
+  SupportedChatModel,
+  { provider: "openrouter" }
+>["id"];
 
 export type ResolvedModel = {
   model: LanguageModel;
@@ -63,7 +74,9 @@ export type ResolvedModel = {
 // would silently blank out the "Thinking..." UI (bot-message.tsx) for exactly those models
 // without this. Confirmed via platform.claude.com/docs/en/build-with-claude/thinking#controlling-thinking-display.
 const ANTHROPIC_THINKING: ProviderOptions = {
-  anthropic: { thinking: { type: "enabled", budgetTokens: 10000, display: "summarized" } },
+  anthropic: {
+    thinking: { type: "enabled", budgetTokens: 10000, display: "summarized" },
+  },
 };
 
 const GOOGLE_THINKING: ProviderOptions = {
@@ -85,22 +98,26 @@ const GOOGLE_THINKING: ProviderOptions = {
 // claude-haiku-4-5 only ever exposes the standard low/medium/high levels (see models.ts's
 // registry entry) — Partial since the wider ReasoningEffortLevel union now includes
 // minimal/xhigh/max, which this model's own declared level list never actually offers.
-const HAIKU_BUDGET_BY_EFFORT: Partial<Record<ReasoningEffortLevel, number>> = {
+const ANTHROPIC_TOKEN_BUDGET_BY_EFFORT: Partial<
+  Record<ReasoningEffortLevel, number>
+> = {
   low: 4000,
   medium: 10000, // matches ANTHROPIC_THINKING's existing default
   high: 24000,
 };
 
+const ANTHROPIC_TOKEN_BUDGET_MODELS = ["claude-sonnet-4-6", "claude-haiku-4-5"];
+
 function anthropicEffortOptions(
   modelId: AnthropicModelId,
   effort: ReasoningEffortLevel,
 ): ProviderOptions {
-  if (modelId === "claude-haiku-4-5") {
+  if (ANTHROPIC_TOKEN_BUDGET_MODELS.includes(modelId)) {
     return {
       anthropic: {
         thinking: {
           type: "enabled",
-          budgetTokens: HAIKU_BUDGET_BY_EFFORT[effort] ?? 10000,
+          budgetTokens: ANTHROPIC_TOKEN_BUDGET_BY_EFFORT[effort] ?? 10000,
           display: "summarized",
         },
       },
@@ -109,25 +126,43 @@ function anthropicEffortOptions(
   // Adaptive-only and dual-support (claude-sonnet-4-6) models both take the adaptive path —
   // it's recommended even where the old budget path still works. display: "summarized" is
   // required — see the comment on ANTHROPIC_THINKING above.
-  return { anthropic: { thinking: { type: "adaptive", display: "summarized" }, effort } };
+  return {
+    anthropic: {
+      thinking: { type: "adaptive", display: "summarized" },
+      effort,
+    },
+  };
 }
 
 // Confirmed against ai.google.dev/gemini-api/docs/thinking's documented min/max/default per
 // model. Gemini 2.5 entries only ever expose the standard low/medium/high levels — inner
 // Partial since the wider ReasoningEffortLevel union now includes minimal/xhigh/max.
-const GEMINI_25_BUDGET_BY_EFFORT: Partial<Record<GoogleModelId, Partial<Record<ReasoningEffortLevel, number>>>> = {
+const GEMINI_25_BUDGET_BY_EFFORT: Partial<
+  Record<GoogleModelId, Partial<Record<ReasoningEffortLevel, number>>>
+> = {
   "gemini-2.5-pro": { low: 3000, medium: 9000, high: 28000 }, // range 128–32,768, no full disable
   "gemini-2.5-flash": { low: 500, medium: 9000, high: 22000 }, // range 0–24,576, 0 disables entirely
 };
 
-function googleEffortOptions(modelId: GoogleModelId, effort: ReasoningEffortLevel): ProviderOptions {
+function googleEffortOptions(
+  modelId: GoogleModelId,
+  effort: ReasoningEffortLevel,
+): ProviderOptions {
   const isGemini3Line = modelId.startsWith("gemini-3"); // Gemini 3 and 3.1 use thinkingLevel
   if (isGemini3Line) {
-    return { google: { thinkingConfig: { thinkingLevel: effort, includeThoughts: true } } };
+    return {
+      google: {
+        thinkingConfig: { thinkingLevel: effort, includeThoughts: true },
+      },
+    };
   }
-  
+
   const budget = GEMINI_25_BUDGET_BY_EFFORT[modelId]?.[effort] ?? 10000; // matches GOOGLE_THINKING's default
-  return { google: { thinkingConfig: { thinkingBudget: budget, includeThoughts: true } } };
+  return {
+    google: {
+      thinkingConfig: { thinkingBudget: budget, includeThoughts: true },
+    },
+  };
 }
 
 function xaiEffortOptions(effort: ReasoningEffortLevel): ProviderOptions {
@@ -138,7 +173,25 @@ function openaiEffortOptions(effort: ReasoningEffortLevel): ProviderOptions {
   return { openai: { reasoningEffort: effort } };
 }
 
-function openrouterEffortOptions(effort: ReasoningEffortLevel): ProviderOptions {
+const OPENROUTER_TOKEN_BUDGET_MODELS: Partial<
+  Record<OpenRouterModelId, Partial<Record<ReasoningEffortLevel, number>>>
+> = {
+  "qwen/qwen3.7-max": { low: 4000, medium: 24000, high: 110000 }, // range 1–262,144 (budget_tokens)
+  "qwen/qwen3.7-plus": { low: 3000, medium: 18000, high: 90000 }, // range 1–262,144 (budget_tokens)
+};
+
+function openrouterEffortOptions(
+  modelId: OpenRouterModelId,
+  effort: ReasoningEffortLevel,
+): ProviderOptions {
+  if (OPENROUTER_TOKEN_BUDGET_MODELS[modelId]) {
+    return {
+      openrouter: {
+        reasoning: { effort: OPENROUTER_TOKEN_BUDGET_MODELS[modelId][effort] },
+      },
+    };
+  }
+
   return { openrouter: { reasoning: { effort } } };
 }
 
@@ -182,10 +235,16 @@ function resolvePricing(
   const entry = apiData[providerBucket]?.models?.[modelId];
   if (!entry?.cost) return fallback;
   return {
-    inputUsdPerMillionTokens: entry.cost.input ?? fallback.inputUsdPerMillionTokens,
-    outputUsdPerMillionTokens: entry.cost.output ?? fallback.outputUsdPerMillionTokens,
-    ...(entry.cost.cache_read !== undefined ? { cacheReadUsdPerMillionTokens: entry.cost.cache_read } : {}),
-    ...(entry.cost.cache_write !== undefined ? { cacheWriteUsdPerMillionTokens: entry.cost.cache_write } : {}),
+    inputUsdPerMillionTokens:
+      entry.cost.input ?? fallback.inputUsdPerMillionTokens,
+    outputUsdPerMillionTokens:
+      entry.cost.output ?? fallback.outputUsdPerMillionTokens,
+    ...(entry.cost.cache_read !== undefined
+      ? { cacheReadUsdPerMillionTokens: entry.cost.cache_read }
+      : {}),
+    ...(entry.cost.cache_write !== undefined
+      ? { cacheWriteUsdPerMillionTokens: entry.cost.cache_write }
+      : {}),
   };
 }
 
@@ -200,8 +259,14 @@ function requireOpenRouterKey(): string {
 }
 
 /** True only when `effort` was given and this model's registry entry actually lists it as supported. */
-function supportsEffort(modelId: string, effort: ReasoningEffortLevel | undefined): effort is ReasoningEffortLevel {
-  return effort != null && (getEnrichedReasoningEffortLevels(modelId)?.includes(effort) ?? false);
+function supportsEffort(
+  modelId: string,
+  effort: ReasoningEffortLevel | undefined,
+): effort is ReasoningEffortLevel {
+  return (
+    effort != null &&
+    (getEnrichedReasoningEffortLevels(modelId)?.includes(effort) ?? false)
+  );
 }
 
 function resolveViaOpenRouter(
@@ -215,12 +280,18 @@ function resolveViaOpenRouter(
   // anthropic/openai/google/xai models get the provider prefix prepended.
   // xAI's OpenRouter slug is "x-ai", not "xai" — everyone else matches our provider name.
   const openRouterProviderSlug = provider === "xai" ? "x-ai" : provider;
-  const routerModelId = provider === "openrouter" ? modelId : `${openRouterProviderSlug}/${modelId}`;
+  const routerModelId =
+    provider === "openrouter"
+      ? modelId
+      : `${openRouterProviderSlug}/${modelId}`;
   // OpenRouter's automatic prompt caching (top-level `cache_control`, auto-advancing
   // breakpoint) only applies to Anthropic models — confirmed against OpenRouter's docs
   // and this package's own types. OpenAI models cache automatically on OpenRouter with
   // no config needed, same as calling OpenAI directly, so nothing to set for them here.
-  const settings = provider === "anthropic" ? { cache_control: { type: "ephemeral" as const } } : undefined;
+  const settings =
+    provider === "anthropic"
+      ? { cache_control: { type: "ephemeral" as const } }
+      : undefined;
 
   return {
     model: openrouter.chat(routerModelId, settings),
@@ -228,14 +299,20 @@ function resolveViaOpenRouter(
     modelId: modelId as SupportedChatModelId,
     // OpenRouter normalizes reasoning effort itself, regardless of underlying provider — this
     // also closes the previous gap where Anthropic/Google's thinking silently disappeared here.
-    providerOptions: supportsEffort(modelId, effort) ? openrouterEffortOptions(effort) : undefined,
+    providerOptions: supportsEffort(modelId, effort)
+      ? openrouterEffortOptions(routerModelId as OpenRouterModelId, effort)
+      : undefined,
     pricing: fallbackPricing
       ? resolvePricing(routerModelId, "openrouter", fallbackPricing)
       : undefined,
   };
 }
 
-function resolveAnthropicModel(modelId: AnthropicModelId, effort?: ReasoningEffortLevel, fallbackPricing?: ModelPricing): ResolvedModel {
+function resolveAnthropicModel(
+  modelId: AnthropicModelId,
+  effort?: ReasoningEffortLevel,
+  fallbackPricing?: ModelPricing,
+): ResolvedModel {
   if (!process.env.ANTHROPIC_API_KEY) {
     const key = readConfigKey("anthropic");
     if (key) process.env.ANTHROPIC_API_KEY = key;
@@ -248,14 +325,20 @@ function resolveAnthropicModel(modelId: AnthropicModelId, effort?: ReasoningEffo
       providerOptions: supportsEffort(modelId, effort)
         ? anthropicEffortOptions(modelId, effort)
         : ANTHROPIC_THINKING,
-      pricing: fallbackPricing ? resolvePricing(modelId, "anthropic", fallbackPricing) : undefined,
+      pricing: fallbackPricing
+        ? resolvePricing(modelId, "anthropic", fallbackPricing)
+        : undefined,
       promptCaching: true,
     };
   }
   return resolveViaOpenRouter(modelId, "anthropic", effort, fallbackPricing);
 }
 
-function resolveOpenAIModel(modelId: OpenAIModelId, effort?: ReasoningEffortLevel, fallbackPricing?: ModelPricing): ResolvedModel {
+function resolveOpenAIModel(
+  modelId: OpenAIModelId,
+  effort?: ReasoningEffortLevel,
+  fallbackPricing?: ModelPricing,
+): ResolvedModel {
   if (!process.env.OPENAI_API_KEY) {
     const key = readConfigKey("openai");
     if (key) process.env.OPENAI_API_KEY = key;
@@ -265,14 +348,22 @@ function resolveOpenAIModel(modelId: OpenAIModelId, effort?: ReasoningEffortLeve
       model: openai(modelId),
       provider: "openai",
       modelId,
-      providerOptions: supportsEffort(modelId, effort) ? openaiEffortOptions(effort) : undefined,
-      pricing: fallbackPricing ? resolvePricing(modelId, "openai", fallbackPricing) : undefined,
+      providerOptions: supportsEffort(modelId, effort)
+        ? openaiEffortOptions(effort)
+        : undefined,
+      pricing: fallbackPricing
+        ? resolvePricing(modelId, "openai", fallbackPricing)
+        : undefined,
     };
   }
   return resolveViaOpenRouter(modelId, "openai", effort, fallbackPricing);
 }
 
-function resolveGoogleModel(modelId: GoogleModelId, effort?: ReasoningEffortLevel, fallbackPricing?: ModelPricing): ResolvedModel {
+function resolveGoogleModel(
+  modelId: GoogleModelId,
+  effort?: ReasoningEffortLevel,
+  fallbackPricing?: ModelPricing,
+): ResolvedModel {
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     const key = readConfigKey("google");
     if (key) process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
@@ -285,13 +376,19 @@ function resolveGoogleModel(modelId: GoogleModelId, effort?: ReasoningEffortLeve
       providerOptions: supportsEffort(modelId, effort)
         ? googleEffortOptions(modelId, effort)
         : GOOGLE_THINKING,
-      pricing: fallbackPricing ? resolvePricing(modelId, "google", fallbackPricing) : undefined,
+      pricing: fallbackPricing
+        ? resolvePricing(modelId, "google", fallbackPricing)
+        : undefined,
     };
   }
   return resolveViaOpenRouter(modelId, "google", effort, fallbackPricing);
 }
 
-function resolveXaiModel(modelId: XaiModelId, effort?: ReasoningEffortLevel, fallbackPricing?: ModelPricing): ResolvedModel {
+function resolveXaiModel(
+  modelId: XaiModelId,
+  effort?: ReasoningEffortLevel,
+  fallbackPricing?: ModelPricing,
+): ResolvedModel {
   if (!process.env.XAI_API_KEY) {
     const key = readConfigKey("xai");
     if (key) process.env.XAI_API_KEY = key;
@@ -301,14 +398,21 @@ function resolveXaiModel(modelId: XaiModelId, effort?: ReasoningEffortLevel, fal
       model: xai(modelId),
       provider: "xai",
       modelId,
-      providerOptions: supportsEffort(modelId, effort) ? xaiEffortOptions(effort) : undefined,
-      pricing: fallbackPricing ? resolvePricing(modelId, "xai", fallbackPricing) : undefined,
+      providerOptions: supportsEffort(modelId, effort)
+        ? xaiEffortOptions(effort)
+        : undefined,
+      pricing: fallbackPricing
+        ? resolvePricing(modelId, "xai", fallbackPricing)
+        : undefined,
     };
   }
   return resolveViaOpenRouter(modelId, "xai", effort, fallbackPricing);
 }
 
-function resolveSupportedChatModel(model: SupportedChatModel, effort?: ReasoningEffortLevel): ResolvedModel {
+function resolveSupportedChatModel(
+  model: SupportedChatModel,
+  effort?: ReasoningEffortLevel,
+): ResolvedModel {
   const provider = model.provider;
   const fallbackPricing = model.pricing;
   switch (provider) {
@@ -321,19 +425,29 @@ function resolveSupportedChatModel(model: SupportedChatModel, effort?: Reasoning
     case "xai":
       return resolveXaiModel(model.id, effort, fallbackPricing);
     case "openrouter":
-      return resolveViaOpenRouter(model.id, "openrouter", effort, fallbackPricing);
+      return resolveViaOpenRouter(
+        model.id,
+        "openrouter",
+        effort,
+        fallbackPricing,
+      );
     default:
       return assertUnsupportedProvider(provider);
   }
 }
 
 export function isSupportedChatModel(modelId: string): boolean {
-  return findEnrichedSupportedChatModel(modelId) != null || isCustomOrOllamaModelId(modelId);
+  return (
+    findEnrichedSupportedChatModel(modelId) != null ||
+    isCustomOrOllamaModelId(modelId)
+  );
 }
 
 function readGlobalConfig(): KoincodeGlobalConfig {
   try {
-    return JSON.parse(fs.readFileSync(GLOBAL_CONFIG_FILE, "utf8")) as KoincodeGlobalConfig;
+    return JSON.parse(
+      fs.readFileSync(GLOBAL_CONFIG_FILE, "utf8"),
+    ) as KoincodeGlobalConfig;
   } catch {
     return {};
   }
@@ -370,7 +484,8 @@ async function fetchOllamaContextLength(
     if (!response.ok) return undefined;
     const data = (await response.json()) as OllamaShowResponse;
     for (const [key, value] of Object.entries(data.model_info ?? {})) {
-      if (key.endsWith(".context_length") && typeof value === "number") return value;
+      if (key.endsWith(".context_length") && typeof value === "number")
+        return value;
     }
     return undefined;
   } catch {
@@ -381,8 +496,14 @@ async function fetchOllamaContextLength(
 async function resolveOllamaModel(modelId: string): Promise<ResolvedModel> {
   const ollamaModelName = modelId.slice("ollama/".length);
   const rootBaseURL = resolveOllamaBaseURL();
-  const provider = createOllama({ name: "ollama", baseURL: `${rootBaseURL}/api` });
-  const contextLength = await fetchOllamaContextLength(rootBaseURL, ollamaModelName);
+  const provider = createOllama({
+    name: "ollama",
+    baseURL: `${rootBaseURL}/api`,
+  });
+  const contextLength = await fetchOllamaContextLength(
+    rootBaseURL,
+    ollamaModelName,
+  );
   return {
     model: withReasoningExtraction(provider.chat(ollamaModelName)),
     provider: "ollama",
@@ -400,9 +521,10 @@ function resolveCustomModel(modelId: string): ResolvedModel {
   if (!model) throw new Error(`Custom model not configured: ${modelId}`);
 
   const provider = readCustomProviders().find((p) => p.id === model.providerId);
-  
-  if (!provider) throw new Error(`Custom provider not configured for model: ${modelId}`);
-  
+
+  if (!provider)
+    throw new Error(`Custom provider not configured for model: ${modelId}`);
+
   const client = createOpenAICompatible({
     name: "custom",
     baseURL: provider.baseURL,

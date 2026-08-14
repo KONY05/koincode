@@ -29,7 +29,7 @@ export type SupportedProvider =
  * Single source of truth: the request-body Zod schema (`packages/server/src/routes/chat.ts`)
  * builds its `reasoningEffort` enum straight from `REASONING_EFFORT_LEVELS` below rather than
  * re-listing these values, so the two can't drift out of sync. */
-export const REASONING_EFFORT_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export const REASONING_EFFORT_LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 export type ReasoningEffortLevel = (typeof REASONING_EFFORT_LEVELS)[number];
 
 export type SupportedChatModelDefinition = {
@@ -79,24 +79,53 @@ export type ModelsDevApiProviderEntry = {
 
 export type ModelsDevApiResponse = Record<string, ModelsDevApiProviderEntry>;
 
-// Confirmed per-model against ai-sdk.dev's provider docs (see links in
-// context/feature-specs/44-reasoning-effort-model-label.md) — kept conservative where the
-// docs didn't name a specific model, rather than guessing and risking a 400 at request time.
-const STANDARD_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high"];
-const KIMI3_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "high", "max"];
+/**
+ * LMH =>
+ * Low, Medium, High
+ */
+const LMH_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high"];
+/**
+ * LHM =>
+ * Low, High, Max
+ */
+const LHM_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "high", "max"];
 // GPT-5.6 explicitly confirmed to support the full range (ai-sdk.dev/providers/ai-sdk-providers/openai).
-const GPT_5_6_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
-// claude-opus-4-7/4-8, claude-fable-5, and claude-sonnet-5 confirmed to additionally support
-// "xhigh" beyond the base low/medium/high (ai-sdk.dev/providers/ai-sdk-providers/anthropic#reasoning).
-const CLAUDE_XHIGH_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high", "xhigh"];
-// claude-opus-5 goes one further than the rest of the Claude 5 generation, adding "max" as its
-// top effort tier (confirmed via Anthropic's official docs: platform.claude.com/docs/en/about-claude/
-// models/whats-new-opus-5#effort-matters-more — "The full ladder is available: low, medium, high,
-// xhigh, and max, with max as the top tier for the deepest possible reasoning.").
-const CLAUDE_OPUS_5_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
-// The Gemini 3 Flash family confirmed to additionally support "minimal"
-// (ai-sdk.dev/providers/ai-sdk-providers/google#language-models); Gemini 3.1 Pro does not.
-const GEMINI_3_FLASH_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["minimal", "low", "medium", "high"];
+const GPT_5_6_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["none", "low", "medium", "high", "xhigh", "max"];
+/**
+ * NLMHX =>
+ * None, Low, Medium, High, XHigh
+ */
+const NLMHX_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["none", "low", "medium", "high", "xhigh"];
+/**
+ * LMHX =>
+ * Low, Medium, High, XHigh
+ */
+const LMHX_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high", "xhigh"];
+/**
+ * LMHM =>
+ * Low, Medium, High, Max
+ */
+const LMHM_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high", "max"];
+/**
+ * LMHXM =>
+ * Low, Medium, High, XHigh, Max
+ */
+const LMHXM_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
+/**
+ * MLMH =>
+ * Minimal, Low, Medium, High
+ */
+const MLMH_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["minimal", "low", "medium", "high"];
+/**
+ * MLMHX =>
+ * Minimal, Low, Medium, High, XHigh
+ */
+const MLMHX_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["minimal", "low", "medium", "high", "xhigh"];
+/**
+ * HX =>
+ * High, XHigh
+ */
+const HX_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["high", "xhigh"];
 
 /**
  * Frontier and open source supported models list
@@ -112,7 +141,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_000_000,
     vision: true,
     label: "Claude Fable 5",
-    reasoningEffort: CLAUDE_XHIGH_EFFORT_LEVELS,
+    reasoningEffort: LMHXM_EFFORT_LEVELS,
   },
   {
     id: "claude-opus-5",
@@ -121,7 +150,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_000_000,
     vision: true,
     label: "Claude Opus 5",
-    reasoningEffort: CLAUDE_OPUS_5_EFFORT_LEVELS,
+    reasoningEffort: LMHXM_EFFORT_LEVELS,
   },
   {
     id: "claude-opus-4-8",
@@ -130,7 +159,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_000_000,
     vision: true,
     label: "Claude Opus 4.8",
-    reasoningEffort: CLAUDE_XHIGH_EFFORT_LEVELS,
+    reasoningEffort: LMHXM_EFFORT_LEVELS,
   },
   {
     id: "claude-opus-4-7",
@@ -139,7 +168,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_000_000,
     vision: true,
     label: "Claude Opus 4.7",
-    reasoningEffort: CLAUDE_XHIGH_EFFORT_LEVELS,
+    reasoningEffort: LMHXM_EFFORT_LEVELS,
   },
   {
     id: "claude-sonnet-5",
@@ -148,7 +177,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_000_000,
     vision: true,
     label: "Claude Sonnet 5",
-    reasoningEffort: CLAUDE_XHIGH_EFFORT_LEVELS,
+    reasoningEffort: LMHXM_EFFORT_LEVELS,
   },
   {
     id: "claude-sonnet-4-6",
@@ -157,11 +186,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_000_000,
     vision: true,
     label: "Claude Sonnet 4.6",
-    // Unconfirmed whether this model exposes a manual `effort` dial at all vs. pure automatic
-    // adaptive reasoning — docs describe "adaptive" for this generation without naming an
-    // effort parameter explicitly the way they do for opus-4-7/4-8/sonnet-5. Kept at the safe
-    // standard set rather than assuming it doesn't work; flagged in the spec as unconfirmed.
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: LMHM_EFFORT_LEVELS, // **budget**
   },
   {
     id: "claude-haiku-4-5",
@@ -170,7 +195,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 200_000,
     vision: true,
     label: "Claude Haiku 4.5",
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: LMH_EFFORT_LEVELS, // **budget**
   },
 
   // ── OpenAI (direct OPENAI_API_KEY or OpenRouter fallback) ──────────────────
@@ -208,9 +233,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_050_000,
     vision: true,
     label: "GPT-5.5",
-    // Docs confirm only that the full range applies to GPT-5.6; older gpt-5.x variants are
-    // noted as "varies by model" without naming specifics — kept at the safe standard set.
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: NLMHX_EFFORT_LEVELS,
   },
   {
     id: "gpt-5.4",
@@ -219,7 +242,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_050_000,
     vision: true,
     label: "GPT-5.4",
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: NLMHX_EFFORT_LEVELS,
   },
   {
     id: "gpt-5.3-codex",
@@ -228,7 +251,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 400_000,
     vision: true,
     label: "GPT-5.3 Codex",
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: NLMHX_EFFORT_LEVELS,
   },
   {
     id: "gpt-5-mini",
@@ -237,7 +260,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 400_000,
     vision: true,
     label: "GPT-5 Mini",
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: MLMH_EFFORT_LEVELS,
   },
 
   {
@@ -252,13 +275,22 @@ export const SUPPORTED_CHAT_MODELS = [
 
   // ── Google (direct GOOGLE_GENERATIVE_AI_API_KEY or OpenRouter fallback) ────
   {
+    id: "gemini-3.7-flash",
+    provider: "google",
+    pricing: { inputUsdPerMillionTokens: 0.75, outputUsdPerMillionTokens: 3.75 },
+    contextWindow: 1_048_576,
+    vision: true,
+    label: "Gemini 3.7 Flash",
+    reasoningEffort: LMH_EFFORT_LEVELS,
+  },
+  {
     id: "gemini-3.5-flash",
     provider: "google",
     pricing: { inputUsdPerMillionTokens: 1.5, outputUsdPerMillionTokens: 9 },
     contextWindow: 1_048_576,
     vision: true,
     label: "Gemini 3.5 Flash",
-    reasoningEffort: GEMINI_3_FLASH_EFFORT_LEVELS,
+    reasoningEffort: MLMH_EFFORT_LEVELS,
   },
   {
     id: "gemini-3-flash-preview",
@@ -267,7 +299,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_048_576,
     vision: true,
     label: "Gemini 3 Flash (Preview)",
-    reasoningEffort: GEMINI_3_FLASH_EFFORT_LEVELS,
+    reasoningEffort: MLMH_EFFORT_LEVELS,
   },
   {
     id: "gemini-3.1-pro-preview",
@@ -277,7 +309,7 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: true,
     label: "Gemini 3.1 Pro (Preview)",
     // Confirmed low/medium/high only — no "minimal" (unlike the Gemini 3 Flash family).
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: LMH_EFFORT_LEVELS,
   },
   {
     id: "gemini-2.5-flash",
@@ -286,7 +318,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_048_576,
     vision: true,
     label: "Gemini 2.5 Flash",
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: LMH_EFFORT_LEVELS, // **budget**
   },
   {
     id: "gemini-2.5-pro",
@@ -295,10 +327,20 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_048_576,
     vision: true,
     label: "Gemini 2.5 Pro",
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: LMH_EFFORT_LEVELS, // **budget**
   },
 
   // ── xAI (direct XAI_API_KEY or OpenRouter fallback) ────────────────────────
+  {
+    id: "grok-4.6",
+    provider: "xai",
+    pricing: { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 6 },
+    contextWindow: 500_000,
+    vision: true,
+    label: "Grok 4.6",
+    // xAI's own reasoningEffort ceiling is "high" — no xhigh/max tier exists for this provider.
+    reasoningEffort: LMHX_EFFORT_LEVELS,
+  },
   {
     id: "grok-4.5",
     provider: "xai",
@@ -307,7 +349,7 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: true,
     label: "Grok 4.5",
     // xAI's own reasoningEffort ceiling is "high" — no xhigh/max tier exists for this provider.
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: LMH_EFFORT_LEVELS,
   },
 
   // ── OpenRouter paid (always require OPENROUTER_API_KEY) ────────────────────
@@ -318,9 +360,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_048_576,
     vision: true,
     label: "Kimi K3",
-    // Real Kimi K2 splits reasoning into a separate "Kimi K2 Thinking" SKU — the base
-    // (non-"-thinking") line isn't reasoning-branded, so left unsupported rather than guessed.
-    reasoningEffort: KIMI3_EFFORT_LEVELS,
+    reasoningEffort: LHM_EFFORT_LEVELS,
   },
   {
     id: "qwen/qwen3.8-max",
@@ -330,18 +370,16 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: true,
     label: "Qwen3.8 Max",
     // Qwen3.5+ ship hybrid thinking enabled by default (Qwen docs).
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: MLMHX_EFFORT_LEVELS,
   },
   {
-    id: "z-ai/glm-5.2",
+    id: "deepseek/deepseek-v4-pro-0813",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.93, outputUsdPerMillionTokens: 3 },
+    pricing: { inputUsdPerMillionTokens: 0.435, outputUsdPerMillionTokens: 0.87 },
     contextWindow: 1_048_576,
-    vision: false,
-    label: "GLM 5.2",
-    // GLM-4.5/4.6 ship hybrid thinking mode enabled by default (Zhipu AI docs) — real family
-    // this fictional version continues, routed through OpenRouter's unified effort→budget mapping.
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    vision: true,
+    label: "DeepSeek V4 Pro 0813",
+    reasoningEffort: LHM_EFFORT_LEVELS,
   },
   {
     id: "meta/muse-spark-1.1",
@@ -350,7 +388,18 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 1_048_576,
     vision: true,
     label: "Muse Spark 1.1",
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: MLMHX_EFFORT_LEVELS,
+  },
+   {
+    id: "z-ai/glm-5.2",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.93, outputUsdPerMillionTokens: 3 },
+    contextWindow: 1_048_576,
+    vision: false,
+    label: "GLM 5.2",
+    // GLM-4.5/4.6 ship hybrid thinking mode enabled by default (Zhipu AI docs) — real family
+    // this fictional version continues, routed through OpenRouter's unified effort→budget mapping.
+    reasoningEffort: [],
   },
   {
     id: "deepseek/deepseek-v4-flash-0731",
@@ -360,7 +409,7 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
     label: "DeepSeek V4 Flash 0731",
     // Same DeepSeek V4 thinking/non-thinking support as the Pro variant.
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: LHM_EFFORT_LEVELS,
   },
   {
     id: "qwen/qwen3.7-max",
@@ -370,7 +419,7 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
     label: "Qwen3.7 Max",
     // Qwen3.5+ ship hybrid thinking enabled by default (Qwen docs).
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: LMH_EFFORT_LEVELS, // **budget**
   },
   {
     id: "moonshotai/kimi-k2.6",
@@ -379,8 +428,7 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 262_144,
     vision: true,
     label: "Kimi K2.6",
-    // Same base-vs-"-thinking" split as Kimi K3 above — left unsupported.
-    reasoningEffort: undefined,
+    reasoningEffort: [],
   },
   {
     id: "moonshotai/kimi-k2.7-code",
@@ -390,7 +438,7 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: true,
     label: "Kimi K2.7 Code",
     // Coding-specialized variant, not reasoning-branded — left unsupported.
-    reasoningEffort: undefined,
+    reasoningEffort: [],
   },
   {
     id: "deepseek/deepseek-v4-pro",
@@ -400,7 +448,7 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
     label: "DeepSeek V4 Pro",
     // DeepSeek V4 confirmed to support thinking and non-thinking modes (DeepSeek API docs).
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: HX_EFFORT_LEVELS,
   },
   {
     id: "qwen/qwen3.7-plus",
@@ -410,7 +458,7 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: true,
     label: "Qwen3.7 Plus",
     // Same Qwen3.5+ hybrid thinking support as Qwen3.7 Max.
-    reasoningEffort: STANDARD_EFFORT_LEVELS,
+    reasoningEffort: LMH_EFFORT_LEVELS, // **budget**
   },
 
   // ── OpenRouter free (require OPENROUTER_API_KEY, $0 per token) ────────────
