@@ -119,7 +119,15 @@ export const COMMANDS: Command[] = [
           message: "This model doesn't support reasoning effort control.",
         });
         return;
+      } 
+      if (levels.length === 0) {
+        ctx.toast.show({
+          variant: "error",
+          message: "This model doesn't have reasoning effort options.",
+        });
+        return;
       }
+
       ctx.dialog.open({
         title: `${ctx.modelDisplayName} - Reasoning Effort`,
         children: (

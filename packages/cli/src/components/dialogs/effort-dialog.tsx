@@ -10,6 +10,7 @@ type EffortDialogContentProps = {
 };
 
 const EFFORT_LABELS: Record<ReasoningEffortLevel, string> = {
+  none: "None",
   minimal: "Minimal",
   low: "Low",
   medium: "Medium",
