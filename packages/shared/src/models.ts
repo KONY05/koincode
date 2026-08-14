@@ -22,9 +22,6 @@ export type SupportedProvider =
  * mechanism (adaptive effort, thinking budget tokens, native reasoningEffort, etc.) —
  * see packages/server/src/lib/models.ts. Per-model support varies — see the
  * `reasoningEffort` array on each model entry below for what a given model actually accepts.
- * ("none" is deliberately not modeled — it means "disable reasoning entirely," a different
- * concept than an effort *level*, and every reasoning-capable model here already ships with
- * reasoning on by default.)
  *
  * Single source of truth: the request-body Zod schema (`packages/server/src/routes/chat.ts`)
  * builds its `reasoningEffort` enum straight from `REASONING_EFFORT_LEVELS` below rather than
@@ -338,7 +335,6 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 500_000,
     vision: true,
     label: "Grok 4.6",
-    // xAI's own reasoningEffort ceiling is "high" — no xhigh/max tier exists for this provider.
     reasoningEffort: LMHX_EFFORT_LEVELS,
   },
   {
@@ -348,7 +344,6 @@ export const SUPPORTED_CHAT_MODELS = [
     contextWindow: 500_000,
     vision: true,
     label: "Grok 4.5",
-    // xAI's own reasoningEffort ceiling is "high" — no xhigh/max tier exists for this provider.
     reasoningEffort: LMH_EFFORT_LEVELS,
   },
 

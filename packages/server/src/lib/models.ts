@@ -98,26 +98,24 @@ const GOOGLE_THINKING: ProviderOptions = {
 // claude-haiku-4-5 only ever exposes the standard low/medium/high levels (see models.ts's
 // registry entry) — Partial since the wider ReasoningEffortLevel union now includes
 // minimal/xhigh/max, which this model's own declared level list never actually offers.
-const ANTHROPIC_TOKEN_BUDGET_BY_EFFORT: Partial<
-  Record<ReasoningEffortLevel, number>
-> = {
-  low: 4000,
-  medium: 10000, // matches ANTHROPIC_THINKING's existing default
-  high: 24000,
+const ANTHROPIC_TOKEN_BUDGET_MODELS: Partial<Record<AnthropicModelId, Partial<Record<ReasoningEffortLevel, number>>>> = {
+  "claude-haiku-4-5": {
+    low: 4000,
+    medium: 10000,
+    high: 24000,
+  },
 };
-
-const ANTHROPIC_TOKEN_BUDGET_MODELS = ["claude-sonnet-4-6", "claude-haiku-4-5"];
 
 function anthropicEffortOptions(
   modelId: AnthropicModelId,
   effort: ReasoningEffortLevel,
 ): ProviderOptions {
-  if (ANTHROPIC_TOKEN_BUDGET_MODELS.includes(modelId)) {
+  if (ANTHROPIC_TOKEN_BUDGET_MODELS[modelId]) {
     return {
       anthropic: {
         thinking: {
           type: "enabled",
-          budgetTokens: ANTHROPIC_TOKEN_BUDGET_BY_EFFORT[effort] ?? 10000,
+          budgetTokens: ANTHROPIC_TOKEN_BUDGET_MODELS[modelId]![effort] ?? 10000,
           display: "summarized",
         },
       },

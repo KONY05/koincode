@@ -9,6 +9,11 @@ async function findModel(provider: string, modelName: string) {
   let foundModel = null;
   const providerGroup = modelData[provider];
 
+  if (!providerGroup) {
+    console.log(`Provider '${provider}' not found.`);
+    return;
+  }
+
   if (providerGroup.models) {
     foundModel = providerGroup.models[modelName];
   }
