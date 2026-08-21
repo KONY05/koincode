@@ -358,6 +358,15 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort: LHM_EFFORT_LEVELS,
   },
   {
+    id: "z-ai/glm-5.3",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 1.4, outputUsdPerMillionTokens: 4.4 },
+    contextWindow: 1_000_000,
+    vision: false,
+    label: "GLM 5.3",
+    reasoningEffort:  LHM_EFFORT_LEVELS,
+  },
+  {
     id: "qwen/qwen3.8-max",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 6 },
@@ -368,9 +377,18 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort: MLMHX_EFFORT_LEVELS,
   },
   {
+    id: "meta/muse-spark-1.2",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 1.25, outputUsdPerMillionTokens: 4.25 },
+    contextWindow: 1_048_576,
+    vision: true,
+    label: "Muse Spark 1.1",
+    reasoningEffort: MLMHX_EFFORT_LEVELS,
+  },
+  {
     id: "deepseek/deepseek-v4-pro-0813",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.435, outputUsdPerMillionTokens: 0.87 },
+    pricing: { inputUsdPerMillionTokens: 0.6026, outputUsdPerMillionTokens: 1.808 },
     contextWindow: 1_048_576,
     vision: true,
     label: "DeepSeek V4 Pro 0813",
@@ -385,21 +403,19 @@ export const SUPPORTED_CHAT_MODELS = [
     label: "Muse Spark 1.1",
     reasoningEffort: MLMHX_EFFORT_LEVELS,
   },
-   {
+  {
     id: "z-ai/glm-5.2",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0.93, outputUsdPerMillionTokens: 3 },
     contextWindow: 1_048_576,
     vision: false,
     label: "GLM 5.2",
-    // GLM-4.5/4.6 ship hybrid thinking mode enabled by default (Zhipu AI docs) — real family
-    // this fictional version continues, routed through OpenRouter's unified effort→budget mapping.
-    reasoningEffort: [],
+    reasoningEffort: HX_EFFORT_LEVELS,
   },
   {
     id: "deepseek/deepseek-v4-flash-0731",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.09, outputUsdPerMillionTokens: 0.18 },
+    pricing: { inputUsdPerMillionTokens: 0.065, outputUsdPerMillionTokens: 0.18 },
     contextWindow: 1_000_000,
     vision: false,
     label: "DeepSeek V4 Flash 0731",
@@ -458,6 +474,24 @@ export const SUPPORTED_CHAT_MODELS = [
 
   // ── OpenRouter free (require OPENROUTER_API_KEY, $0 per token) ────────────
   {
+    id: "z-ai/glm-5.2:free",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
+    contextWindow: 256_000,
+    vision: false,
+    label: "GLM 5.2 (free)",
+    reasoningEffort: HX_EFFORT_LEVELS,
+  },
+  {
+    id: "stealth/ox-alpha",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
+    contextWindow: 1_048_576,
+    vision: true,
+    label: "Ox Alpha",
+    reasoningEffort: LHM_EFFORT_LEVELS,
+  },
+  {
     id: "nvidia/nemotron-3-ultra-550b-a55b:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
@@ -467,12 +501,13 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort: undefined,
   },
   {
-    id: "inclusionai/ling-3.0-tiny:free",
+    id: "google/gemma-4-31b-it:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
     contextWindow: 262_144,
-    vision: false,
-    label: "Ling 3.0 Tiny (free)",
+    vision: true,
+    label: "Gemma 4 31B (free)",
+    // Gemma (unlike Gemini) has no thinking/reasoning mode historically.
     reasoningEffort: undefined,
   },
   {
@@ -496,13 +531,13 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort: undefined,
   },
   {
-    id: "google/gemma-4-31b-it:free",
+    id: "openai/gpt-oss-20b:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-    contextWindow: 262_144,
-    vision: true,
-    label: "Gemma 4 31B (free)",
-    // Gemma (unlike Gemini) has no thinking/reasoning mode historically.
+    contextWindow: 131_000,
+    vision: false,
+    label: "gpt-oss-20b (free)",
+    // Cohere's public model line has no known reasoning/thinking mode.
     reasoningEffort: undefined,
   }
 ] as const satisfies readonly SupportedChatModelDefinition[];
