@@ -2,11 +2,13 @@ import path from "path";
 import fs from "fs/promises";
 import os from "os";
 
+import type { ModelsDevApiResponse, ModelsDevModelEntry } from "@koincode/shared";
+
 const ModelDevPath = path.join(os.homedir(), "/.koincode/models-dev.json");
 
 async function findModel(provider: string, modelName: string) {
-  const modelData = JSON.parse(await fs.readFile(ModelDevPath, "utf8"));
-  let foundModel = null;
+  const modelData = JSON.parse(await fs.readFile(ModelDevPath, "utf8")) as ModelsDevApiResponse;
+  let foundModel: null | ModelsDevModelEntry = null;
   const providerGroup = modelData[provider];
 
   if (!providerGroup) {
@@ -15,7 +17,7 @@ async function findModel(provider: string, modelName: string) {
   }
 
   if (providerGroup.models) {
-    foundModel = providerGroup.models[modelName];
+    foundModel = providerGroup.models[modelName] ?? null;
   }
 
   if (!foundModel) {
@@ -50,6 +52,7 @@ async function findModel(provider: string, modelName: string) {
     reasoning_options: foundModel.reasoning_options,
     limit: foundModel.limit,
     cost: foundModel.cost,
+    modalities: foundModel.modalities
   });
 }
 
