@@ -47,6 +47,7 @@
     "refetches",
     "Renderable",
     "reparented",
+    "sandboxed",
     "scrollbox",
     "Streamable",
     "subshell",
