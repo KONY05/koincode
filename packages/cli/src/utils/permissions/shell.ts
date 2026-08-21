@@ -1,5 +1,6 @@
 import type { PendingApproval, PermissionInfo, PermissionKey, PermissionTier } from ".";
 import { matchesGlob, SENSITIVE_BASE_NAMES } from "./file";
+import { findBlockedPattern } from "../../tools/shell";
 
 const SHELL_BIN_MAP: Record<
   string,
@@ -161,6 +162,7 @@ function getKeyRank(key: PermissionKey): number {
   ) {
     return 5;
   }
+  if (key === "shell:destructive") return 6;
   return 4; // fallback for any missing key
 }
 
@@ -224,6 +226,23 @@ export default function getShellPermissionInfo(
   command: string,
   extraPatterns: string[] = []
 ): PermissionInfo {
+  // Catastrophic-command patterns (e.g. `rm -rf /`) are refused upstream in
+  // use-chat's onToolCall before this classifier runs. This check escalates
+  // the remaining prompt-class patterns (mentions, `chmod 777 /`, dd/mkfs,
+  // …) so they demand an explicit user decision — even when wrapped in
+  // otherwise read-only commands like `echo`.
+  const blockedPattern = findBlockedPattern(command);
+  if (blockedPattern) {
+    return {
+      requiresApproval: true,
+      key: "shell:destructive",
+      label: `Run dangerous command (matched "${blockedPattern}")`,
+      description: command,
+      tier: "destructive",
+      sessionOnly: true,
+    };
+  }
+
   if (hasSubshell(command)) {
     return {
       requiresApproval: true,

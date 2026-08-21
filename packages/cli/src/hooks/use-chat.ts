@@ -45,6 +45,7 @@ import {
   cancelAllBackgroundWork,
 } from "../lib/background/session-background-work";
 import { getPermissionInfo } from "../utils/permissions";
+import { findCatastrophicPattern } from "../tools/shell";
 import {
   applyAgentPermissionOverlay,
   isAllowedByAgentOverlay,
@@ -870,6 +871,27 @@ export function useChat(
           }
         }
 
+        // Catastrophic shell commands are refused outright — before the
+        // permission gate, so no approval prompt is even offered. An "allow"
+        // must never be obtainable for these.
+        if (toolCall.toolName === "shell") {
+          const { command } = toolCall.input as { command?: string };
+          const catastrophic = command
+            ? findCatastrophicPattern(command)
+            : null;
+          if (catastrophic) {
+            chat.addToolOutput({
+              tool: toolCall.toolName as keyof ChatTools,
+              toolCallId: toolCall.toolCallId,
+              output: {
+                denied: true,
+                reason: `Blocked by safety policy (unconditionally refused): matched "${catastrophic}"`,
+              },
+            });
+            return;
+          }
+        }
+
         // Permission gate for all other tools.
         const extraPatterns = readProjectConfig().sensitivePatterns ?? [];
         // checks if incoming tool call requires approval
@@ -1259,7 +1281,7 @@ export function useChat(
       
       setWasInterrupted(false);
       return chat.sendMessage({
-        text: params.userText,
+        text: params.userText.trim(),
         metadata: {
           mode: params.mode,
           model: params.model,

@@ -11,6 +11,7 @@ export type PermissionKey =
   | "shell:npm"
   | "shell:cd"
   | "shell:rm"
+  | "shell:destructive"
   | "shell:write"
   | "shell:sudo"
   | "shell:subshell"
