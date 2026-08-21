@@ -22,48 +22,65 @@ function getServerPort(): number {
   return config.port ?? SERVER_PORT;
 }
 
-function killPortIfInUse(port: number): void {
+// True if the given PID's command line looks like one of our own server processes: the compiled
+// binary spawned with `--server`, or the dev server (`bun --hot .../server/src/index.ts`). Used
+// to tell our own stale/orphaned servers apart from foreign processes squatting on the port.
+function isOurServerProcess(pid: number): boolean {
   try {
-    const pids = execSync(`lsof -ti tcp:${port}`, {
+    const command = execSync(`ps -p ${pid} -o command=`, {
       stdio: "pipe",
       encoding: "utf-8",
     }).trim();
+    return (
+      command.includes("--server") || command.includes("server/src/index.ts")
+    );
+  } catch {
+    // Process already gone or ps failed — treat as foreign; never kill what we can't identify.
+    return false;
+  }
+}
 
-    if (pids) {
-      // Check if any of the PIDs are our own server
-      try {
-        const ourPid = Number(fs.readFileSync(PID_FILE, "utf-8").trim());
-        const pidList = pids.split("\n").map(Number);
+function killPortIfInUse(port: number): void {
+  let pids: number[];
+  try {
+    // Only listeners count as squatters — `-sTCP:LISTEN` excludes client sockets whose remote
+    // port happens to be ours (e.g. an in-flight request from another koincode instance).
+    const out = execSync(`lsof -ti tcp:${port} -sTCP:LISTEN`, {
+      stdio: "pipe",
+      encoding: "utf-8",
+    }).trim();
+    pids = out ? out.split("\n").map(Number) : [];
+  } catch {
+    // lsof failed or no listener on the port — nothing to free
+    return;
+  }
+  if (pids.length === 0) return;
 
-        // If only our PID is using the port, just kill it
-        if (pidList.length === 1 && pidList[0] === ourPid) {
-          process.kill(ourPid);
-          fs.unlinkSync(PID_FILE);
-          return;
-        }
+  // A foreign process holds the port. Fail fast with an actionable message instead of silently
+  // `kill -9`ing it — and instead of swallowing the error here, which used to hang startup for
+  // the full timeout before failing with a misleading "failed to start" error.
+  const foreignPids = pids.filter((pid) => !isOurServerProcess(pid));
+  if (foreignPids.length > 0) {
+    console.warn(
+      `⚠️  Port ${port} is already in use by another process (PID: ${foreignPids.join(", ")})`,
+    );
+    console.warn(`Use a different port with: koincode --port <port>`);
+    throw new Error(`Port ${port} is already in use by another process`);
+  }
 
-        // If other processes are using the port, warn the user
-        console.warn(
-          `⚠️  Port ${port} is already in use by another process (PID: ${pids})`,
-        );
-        console.warn(`   Use a different port with: koincode --port <port>`);
-        throw new Error(`Port ${port} is already in use`);
-      } catch {
-        // Couldn't read PID file or PID doesn't match, try to kill
-        execSync(`lsof -ti tcp:${port} | xargs kill -9`, {
-          stdio: "ignore",
-        });
-      }
+  // Every listener is our own server (a stale instance whose PID file was lost, or a
+  // version-skewed one we're about to replace) — kill them so we can respawn ours.
+  for (const pid of pids) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Already dead
     }
-  } catch (e) {
-    // lsof failed or port not in use - that's fine
-    // But if it's our specific error about port in use, rethrow it
-    if (
-      e instanceof Error &&
-      e.message.includes("Port ${port} is already in use")
-    ) {
-      throw e;
-    }
+  }
+  try {
+    fs.unlinkSync(PID_FILE);
+  } catch {
+    // No PID file on record — fine
   }
 }
 
@@ -111,6 +128,25 @@ async function waitForServer(
     await new Promise((r) => setTimeout(r, 250));
   }
   return false;
+}
+
+// Timeout error enriched with the tail of the server log — a genuine crash (bind failure, bad
+// env, syntax error in dev) lands in LOG_FILE via spawnServer's stdio redirection, so surface
+// it instead of reporting a bare timeout with the real cause buried in the log file.
+function serverStartupError(action: "start" | "restart", port: number): Error {
+  let logTail = "";
+  try {
+    const log = fs.readFileSync(LOG_FILE, "utf-8").trimEnd();
+    if (log) {
+      const lines = log.split("\n").slice(-15).join("\n");
+      logTail = `\n\nLast lines of the server log (${LOG_FILE}):\n${lines}`;
+    }
+  } catch {
+    // Log file missing or unreadable — skip the excerpt
+  }
+  return new Error(
+    `Koincode server failed to ${action} on port ${port} within 30 seconds.${logTail}`,
+  );
 }
 
 function spawnServer(port: number) {
@@ -174,9 +210,7 @@ export async function ensureServerRunning(): Promise<void> {
 
   const ready = await waitForServer(port, 30_000);
   if (!ready) {
-    throw new Error(
-      `Koincode server failed to start on port ${port} within 30 seconds.`,
-    );
+    throw serverStartupError("start", port);
   }
 }
 
@@ -204,9 +238,7 @@ export function restartServer(): Promise<void> {
 
     const ready = await waitForServer(port, 30_000);
     if (!ready) {
-      throw new Error(
-        `Koincode server failed to restart on port ${port} within 30 seconds.`,
-      );
+      throw serverStartupError("restart", port);
     }
   })().finally(() => {
     restartInFlight = null;

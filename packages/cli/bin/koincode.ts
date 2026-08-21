@@ -20,7 +20,7 @@ Options:
   --enable-browser-tools    Enable Playwright-based browser tools
   --disable-browser-tools   Disable browser tools
   --info                    Show the info sidebar (context, cost, mcp, modified files)
-  --update                  Update koincode to the latest version
+  -u, --update              Update koincode to the latest version
   --server                  Run only the API server (no terminal UI)
 
 Run \`koincode\` with no options to start the terminal UI.
@@ -40,7 +40,7 @@ if (process.argv.includes("--version") || process.argv.includes("-v")) {
 if (process.argv.includes("--server")) {
   const server = await import("@koincode/server");
   Bun.serve(server.default);
-} else if (process.argv.includes("--update")) {
+} else if (process.argv.includes("--update") || process.argv.includes("-u")) {
   const { runCliUpdate } = await import("../src/lib/update-cli");
   await runCliUpdate();
 } else {
