@@ -382,7 +382,7 @@ export const SUPPORTED_CHAT_MODELS = [
     pricing: { inputUsdPerMillionTokens: 1.25, outputUsdPerMillionTokens: 4.25 },
     contextWindow: 1_048_576,
     vision: true,
-    label: "Muse Spark 1.1",
+    label: "Muse Spark 1.2",
     reasoningEffort: MLMHX_EFFORT_LEVELS,
   },
   {
