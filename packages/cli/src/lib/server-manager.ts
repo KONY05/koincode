@@ -64,7 +64,7 @@ function killPortIfInUse(port: number): void {
     console.warn(
       `⚠️  Port ${port} is already in use by another process (PID: ${foreignPids.join(", ")})`,
     );
-    console.warn(`Use a different port with: koincode --port <port>`);
+    console.warn(`   Use a different port with: koincode --port <port>`);
     throw new Error(`Port ${port} is already in use by another process`);
   }
 
@@ -131,15 +131,33 @@ async function waitForServer(
 }
 
 // Timeout error enriched with the tail of the server log — a genuine crash (bind failure, bad
-// env, syntax error in dev) lands in LOG_FILE via spawnServer's stdio redirection, so surface
-// it instead of reporting a bare timeout with the real cause buried in the log file.
+// env, native-module load failure) lands in LOG_FILE via spawnServer's stdio redirection, so
+// surface it instead of reporting a bare timeout with the real cause buried in the log file.
+// A crashed runtime dumps huge minified bundle lines around the actual error, so prefer lines
+// that look like the failure itself and clip every line to keep the message readable.
+const ERROR_LINE_PATTERN =
+  /error|fail|eaddrinuse|eacces|eperm|denied|dlopen|invalid|cannot|unable|exception|glibc/i;
+const MAX_TAIL_LINES = 5;
+const MAX_LINE_LENGTH = 160;
+
 function serverStartupError(action: "start" | "restart", port: number): Error {
   let logTail = "";
   try {
-    const log = fs.readFileSync(LOG_FILE, "utf-8").trimEnd();
-    if (log) {
-      const lines = log.split("\n").slice(-15).join("\n");
-      logTail = `\n\nLast lines of the server log (${LOG_FILE}):\n${lines}`;
+    const lines = fs
+      .readFileSync(LOG_FILE, "utf-8")
+      .split("\n")
+      .filter((line) => line.trim());
+    let tail = lines
+      .filter((line) => ERROR_LINE_PATTERN.test(line))
+      .slice(-MAX_TAIL_LINES);
+    if (tail.length === 0) tail = lines.slice(-MAX_TAIL_LINES);
+    if (tail.length > 0) {
+      const clipped = tail.map((line) =>
+        line.length > MAX_LINE_LENGTH
+          ? `${line.slice(0, MAX_LINE_LENGTH - 3)}...`
+          : line,
+      );
+      logTail = `\n\nLast server log lines (${LOG_FILE}):\n${clipped.join("\n")}`;
     }
   } catch {
     // Log file missing or unreadable — skip the excerpt

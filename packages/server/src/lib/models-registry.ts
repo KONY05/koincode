@@ -16,7 +16,10 @@ import {
 
 const DEFAULT_MODELS_DEV_API_URL = "https://models.dev/api.json";
 const DEFAULT_MODELS_DEV_CACHE_FILE = path.join(GLOBAL_CONFIG_DIR, "models-dev.json");
-const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Hourly, mirroring opencode's cadence. Prices themselves change rarely, but this payload
+// also carries context windows / reasoning options / vision flags for new models that
+// models.dev lands mid-day — a running server should pick those up same-hour, not next-day.
+const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
 let modelsDevApiData: ModelsDevApiResponse | null = null;
 let enrichedModelsCache: SupportedChatModelDefinition[] | null = null;
@@ -79,18 +82,14 @@ export async function fetchModelsDevRegistry(
 }
 
 /**
- * Loads the cached payload from disk when present and still fresh (within the 24h TTL).
- * Returns null when the file is missing, stale, or malformed — the caller then re-fetches.
+ * Loads the cached payload from disk when present and parseable, regardless of age.
+ * Stale data still beats no data for a fast boot — the caller revalidates over the
+ * network in the background. Returns null only when the file is missing or malformed.
  */
 async function loadModelsDevFromDisk(): Promise<ModelsDevApiResponse | null> {
   try {
     const file = modelsDevCacheFile();
-    const stat = await fs.stat(file);
-    
-    if (Date.now() - stat.mtimeMs > REFRESH_INTERVAL_MS) return null; // stale
-
     const parsed = JSON.parse(await fs.readFile(file, "utf8")) as ModelsDevApiResponse;
-
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
@@ -109,22 +108,23 @@ function ensureRefreshTimer(): void {
 
 /**
  * Initializes the models.dev registry service asynchronously.
- * Boots fast from a fresh on-disk cache; otherwise fetches. Either way a periodic background
- * refresh keeps the in-memory and disk copies current without blocking startup.
+ * Boots instantly from the on-disk cache (any age), then revalidates over the network in
+ * the background so a stale file never slows startup — only a totally cold boot (no cache
+ * file) waits on the fetch, since there's nothing to serve otherwise. An hourly background
+ * refresh keeps a long-running server current.
  */
 export function initModelsDevRegistry(): Promise<void> {
   ensureRefreshTimer();
 
   return (async () => {
     const cached = await loadModelsDevFromDisk();
-    if (cached) applyModelsDevData(cached);
-
-    // Only revalidate over the network when we have nothing fresh on disk. A fresh cache
-    // means we don't hit models.dev again until the 24h interval fires — this decouples how
-    // often we fetch from how often the server restarts.
-    if (!cached) {
-      await fetchModelsDevRegistry().catch(() => {});
+    if (cached) {
+      applyModelsDevData(cached);
+      // Non-blocking revalidation: serve the disk copy immediately, refresh behind it.
+      void fetchModelsDevRegistry().catch(() => {});
+      return;
     }
+    await fetchModelsDevRegistry().catch(() => {});
   })();
 }
 
