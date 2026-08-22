@@ -49,6 +49,11 @@ const app = new Hono();
 if (process.env.NODE_ENV === "production" && SENTRY_DSN) {
   Sentry.init({
     dsn: SENTRY_DSN,
+    // Version comes in via spawnServer's env (server-manager.ts), backed by the compile-time
+    // `__KOINCODE_VERSION__` define — tag events so errors are attributable to a release.
+    release: process.env.__KOINCODE_VERSION__
+      ? `koincode@${process.env.__KOINCODE_VERSION__}`
+      : undefined,
     skipOpenTelemetrySetup: true,
     defaultIntegrations: false,
     enableLogs: true,
