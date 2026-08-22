@@ -7,6 +7,21 @@ export type ModelPricing = {
    * treated as regular input tokens in cost calculations. */
   cacheReadUsdPerMillionTokens?: number;
   cacheWriteUsdPerMillionTokens?: number;
+  /** Context-size price tiers (ascending by threshold) from models.dev's `cost.tiers`.
+   * Present only for providers that charge more once a request's prompt crosses a size
+   * threshold (e.g. OpenAI >272k, Gemini >200k long-context pricing). Providers bill the
+   * tier rate on the ENTIRE request once the prompt crosses it — not just tokens above. */
+  tiers?: readonly ModelPricingTier[];
+};
+
+/** One context-size price band. Requests whose prompt total exceeds `aboveTokens`
+ *  tokens are billed entirely at this tier's rates instead of the base ones. */
+export type ModelPricingTier = {
+  aboveTokens: number;
+  inputUsdPerMillionTokens: number;
+  outputUsdPerMillionTokens: number;
+  cacheReadUsdPerMillionTokens?: number;
+  cacheWriteUsdPerMillionTokens?: number;
 };
 
 export type SupportedProvider =
@@ -49,6 +64,17 @@ export type ModelsDevModelEntry = {
     output?: number;
     cache_read?: number;
     cache_write?: number;
+    /** Context-size price tiers. `tier.type` defaults to "context" in models.dev's
+     * schema and `tier.size` is the exact prompt-token threshold — authoritative over
+     * the legacy generated `context_over_200k` field, which we deliberately don't
+     * consume (models.dev docs: it "intentionally includes higher thresholds"). */
+    tiers?: Array<{
+      input?: number;
+      output?: number;
+      cache_read?: number;
+      cache_write?: number;
+      tier?: { type?: string; size?: number };
+    }>;
   };
   limit?: {
     context?: number;
@@ -128,6 +154,11 @@ const HX_EFFORT_LEVELS: readonly ReasoningEffortLevel[] = ["high", "xhigh"];
  * Frontier and open source supported models list
  * Frontier: have 2 of every model family and a legacy fallback
  * Free (Openrouter): have the best (free) per model family
+ *
+ * Pricing/context values below are OFFLINE FALLBACKS only — at runtime the server's
+ * live models.dev registry overlay (`enrichModelWithModelsDevData`) replaces them,
+ * including per-context-size price tiers. Keep them roughly current anyway so
+ * first-run-before-first-fetch displays sane numbers.
 */
 export const SUPPORTED_CHAT_MODELS = [
   // ── Anthropic (direct ANTHROPIC_API_KEY or OpenRouter fallback) ────────────
@@ -208,7 +239,7 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "gpt-5.6-terra",
     provider: "openai",
-    pricing: { inputUsdPerMillionTokens: 2.50, outputUsdPerMillionTokens: 15 },
+    pricing: { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 12 },
     contextWindow: 1_050_000,
     vision: true,
     label: "GPT-5.6 Terra",
@@ -217,7 +248,7 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "gpt-5.6-luna",
     provider: "openai",
-    pricing: { inputUsdPerMillionTokens: 1, outputUsdPerMillionTokens: 6 },
+    pricing: { inputUsdPerMillionTokens: 0.2, outputUsdPerMillionTokens: 1.2 },
     contextWindow: 1_050_000,
     vision: true,
     label: "GPT-5.6 Luna",
@@ -351,7 +382,7 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "moonshotai/kimi-k3",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 2.90, outputUsdPerMillionTokens: 14 },
+    pricing: { inputUsdPerMillionTokens: 3, outputUsdPerMillionTokens: 15 },
     contextWindow: 1_048_576,
     vision: true,
     label: "Kimi K3",
@@ -388,7 +419,7 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "deepseek/deepseek-v4-pro-0813",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.6026, outputUsdPerMillionTokens: 1.808 },
+    pricing: { inputUsdPerMillionTokens: 1.188, outputUsdPerMillionTokens: 3.564 },
     contextWindow: 1_048_576,
     vision: true,
     label: "DeepSeek V4 Pro 0813",
@@ -406,7 +437,7 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "z-ai/glm-5.2",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.93, outputUsdPerMillionTokens: 3 },
+    pricing: { inputUsdPerMillionTokens: 0.966, outputUsdPerMillionTokens: 3.036 },
     contextWindow: 1_048_576,
     vision: false,
     label: "GLM 5.2",
@@ -415,8 +446,8 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "deepseek/deepseek-v4-flash-0731",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.065, outputUsdPerMillionTokens: 0.18 },
-    contextWindow: 1_000_000,
+    pricing: { inputUsdPerMillionTokens: 0.08, outputUsdPerMillionTokens: 0.18 },
+    contextWindow: 1_310_720,
     vision: false,
     label: "DeepSeek V4 Flash 0731",
     // Same DeepSeek V4 thinking/non-thinking support as the Pro variant.
@@ -425,7 +456,7 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "qwen/qwen3.7-max",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 1.25, outputUsdPerMillionTokens: 3.75 },
+    pricing: { inputUsdPerMillionTokens: 1.475, outputUsdPerMillionTokens: 4.425 },
     contextWindow: 1_000_000,
     vision: false,
     label: "Qwen3.7 Max",
@@ -435,7 +466,7 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "moonshotai/kimi-k2.6",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.66, outputUsdPerMillionTokens: 3.41 },
+    pricing: { inputUsdPerMillionTokens: 0.95, outputUsdPerMillionTokens: 4 },
     contextWindow: 262_144,
     vision: true,
     label: "Kimi K2.6",
@@ -444,7 +475,7 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "moonshotai/kimi-k2.7-code",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.74, outputUsdPerMillionTokens: 3.50 },
+    pricing: { inputUsdPerMillionTokens: 0.67, outputUsdPerMillionTokens: 3.4 },
     contextWindow: 262_144,
     vision: true,
     label: "Kimi K2.7 Code",
@@ -454,7 +485,7 @@ export const SUPPORTED_CHAT_MODELS = [
   {
     id: "deepseek/deepseek-v4-pro",
     provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0.435, outputUsdPerMillionTokens: 0.87 },
+    pricing: { inputUsdPerMillionTokens: 1.6, outputUsdPerMillionTokens: 3.2 },
     contextWindow: 1_048_576,
     vision: false,
     label: "DeepSeek V4 Pro",
@@ -641,11 +672,31 @@ export function enrichModelWithModelsDevData(
 
   if (!devModel) return model;
 
+  // Context-size tiers: only "context"-typed entries (the only type models.dev emits
+  // today — absent type defaults to "context") with a positive size and full input/output
+  // rates become billing tiers. Kept sorted ascending so rate lookup can take the last match.
+  const pricingTiers: ModelPricingTier[] = [];
+  for (const tierCost of devModel.cost?.tiers ?? []) {
+    const size = tierCost.tier?.size;
+    if (tierCost.tier?.type !== undefined && tierCost.tier.type !== "context") continue;
+    if (typeof size !== "number" || size <= 0) continue;
+    if (typeof tierCost.input !== "number" || typeof tierCost.output !== "number") continue;
+    pricingTiers.push({
+      aboveTokens: size,
+      inputUsdPerMillionTokens: tierCost.input,
+      outputUsdPerMillionTokens: tierCost.output,
+      ...(tierCost.cache_read !== undefined ? { cacheReadUsdPerMillionTokens: tierCost.cache_read } : {}),
+      ...(tierCost.cache_write !== undefined ? { cacheWriteUsdPerMillionTokens: tierCost.cache_write } : {}),
+    });
+  }
+  pricingTiers.sort((a, b) => a.aboveTokens - b.aboveTokens);
+
   const pricing: ModelPricing = {
     inputUsdPerMillionTokens: devModel.cost?.input ?? model.pricing.inputUsdPerMillionTokens,
     outputUsdPerMillionTokens: devModel.cost?.output ?? model.pricing.outputUsdPerMillionTokens,
     ...(devModel.cost?.cache_read !== undefined ? { cacheReadUsdPerMillionTokens: devModel.cost.cache_read } : {}),
     ...(devModel.cost?.cache_write !== undefined ? { cacheWriteUsdPerMillionTokens: devModel.cost.cache_write } : {}),
+    ...(pricingTiers.length > 0 ? { tiers: pricingTiers } : {}),
   };
 
   const contextWindow = devModel.limit?.context ?? model.contextWindow;

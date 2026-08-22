@@ -51,7 +51,10 @@ async function findModel(provider: string, modelName: string) {
     name: foundModel.name,
     reasoning_options: foundModel.reasoning_options,
     limit: foundModel.limit,
-    cost: foundModel.cost,
+    cost: foundModel.cost?.tiers ? {
+      ...foundModel.cost,
+      tiers: JSON.stringify(foundModel.cost.tiers)
+    } : foundModel.cost,
     modalities: foundModel.modalities
   });
 }
