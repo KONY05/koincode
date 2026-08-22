@@ -18,7 +18,7 @@
     },
     "packages/cli": {
       "name": "koincode",
-      "version": "1.25.3",
+      "version": "1.28.16",
       "bin": {
         "koincode": "bin/npm-wrapper.cjs",
       },
@@ -56,11 +56,11 @@
         "zod": "^4.3.6",
       },
       "optionalDependencies": {
-        "@koincode/darwin-arm64": "1.25.3",
-        "@koincode/darwin-x64": "1.25.3",
-        "@koincode/linux-arm64": "1.25.3",
-        "@koincode/linux-x64": "1.25.3",
-        "@koincode/windows-x64": "1.25.3",
+        "@koincode/darwin-arm64": "1.28.16",
+        "@koincode/darwin-x64": "1.28.16",
+        "@koincode/linux-arm64": "1.28.16",
+        "@koincode/linux-x64": "1.28.16",
+        "@koincode/windows-x64": "1.28.16",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -225,21 +225,21 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@koincode/darwin-arm64": ["@koincode/darwin-arm64@1.25.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-kRSloiKh4vtCg1qwEv6m9g6Kj4isxlrNCJpo/q6I399pbFLD6bppwe+LI3PWAGE51UyQaPpBA4oqOTrc4Be5+A=="],
+    "@koincode/darwin-arm64": ["@koincode/darwin-arm64@1.28.16", "", { "os": "darwin", "cpu": "arm64" }, "sha512-lgsB7vfRTpFBaODvl72+RsLf0GeiytX8CnpRGihlg+e+rLtTg2Jh0CcyEI92mp+uea2iCpApyr1DD+yoL8IMdA=="],
 
-    "@koincode/darwin-x64": ["@koincode/darwin-x64@1.25.3", "", { "os": "darwin", "cpu": "x64" }, "sha512-4IhAqQRhsdOENM2T2v1mM5CdlvDHlZxtLUfnV94jh40R8rdQa1zmEhZqzfaSgQJiPfBqYP9aLgnALqZHaEoRQQ=="],
+    "@koincode/darwin-x64": ["@koincode/darwin-x64@1.28.16", "", { "os": "darwin", "cpu": "x64" }, "sha512-jqYbrWlJwdjE8DiflY3ZbUKo4D/5ml8EmW0A44LCG05nBmRdCmk4dwGo4R3/NLrKwwEk1F2usUezIpQnZk0ezw=="],
 
     "@koincode/database": ["@koincode/database@workspace:packages/database"],
 
-    "@koincode/linux-arm64": ["@koincode/linux-arm64@1.25.3", "", { "os": "linux", "cpu": "arm64" }, "sha512-5iLZ+JFF/eSwxJkNlHRiDW2/52rw3EBUZoig/qZgTrU3Es/Uj4L01EY/C/tQ/AGfNgc61KyYRQyVeTS9bfjWpQ=="],
+    "@koincode/linux-arm64": ["@koincode/linux-arm64@1.28.16", "", { "os": "linux", "cpu": "arm64" }, "sha512-yagcb/+0+XLxtUGiPSMlymerv/yEOMCR0BW7kA/hjJ034tRqWGWJUhErMgweE1Y/slfecOG0bYQbo3YSbPkIEw=="],
 
-    "@koincode/linux-x64": ["@koincode/linux-x64@1.25.3", "", { "os": "linux", "cpu": "x64" }, "sha512-cJShUHMXah14dD+TVCjY+89medXuFp2B1O+pZHfJZFh/uz2L0p2prWTNavYT0rUmGINMzFFdwjGCQM7yB01wag=="],
+    "@koincode/linux-x64": ["@koincode/linux-x64@1.28.16", "", { "os": "linux", "cpu": "x64" }, "sha512-UY0OWib9v4BswDu9ekTAP3VfnCCElgBefCdalg9soc+EqxADcp8FPDvLzDevbnt4c1YVjXArOmPNiOw5A37zLQ=="],
 
     "@koincode/server": ["@koincode/server@workspace:packages/server"],
 
     "@koincode/shared": ["@koincode/shared@workspace:packages/shared"],
 
-    "@koincode/windows-x64": ["@koincode/windows-x64@1.25.3", "", { "os": "win32", "cpu": "x64" }, "sha512-MJBPt/ruSjv/sOCVk/hNKBYuSOtVWNoGH2jJn7XUr12Vn1PkN5OJGTTAhJxGgESL0JL/20osiDP4G481wZVkHA=="],
+    "@koincode/windows-x64": ["@koincode/windows-x64@1.28.16", "", { "os": "win32", "cpu": "x64" }, "sha512-WnrpevQKDWYjLJPGIt2+9awLgBT8PcaG8JaX69BLVBFCy0tekTrHKjeAzfDmeC6/4ewrMLRTTYi2GTgYT2mZAQ=="],
 
     "@libsql/client": ["@libsql/client@0.14.0", "", { "dependencies": { "@libsql/core": "^0.14.0", "@libsql/hrana-client": "^0.7.0", "js-base64": "^3.7.5", "libsql": "^0.4.4", "promise-limit": "^2.7.0" } }, "sha512-/9HEKfn6fwXB5aTEEoMeFh4CtG0ZzbncBb1e++OCdVpgKZ/xyMsIVYXm0w7Pv4RUel803vE6LwniB3PqD72R0Q=="],
 
@@ -373,7 +373,7 @@
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
-    "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
+    "@types/bun": ["@types/bun@1.4.0", "", { "dependencies": { "bun-types": "1.4.0" } }, "sha512-K+lZULY23vRgK/CfTjFIV+tyifaNdSMlPh9j+6mQ/cLfpOznLyAuzgV/JQysyECpkBQLVMSyvjlr2fBUSA9wFQ=="],
 
     "@types/d3-array": ["@types/d3-array@3.0.3", "", {}, "sha512-Reoy+pKnvsksN0lQUlcH6dOGjRZ/3WRwXR//m+/8lt1BXeI4xyaUZoqULNjyXXRuh0Mj4LNpkCvhUpQlY3X5xQ=="],
 
@@ -501,7 +501,7 @@
 
     "bun-ffi-structs": ["bun-ffi-structs@0.2.4", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-AJzsqoVFs1KBbJbWHIYrVZLDC3NhTqqh25awRXqzoLzmBAKr5oqk6+CwuYHAekKx+VBCYVohBoKuRq40dV+TYg=="],
 
-    "bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
+    "bun-types": ["bun-types@1.4.0", "", { "dependencies": { "@types/node": "*" } }, "sha512-iIKw23BspnQQYd3prITOBxeUsxBHnwzX6YJfGMuNOZzeNcMmVqzIIVGRm1l69ogaPQmb4wB6BN8mA5bE9YuC5Q=="],
 
     "bundle-name": ["bundle-name@4.1.0", "", { "dependencies": { "run-applescript": "^7.0.0" } }, "sha512-tjwM5exMg6BGRI+kNmTntNsvdZS1X8BFYS6tnJ2hdH0kVxM6/eVZ2xy+FqStSWvYmtfFMDLIxurorHwDKfDz5Q=="],
 
