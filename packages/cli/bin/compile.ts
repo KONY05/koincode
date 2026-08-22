@@ -130,6 +130,13 @@ for (const item of targets) {
     format: "esm",
     minify: true,
     splitting: true,
+    // Embed a zstd-compressed source map in the binary so the runtime
+    // symbolicates stack traces before they're reported (Sentry events arrive
+    // with real file:line instead of minified /$bunfs paths). Cost measured in
+    // test/sourcemap-rss: ~+0.8MB binary per 1.9MB of source, and a small
+    // native-memory leak per stack resolution (oven-sh/bun#39800, ~0.2-0.3KB
+    // per resolved stack) — negligible at realistic error rates.
+    sourcemap: "linked",
     compile: {
       target,
       outfile: `./dist/${binaryName}`,
