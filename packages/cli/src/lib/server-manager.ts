@@ -176,6 +176,7 @@ function spawnServer(port: number) {
   const env = {
     ...process.env,
     PORT: String(port),
+    __KOINCODE_VERSION__: OUR_VERSION, // for non-compiled paths (dev, npmJS-bundle fallback)
     NODE_ENV: isDev ? "development" : "production",
     ...(config.apiKeys?.anthropic && {
       ANTHROPIC_API_KEY: config.apiKeys.anthropic,
