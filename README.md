@@ -62,6 +62,11 @@ yarn global add koincode
 
 Or download a binary directly from [GitHub Releases](https://github.com/KONY05/koincode/releases/latest).
 
+### Requirements
+
+- **Linux**: x64 or arm64 with **glibc ≥ 2.18**. End-of-life distros shipping older glibc (e.g. CentOS/RHEL 7) are not supported — koincode detects this at startup and exits with a clear message. The prebuilt Linux binaries are glibc-based, so musl-based systems (Alpine) need a glibc container image.
+- **macOS / Windows**: no extra requirements.
+
 ## Getting Started
 
 ```bash

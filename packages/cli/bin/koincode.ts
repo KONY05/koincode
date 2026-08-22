@@ -37,6 +37,14 @@ if (process.argv.includes("--version") || process.argv.includes("-v")) {
   process.exit(0);
 }
 
+// Refuse early (with an explanation) on Linux systems whose glibc is too old to load the native
+// libsql addon bundled in the binary — otherwise the server crashes at startup with a cryptic
+// ERR_DLOPEN_FAILED. No-op on macOS/Windows and when detection fails. See glibc-check.ts.
+{
+  const { ensureGlibcCompatible } = await import("../src/lib/glibc-check");
+  ensureGlibcCompatible();
+}
+
 if (process.argv.includes("--server")) {
   const server = await import("@koincode/server");
   Bun.serve(server.default);

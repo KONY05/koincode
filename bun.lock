@@ -18,15 +18,16 @@
     },
     "packages/cli": {
       "name": "koincode",
-      "version": "1.28.16",
+      "version": "1.28.17",
       "bin": {
         "koincode": "bin/npm-wrapper.cjs",
       },
       "dependencies": {
         "@libsql/client": "^0.14.0",
-        "@opentui/core": "0.4.5",
+        "@opentui/core": "^0.4.5",
         "@opentui/react": "^0.4.5",
         "@sentry/bun": "^10.57.0",
+        "detect-libc": "^2.0.2",
         "mammoth": "^1.12.0",
         "mixpanel": "^0.22.0",
         "playwright": "^1.49.1",
@@ -56,11 +57,11 @@
         "zod": "^4.3.6",
       },
       "optionalDependencies": {
-        "@koincode/darwin-arm64": "1.28.16",
-        "@koincode/darwin-x64": "1.28.16",
-        "@koincode/linux-arm64": "1.28.16",
-        "@koincode/linux-x64": "1.28.16",
-        "@koincode/windows-x64": "1.28.16",
+        "@koincode/darwin-arm64": "1.28.17",
+        "@koincode/darwin-x64": "1.28.17",
+        "@koincode/linux-arm64": "1.28.17",
+        "@koincode/linux-x64": "1.28.17",
+        "@koincode/windows-x64": "1.28.17",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -225,21 +226,21 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@koincode/darwin-arm64": ["@koincode/darwin-arm64@1.28.16", "", { "os": "darwin", "cpu": "arm64" }, "sha512-lgsB7vfRTpFBaODvl72+RsLf0GeiytX8CnpRGihlg+e+rLtTg2Jh0CcyEI92mp+uea2iCpApyr1DD+yoL8IMdA=="],
+    "@koincode/darwin-arm64": ["@koincode/darwin-arm64@1.28.17", "", { "os": "darwin", "cpu": "arm64" }, "sha512-6r5pEh9vv0RERU29XoLkwwjSfhxQHw4RJ4VnEe4VVBRI3s6CKeYH8Xyubi+xlLnrtJKqO707hEJOCivxpPsFNw=="],
 
-    "@koincode/darwin-x64": ["@koincode/darwin-x64@1.28.16", "", { "os": "darwin", "cpu": "x64" }, "sha512-jqYbrWlJwdjE8DiflY3ZbUKo4D/5ml8EmW0A44LCG05nBmRdCmk4dwGo4R3/NLrKwwEk1F2usUezIpQnZk0ezw=="],
+    "@koincode/darwin-x64": ["@koincode/darwin-x64@1.28.17", "", { "os": "darwin", "cpu": "x64" }, "sha512-FMjvsDabIhdgbvqQTf125+pYDPnZ4rB6Y+JlhUU2uxdUHUMdtvdhgN7mtV0S0002gBz9k5B8Jxe73O5ssk9dQw=="],
 
     "@koincode/database": ["@koincode/database@workspace:packages/database"],
 
-    "@koincode/linux-arm64": ["@koincode/linux-arm64@1.28.16", "", { "os": "linux", "cpu": "arm64" }, "sha512-yagcb/+0+XLxtUGiPSMlymerv/yEOMCR0BW7kA/hjJ034tRqWGWJUhErMgweE1Y/slfecOG0bYQbo3YSbPkIEw=="],
+    "@koincode/linux-arm64": ["@koincode/linux-arm64@1.28.17", "", { "os": "linux", "cpu": "arm64" }, "sha512-fm1Xj9XpuO7C3hMxoifDEJuSz0zk4TLLzkeirKTW8O8xwmonwPqfBZvAsi4sKzJYGA9yeINYybXg6EtSCWZHdQ=="],
 
-    "@koincode/linux-x64": ["@koincode/linux-x64@1.28.16", "", { "os": "linux", "cpu": "x64" }, "sha512-UY0OWib9v4BswDu9ekTAP3VfnCCElgBefCdalg9soc+EqxADcp8FPDvLzDevbnt4c1YVjXArOmPNiOw5A37zLQ=="],
+    "@koincode/linux-x64": ["@koincode/linux-x64@1.28.17", "", { "os": "linux", "cpu": "x64" }, "sha512-1Y00TZbBWscgRq1Om4UTdeOVwB/EjbgyFfY0vcfdwK8wrmDIdgLFhgKbmLLINmBUnZUwf9fi9KpZ2m2dScc7jg=="],
 
     "@koincode/server": ["@koincode/server@workspace:packages/server"],
 
     "@koincode/shared": ["@koincode/shared@workspace:packages/shared"],
 
-    "@koincode/windows-x64": ["@koincode/windows-x64@1.28.16", "", { "os": "win32", "cpu": "x64" }, "sha512-WnrpevQKDWYjLJPGIt2+9awLgBT8PcaG8JaX69BLVBFCy0tekTrHKjeAzfDmeC6/4ewrMLRTTYi2GTgYT2mZAQ=="],
+    "@koincode/windows-x64": ["@koincode/windows-x64@1.28.17", "", { "os": "win32", "cpu": "x64" }, "sha512-csuqZWBjdH05wmHmp4RvE6vYnBSxzn23e/j2K2Y6cVyseepff84ugEAVsQTUPG3QYcjrThmgY83+32MJo3pF1A=="],
 
     "@libsql/client": ["@libsql/client@0.14.0", "", { "dependencies": { "@libsql/core": "^0.14.0", "@libsql/hrana-client": "^0.7.0", "js-base64": "^3.7.5", "libsql": "^0.4.4", "promise-limit": "^2.7.0" } }, "sha512-/9HEKfn6fwXB5aTEEoMeFh4CtG0ZzbncBb1e++OCdVpgKZ/xyMsIVYXm0w7Pv4RUel803vE6LwniB3PqD72R0Q=="],
 
