@@ -6,6 +6,8 @@
  * No React, no UI — purely async.
  */
 
+import type { LanguageModelUsage } from "ai";
+
 import {
   resolveAgent,
   type AgentId,
@@ -13,8 +15,8 @@ import {
   type WorkspaceRoot,
   type AuxCostEntry,
   type ModelPricing,
+  SERVER_PORT
 } from "@koincode/shared";
-import type { LanguageModelUsage } from "ai";
 import { executeLocalTool } from "./index";
 import { loadAgents } from "../lib/agents";
 import { getPermissionInfo } from "../utils/permissions";
@@ -22,10 +24,30 @@ import { isAllowedByAgentOverlay } from "../utils/permissions/agent-overlay";
 import { isPermittedForProject } from "../utils/configs/project-config";
 import { fetchWithRestart } from "../lib/api-client";
 import { getInstructionFilesForRequest } from "../lib/instruction-files";
-import { SERVER_PORT } from "@koincode/shared";
 
 const MAX_STEPS = 50;
 const AGENT_STEP_URL = `http://localhost:${SERVER_PORT}/chat/agent-step`;
+
+// Forced wrap-up phase sizing: how many extra turns a sub-agent gets to
+// synthesize a final answer after breaching its turn/deadline budget, and the
+// wall-clock ceiling on those turns regardless of turn usage.
+const WRAPUP_STEPS = 3;
+const WRAPUP_GRACE_MS = 90_000;
+
+const WRAPUP_PROMPT = [
+  "HARD LIMIT REACHED — your budget for this task is exhausted.",
+  "Stop exploring. Do not start any new lines of investigation.",
+  "Immediately produce your final answer based ONLY on what you have already gathered, in the required output shape:",
+  "1. one-sentence outcome, 2. key findings with path:line citations, 3. blockers/caveats.",
+  "Explicitly note anything you did not get to, so the parent knows what remains unknown.",
+].join("\n");
+
+// Marks a step exchange where the endpoint violated its contract — HTTP error
+// status or an unparseable response body — as opposed to a transport-level
+// connection failure. The loop fails loud on these (masking a broken server
+// behind a soft "partial progress" result would hide real defects), while
+// connection drops degrade gracefully to preserve accumulated work.
+class StepContractError extends Error {}
 
 // These are the shapes of messages the agent-step endpoint accepts.
 // We use loose types here to avoid fighting with the complex nested generics
@@ -285,55 +307,111 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
   // Set up timeout if specified
   const deadline = timeoutSeconds ? Date.now() + timeoutSeconds * 1000 : null;
 
-  for (let step = 0; step < maxSteps; step++) {
-    // Check timeout
-    if (deadline && Date.now() > deadline) {
-      const partial = collectPartialProgress(messages);
-      return partial
-        ? `(Sub-agent timed out before finishing — here's its progress so far:)\n\n${partial}`
-        : "(Sub-agent timed out before producing any output.)";
+  // Why the normal budget was breached (e.g. "timeout (600s)") — null until the
+  // forced wrap-up phase begins, and used to label the final result honestly.
+  let breachReason: string | null = null;
+  let wrapUpDeadline: number | null = null;
+
+  // Hard upper bound, visible in the loop condition itself: the normal budget
+  // plus the fixed wrap-up allowance. The last WRAPUP_STEPS iterations ARE the
+  // wrap-up phase — nothing below can extend the loop; the only early exit is
+  // the wrap-up's own grace deadline.
+  const totalSteps = maxSteps + WRAPUP_STEPS;
+
+  for (let step = 0; step < totalSteps; step++) {
+    const outOfTime = deadline !== null && Date.now() > deadline;
+
+    if (breachReason === null && (step >= maxSteps || outOfTime)) {
+      // First budget breach — don't kill the run mid-tool-call, where narration is
+      // sparsest and everything it read but never wrote down would die with the
+      // conversation (the parent's only recovery is re-spawning cold). Instead,
+      // grant a short wrap-up phase to convert accumulated findings into a final
+      // answer, which *does* survive via the normal completion path.
+      breachReason = outOfTime ? `timeout (${timeoutSeconds}s)` : `step limit (${maxSteps})`;
+      messages.push({ role: "user", content: WRAPUP_PROMPT });
+      // A run that breached on turns may still have caller-approved time left —
+      // respect that ceiling when it's tighter than our own grace window.
+      wrapUpDeadline =
+        outOfTime || deadline === null  // breached on TIME, or no timeout was set?
+          ? Date.now() + WRAPUP_GRACE_MS  // → grace = now + 90s
+          : Math.min(Date.now() + WRAPUP_GRACE_MS, deadline);  // → grace = whichever comes first
+    } else if (
+      breachReason !== null &&
+      wrapUpDeadline !== null &&
+      Date.now() > wrapUpDeadline
+    ) {
+      // Wrap-up grace window expired mid-phase.
+      break;
     }
 
     if (signal?.aborted) {
       throw new Error("Sub-agent cancelled");
     }
 
-    const response = await fetchWithRestart(AGENT_STEP_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // Read fresh every step, same as the main session's prepareSendMessagesRequest —
-      // cheap, and picks up a mid-run edit rather than caching a stale snapshot.
-      body: JSON.stringify({
-        messages,
-        mode: currentMode,
-        agent: {
-          id: currentAgent.id,
-          label: currentAgent.label,
-          description: currentAgent.description,
-          kind: currentAgent.kind,
-          tools: [...currentAgent.tools],
-          // The role prompt is already folded into the task message above, so it's
-          // deliberately not repeated as a system-prompt section here.
-          builtin: currentAgent.builtin,
-          allowsBrowserTools: currentAgent.allowsBrowserTools,
-        },
-        model: effectiveModel,
-        instructionFiles: getInstructionFilesForRequest(roots),
-        ...(sessionId ? { sessionId } : {}),
-      }),
-      signal,
-    });
+    // Fetch + parse the next step. A transport-level crash here (connection
+    // died even after fetchWithRestart's restart-and-retry) must not discard
+    // everything already accumulated in `messages` — degrade to the same
+    // partial-progress return used for budget exhaustion. Contract violations
+    // (HTTP error status, malformed JSON) and deliberate user cancellation
+    // still propagate as errors — see StepContractError.
+    let stepResult: AgentStepResponse;
+    try {
+      const response = await fetchWithRestart(AGENT_STEP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Read fresh every step, same as the main session's prepareSendMessagesRequest —
+        // cheap, and picks up a mid-run edit rather than caching a stale snapshot.
+        body: JSON.stringify({
+          messages,
+          mode: currentMode,
+          agent: {
+            id: currentAgent.id,
+            label: currentAgent.label,
+            description: currentAgent.description,
+            kind: currentAgent.kind,
+            tools: [...currentAgent.tools],
+            // The role prompt is already folded into the task message above, so it's
+            // deliberately not repeated as a system-prompt section here.
+            builtin: currentAgent.builtin,
+            allowsBrowserTools: currentAgent.allowsBrowserTools,
+          },
+          model: effectiveModel,
+          instructionFiles: getInstructionFilesForRequest(roots),
+          ...(sessionId ? { sessionId } : {}),
+        }),
+        signal,
+      });
 
-    if (!response.ok) {
-      const errorText = await response
-        .text()
-        .catch(() => String(response.status));
-      throw new Error(
-        `Sub-agent step failed (${response.status}): ${errorText}`,
-      );
+      if (!response.ok) {
+        const errorText = await response
+          .text()
+          .catch(() => String(response.status));
+        throw new StepContractError(
+          `Sub-agent step failed (${response.status}): ${errorText}`,
+        );
+      }
+
+      // An unparseable body is an endpoint contract violation (server bug), not
+      // a transient condition — convert to StepContractError so the catch below
+      // fails loud instead of degrading to partial progress.
+      stepResult = (await response.json().catch((err: unknown) => {
+        const reason = err instanceof Error ? err.message : String(err);
+        throw new StepContractError(
+          `Sub-agent step returned malformed JSON (${reason}).`,
+        );
+      })) as AgentStepResponse;
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      // Fail loud on contract violations; only transport-level failures reach
+      // the graceful fallback below.
+      if (err instanceof StepContractError) throw err;
+      const reason = err instanceof Error ? err.message : String(err);
+      
+      const partial = collectPartialProgress(messages);
+      return partial
+        ? `(Sub-agent lost its connection mid-run (${reason}) — here's its progress so far:)\n\n${partial}`
+        : `(Sub-agent lost its connection before producing any output: ${reason})`;
     }
-
-    const stepResult = (await response.json()) as AgentStepResponse;
 
     // Surface this step's token usage/model so the parent session can reflect
     // the cost live in the info bar (the server also persists it via sessionId).
@@ -389,9 +467,12 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
       const body = partial ? text + "\n\n" + partial : text;
 
       const examined = collectExaminedFiles(messages);
+      const wrapUpNote = breachReason
+        ? `\n\n(Sub-agent hit its ${breachReason} mid-run and only finished via a forced wrap-up — findings may be incomplete.)`
+        : "";
       return examined.length > 0
-        ? `${body}\n\nFiles examined: ${examined.join(", ")}`
-        : body;
+        ? `${body}${wrapUpNote}\n\nFiles examined: ${examined.join(", ")}`
+        : body + wrapUpNote;
     }
 
     // Execute each tool call and collect results.
@@ -539,12 +620,12 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     });
   }
 
-  // Exceeded max steps without ever naturally concluding — collect everything
+  // Wrap-up budget exhausted without ever naturally concluding — collect everything
   // it produced across all turns rather than just whatever text (often a
   // fragment like "let me check X next") happened to be attached to the very
   // last turn, which by definition also still had tool calls pending.
   const partial = collectPartialProgress(messages);
   return partial
-    ? `(Sub-agent hit its step limit (${maxSteps}) before finishing — here's its progress so far:)\n\n${partial}`
-    : "(Sub-agent reached maximum steps without producing any output.)";
+    ? `(Sub-agent hit its ${breachReason} and didn't fully finish even after a forced wrap-up — here's its best effort; anything it didn't report is unknown:)\n\n${partial}`
+    : "(Sub-agent exhausted its budget without producing any output.)";
 }
