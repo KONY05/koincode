@@ -170,21 +170,21 @@ export const toolInputSchemas = {
       .number()
       .int()
       .min(1)
-      .max(50)
+      .max(100)
       .optional()
-      .default(20)
+      .default(30)
       .describe(
-        "Maximum number of turns before the sub-agent is stopped and returns whatever progress it made so far, instead of running unbounded. Default 20.",
+        "Maximum number of turns before the sub-agent is stopped and returns whatever progress it made so far, instead of running unbounded. On breaching the limit it gets a short forced wrap-up phase to produce a final answer from what it has already learned. Default 30.",
       ),
     timeoutSeconds: z
       .number()
       .int()
       .min(30)
-      .max(1800)
+      .max(3600)
       .optional()
-      .default(300)
+      .default(600)
       .describe(
-        "Maximum wall-clock seconds before the sub-agent is stopped and returns whatever progress it made so far. Default 300 (5 minutes).",
+        "Maximum wall-clock seconds before the sub-agent is stopped and returns whatever progress it made so far (a short grace window is granted for a final wrap-up answer). Default 600 (10 minutes).",
       ),
   }),
   manageMcp: z.object({}),
