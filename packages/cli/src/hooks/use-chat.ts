@@ -18,6 +18,11 @@ import {
   type AuxCostEntry,
 } from "@koincode/shared";
 import { getChatContextWindow } from "../lib/enriched-models";
+import {
+  canSendTurn,
+  classifyUserSubmit,
+  SettleGate,
+} from "../lib/chat-turn-gate";
 import { apiClient, fetchWithRestart } from "../lib/api-client";
 import { extractLoadedAgentsMd, getInstructionFilesForRequest } from "../lib/instruction-files";
 import { sweepOrphanSnapshots } from "../lib/snapshots";
@@ -437,11 +442,7 @@ export function useChat(
     backgroundTaskView?: ChatMessageMetadata["backgroundTaskView"],
   ) => {
     const activeMode = _activeModes.get(sessionId) ?? mode;
-    const busy =
-      chatStatusRef.current === "submitted" ||
-      chatStatusRef.current === "streaming";
-
-    if (busy) {
+    if (!canSendTurn(chatStatusRef.current, compactionHoldRef.current)) {
       setMessageQueue((prev) => [
         ...prev,
         {
@@ -1108,34 +1109,58 @@ export function useChat(
   // which may be many renders stale; this ref is always read fresh, at the
   // actual moment of firing.
   const chatStatusRef = useRef(chat.status);
+  // Settle-waiters parked by abortAndSettle(): their `resolve` levers live in
+  // this gate until a transition to "ready" fires them — event-driven, no
+  // polling.
+  const settleWaitersRef = useRef<SettleGate>(new SettleGate());
   useEffect(() => {
     chatStatusRef.current = chat.status;
+    if (chat.status === "ready") {
+      settleWaitersRef.current.signal();
+    }
   }, [chat.status]);
+
+  // Compaction hold: while a compact POST is in flight, turns must not start —
+  // one sent mid-compact races the server-side snapshot/transaction and can end
+  // up summarized away or landed past a stale instruction boundary. A plain ref
+  // write (no render) so callers can raise it synchronously before any await.
+  const compactionHoldRef = useRef(false);
+  const setCompactionHold = useCallback((active: boolean) => {
+    compactionHoldRef.current = active;
+  }, []);
+
+  // Send the head of the queue if one is sendable right now: agent idle (per
+  // the always-fresh chatStatusRef) and no compaction hold. Shared by the
+  // status-transition effect below and the explicit post-compact drain — the
+  // explicit call is needed because releasing the hold doesn't change
+  // chat.status, so the transition effect never re-fires on its own.
+  const drainQueue = useCallback(() => {
+    if (!canSendTurn(chatStatusRef.current, compactionHoldRef.current)) return;
+
+    const [next, ...rest] = messageQueueRef.current;
+    if (!next) return;
+
+    setMessageQueue(rest);
+    setWasInterrupted(false);
+    void chat.sendMessage({
+      text: next.userText,
+      metadata: {
+        mode: next.mode,
+        model: next.model,
+        reasoningEffort: next.reasoningEffort,
+        origin: next.origin,
+        backgroundTaskView: next.backgroundTaskView,
+      },
+    });
+    // chat.sendMessage is stable (useAiChat); everything else is read from refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-drain: when the agent finishes, send the next queued message.
   useEffect(() => {
     if (chat.status !== "ready") return;
-    const queue = messageQueueRef.current;
-
-    if (queue.length === 0) return;
-    const [next, ...rest] = queue;
-
-    setMessageQueue(rest);
-    if (next) {
-      setWasInterrupted(false);
-      void chat.sendMessage({
-        text: next.userText,
-        metadata: {
-          mode: next.mode,
-          model: next.model,
-          reasoningEffort: next.reasoningEffort,
-          origin: next.origin,
-          backgroundTaskView: next.backgroundTaskView,
-        },
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chat.status]);
+    drainQueue();
+  }, [chat.status, drainQueue]);
 
   // Ring the bell when the agent goes idle with nothing queued to auto-send —
   // i.e. it's genuinely done and waiting on the user, not mid-way through a batch.
@@ -1217,6 +1242,26 @@ export function useChat(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Abort an in-flight turn and wait for status to actually settle back to
+  // "ready" (bounded), so callers that snapshot server-side state right after
+  // (/compact, /handoff) don't race the tail of the aborted turn still being
+  // persisted. Falls through after the timeout rather than hanging forever.
+  const abortAndSettle = useCallback(async (timeoutMs = 5000) => {
+    if (chatStatusRef.current === "ready") return;
+    setWasInterrupted(true);
+    // Park this promise's `resolve` for the status-mirror effect above to fire
+    // when the aborted turn actually settles back to "ready". Raced with a
+    // timeout so a stream that never settles can't wedge compact/handoff.
+    const settled = settleWaitersRef.current.wait();
+    chat.stop();
+    await Promise.race([
+      settled,
+      new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
+    // chat.stop is stable; everything else is read from refs/state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return {
     messages: chat.messages,
     status: chat.status,
@@ -1270,12 +1315,34 @@ export function useChat(
         return;
       }
 
-      const queued = chat.status === "submitted" || chat.status === "streaming";
+      // Mid-compact submissions must not start a turn racing the server-side
+      // snapshot: the gate parks them under the hidden background-task origin
+      // (invisible in the queue panel, can't be skipped/removed) until the
+      // post-compact drain releases them against the fresh context.
+      const gate = classifyUserSubmit(chat.status, compactionHoldRef.current);
 
-      trackMessageSent({ model: params.model, mode: params.mode, queued });
-      
-      if (queued) {
-        setMessageQueue((prev) => [...prev, { id: crypto.randomUUID(), ...params }]);
+      trackMessageSent({
+        model: params.model,
+        mode: params.mode,
+        queued: gate.action === "queue",
+      });
+
+      if (gate.action === "queue") {
+        setMessageQueue((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            ...params,
+            ...(gate.origin ? { origin: gate.origin } : {}),
+          },
+        ]);
+        if (gate.origin) {
+          toast.show({
+            variant: "info",
+            message:
+              "Compacting context — your message will send when it finishes",
+          });
+        }
         return;
       }
       
@@ -1290,6 +1357,9 @@ export function useChat(
       });
     },
     abort,
+    abortAndSettle,
+    setCompactionHold,
+    drainQueue,
     interrupt: () => {
       setWasInterrupted(true);
       chat.stop();
