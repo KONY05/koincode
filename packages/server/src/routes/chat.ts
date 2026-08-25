@@ -2,9 +2,11 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import {
+  APICallError,
   convertToModelMessages,
   generateId,
   generateText,
+  RetryError,
   stepCountIs,
   streamText,
   validateUIMessages,
@@ -584,7 +586,12 @@ const appWithAgentStep = app.post(
       // A sub-agent step that crosses the wall-clock cap shouldn't blow up the whole
       // background task as a masked 500. Return it gracefully as an errored step so
       // the CLI can conclude the loop and surface whatever partial progress exists.
-      if (err instanceof Error && err.name === "TimeoutError") {
+      // The abort can surface as either shape depending on where it lands: a clean
+      // TimeoutError, or an AbortError raised inside provider-utils when the cap
+      // interrupts a stream read (releaseLock during cancellation). Both mean the
+      // same thing here — the step exceeded AGENT_STEP_TIMEOUT_MS.
+      const errName = err instanceof Error ? err.name : "";
+      if (errName === "TimeoutError" || errName === "AbortError") {
         return c.json({
           text: `(Sub-agent step timed out after ${AGENT_STEP_TIMEOUT_MS}ms — returning partial progress.)`,
           toolCalls: [],
@@ -592,6 +599,46 @@ const appWithAgentStep = app.post(
           model: resolvedModel.modelId,
           ...(resolvedModel.pricing ? { pricing: resolvedModel.pricing } : {}),
         });
+      }
+      // Provider-side failures reach the parent as a one-line classified reason,
+      // not a raw payload dump: the parent LLM can't act on quota-metric JSON,
+      // it only needs the failure class (rate-limited? auth? outage?) to decide
+      // whether re-spawning later could help. Full detail stays in server.log.
+      // Keyed off HTTP status classes via the AI SDK's APICallError, so this
+      // covers every provider, not just Google's 429s.
+      // The SDK retries transient failures internally and throws a RetryError
+      // wrapping the final attempt — look through the attempts for the
+      // underlying APICallError before classifying.
+      const attempts = RetryError.isInstance(err) ? err.errors : [err];
+      const lastApiError = [...attempts]
+        .reverse()
+        .find((e): e is APICallError => APICallError.isInstance(e));
+      if (lastApiError) {
+        const tag = ` [${resolvedModel.modelId}]`;
+        const status =
+          typeof lastApiError.statusCode === "number" ? lastApiError.statusCode : 0;
+        const reason =
+          status === 429
+            ? `provider rate limit${tag}`
+            : status === 401 || status === 403
+              ? `provider auth rejected (${status}) — check API key${tag}`
+              : status >= 500
+                ? `provider server error (${status})${tag}`
+                : status > 0
+                  ? `provider rejected the request (${status})${tag}`
+                  : `provider unreachable (connection failed)${tag}`;
+        // Mirror meaningful statuses verbatim; collapse the rest onto a small
+        // type-safe set for Hono's ContentfulStatusCode.
+        const respondStatus =
+          status === 429 || status === 401 || status === 403
+            ? status
+            : status > 400 && status < 500
+              ? 400
+              : 502;
+        return c.json(
+          { error: `Sub-agent step failed: ${reason}.` },
+          respondStatus,
+        );
       }
       throw err;
     }

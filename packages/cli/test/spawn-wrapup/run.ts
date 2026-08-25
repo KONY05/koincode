@@ -17,7 +17,7 @@ import { runSpawnAgent } from "../../src/tools/spawn-agent";
 
 const ROOTS = [{ label: "spawnwrap-test", path: process.cwd() }];
 const MODEL = "gemini-2.5-flash";
-const QUOTA_COOLDOWN_MS = 65_000;
+const QUOTA_COOLDOWN_MS = process.env.NO_COOLDOWN ? 0 : 65_000;
 
 const BREACH_TASK =
   "Trace how a customer order flows from placement through payment to shipping " +

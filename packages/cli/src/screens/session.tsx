@@ -27,6 +27,7 @@ import { usePromptConfig } from "../providers/prompt-config";
 import { SessionActionsProvider } from "../providers/session-actions";
 import type { InlineSystemEvent, Message, SystemEvent } from "../hooks/use-chat";
 import { apiClient } from "../lib/api-client";
+import { computeHeldQueueCount } from "../lib/chat-turn-gate";
 import { getErrorMessage } from "../lib/http-errors";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { collectMutations, planRevert, applyRevert } from "../lib/revert-mutations";
@@ -194,6 +195,9 @@ function SessionChat({
     addSystemEvent,
     submit,
     abort,
+    abortAndSettle,
+    setCompactionHold,
+    drainQueue,
     interrupt,
     error,
     markInstructionBoundary,
@@ -394,6 +398,18 @@ function SessionChat({
   const [isHandingOff, setIsHandingOff] = useState(false);
   const hasAutoCompactedRef = useRef(false);
 
+  // Depth of the hidden side of the queue while the compaction hold is active.
+  // Submissions parked under the background-task origin are filtered out of
+  // visibleMessageQueue above, so surface their count — otherwise a captured
+  // message looks silently dropped. Zeroed outside compaction because
+  // background-task entries legitimately ride the hidden side during ordinary
+  // streaming too; those aren't "held".
+  const heldQueueCount = computeHeldQueueCount(
+    isCompacting,
+    messageQueue.length,
+    visibleMessageQueue.length,
+  );
+
   const runCompact = async (source: "manual" | "auto") => {
     // Not available in incognito v1 — compaction summarizes via a DB-backed endpoint
     // that assumes a real Session row. Auto-compact just skips silently (nothing the
@@ -412,6 +428,20 @@ function SessionChat({
     toast.show({ variant: "info", message: label });
 
     try {
+      // Raise the hold before anything async: from this moment submits are
+      // parked on the hidden queue instead of racing the server-side snapshot
+      // below. Manual compacts additionally abort an in-flight response first —
+      // explicit user intent — and wait for the aborted turn to settle so the
+      // summary sees the full transcript; auto stays passive and never kills
+      // work the user didn't ask to interrupt.
+      setCompactionHold(true);
+      if (
+        source === "manual" &&
+        (status === "streaming" || status === "submitted")
+      ) {
+        await abortAndSettle();
+      }
+
       const res = await apiClient.sessions[":id"].compact.$post({ param: { id: session.id } });
 
       if (!res.ok) throw new Error("Compact failed");
@@ -433,6 +463,12 @@ function SessionChat({
       
       if (source === "auto") hasAutoCompactedRef.current = false;
     } finally {
+      // Release before draining: held submissions (hidden queue entries) plus
+      // anything queued meanwhile go out now, against the post-compact context
+      // and after markInstructionBoundary(). Drains on failure too — messages
+      // must never strand behind a dead hold.
+      setCompactionHold(false);
+      drainQueue();
       setIsCompacting(false);
     }
   };
@@ -558,6 +594,8 @@ function SessionChat({
       interruptible={
         status === "submitted" || status === "streaming" || isSubagentRunning
       }
+      submitBlocked={isHandingOff}
+      heldCount={heldQueueCount}
       queue={visibleMessageQueue}
       onRemoveFromQueue={removeFromQueue}
       pendingApproval={pendingApproval}

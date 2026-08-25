@@ -36,6 +36,8 @@ type Props = {
   contextUsage?: ContextUsage | null;
   inputDisabled?: boolean;
   streaming?: boolean;
+  submitBlocked?: boolean;
+  heldCount?: number;
   loadingAction?: string;
   interruptible?: boolean;
   queue?: QueuedMessage[];
@@ -63,6 +65,8 @@ export function SessionShell({
   contextUsage,
   inputDisabled = false,
   streaming = false,
+  submitBlocked = false,
+  heldCount = 0,
   loadingAction,
   interruptible = false,
   queue = [],
@@ -166,6 +170,8 @@ export function SessionShell({
               contextUsage={contextUsage}
               disabled={inputDisabled}
               streaming={streaming}
+              submitBlocked={submitBlocked}
+              heldCount={heldCount}
               queue={queue}
               onRemoveFromQueue={onRemoveFromQueue}
               queueFocusedIndex={queueFocusedIndex}
@@ -195,6 +201,7 @@ export function SessionShell({
           ) : streaming ? (
             <text attributes={TextAttributes.DIM}>
               {loadingAction ?? "working…"}
+              {heldCount > 0 ? ` · ${heldCount} queued` : ""}
             </text>
           ) : null}
         </box>

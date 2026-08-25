@@ -40,6 +40,7 @@ import { useSessionActions } from "../providers/session-actions";
 import { agentCanMutate, type WorkspaceRoot } from "@koincode/shared";
 import type { Message, QueuedMessage } from "../hooks/use-chat";
 import { cancelAllRegisteredWork } from "../lib/background/session-background-work";
+import { getInputBarPlaceholder } from "../lib/input-placeholder";
 
 const MAX_VISIBLE_MENTIONS = 8;
 const CURRENT_DIRECTORY = process.cwd();
@@ -520,23 +521,6 @@ const PLACEHOLDER_EXAMPLES = [
   "help me debug this crash",
 ];
 
-function getInputBarPlaceholder(
-  disabled: boolean,
-  streaming: boolean,
-  queueLength: number,
-  voiceInput: boolean,
-  voiceState: "idle" | "recording" | "transcribing",
-  placeholderExample: string,
-): string {
-  if (disabled) return "Agent is thinking… press esc to interrupt";
-  if (streaming && queueLength > 0) return `${queueLength} queued — press enter to skip ahead`;
-  if (streaming) return `Type to queue a message…`;
-  if (!voiceInput) return `Ask anything... "${placeholderExample}"`;
-  if (voiceState === "recording") return "Recording… ctrl+r to stop";
-  if (voiceState === "transcribing") return "Transcribing…";
-  return "ctrl+r to record… or type normally";
-}
-
 export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
   { name: "return", action: "submit" },
   { name: "enter", action: "submit" },
@@ -548,6 +532,8 @@ type Props = {
   contextUsage?: ContextUsage | null;
   disabled?: boolean;
   streaming?: boolean;
+  submitBlocked?: boolean;
+  heldCount?: number;
   queue?: QueuedMessage[];
   onRemoveFromQueue?: (id: string) => void;
   queueFocusedIndex?: number | null;
@@ -562,6 +548,8 @@ export function InputBar({
   contextUsage,
   disabled = false,
   streaming = false,
+  submitBlocked = false,
+  heldCount = 0,
   queue = [],
   onRemoveFromQueue,
   queueFocusedIndex = null,
@@ -713,6 +701,13 @@ export function InputBar({
   const handleSubmit = useCallback(() => {
     if (effectiveDisabled && !streaming) return;
 
+    // Hard-block during handoff — before anything below can clear the box, so
+    // the draft stays intact in the textarea.
+    if (submitBlocked) {
+      toast.show({ variant: "info", message: "Handoff in progress — message not sent" });
+      return;
+    }
+
     const textarea = textareaRef.current;
     if (!textarea) return;
 
@@ -740,7 +735,7 @@ export function InputBar({
     skipUndoRef.current = true;
     textarea.setText("");
     skipUndoRef.current = false;
-  }, [effectiveDisabled, streaming, onSubmit, expandPastes, clearPastes, hasImageTags, checkVisionModel, agent.model, model]);
+  }, [effectiveDisabled, streaming, submitBlocked, onSubmit, expandPastes, clearPastes, hasImageTags, checkVisionModel, agent.model, model, toast]);
 
   const handleMentionExecute = useCallback(
     (index: number) => {
@@ -884,7 +879,14 @@ export function InputBar({
     };
 
     return () => {
-      persistentDraft = textarea.plainText;
+      // Passive unmount can run after the renderer (and its native EditBuffer)
+      // was torn down — e.g. abrupt app exit — in which case plainText throws.
+      // The draft is unrecoverable then anyway; don't explode the unmount.
+      try {
+        persistentDraft = textarea.plainText;
+      } catch {
+        persistentDraft = "";
+      }
     };
   }, []);
 
@@ -892,6 +894,14 @@ export function InputBar({
   onSubmitRef.current = () => {
     // Block the submit handler only when the input is completely locked AND the agent is NOT streaming.
     if (effectiveDisabled && !streaming) return;
+
+    // Hard-block during handoff — also before the force-next branch, so Enter
+    // on an empty box can't interrupt the settle window. The toast fires here
+    // (or in handleSubmit for direct calls); the draft never leaves the box.
+    if (submitBlocked) {
+      toast.show({ variant: "info", message: "Handoff in progress — message not sent" });
+      return;
+    }
 
     if (showCommandMenu) {
       const command = resolveCommand(selectedIndex);
@@ -1022,17 +1032,15 @@ export function InputBar({
     if (!textarea) return;
 
     if (key.name === "up") {
-      const text = textarea.plainText;
-      const cursorOnFirstLine = !text
-        .slice(0, textarea.cursorOffset)
-        .includes("\n");
-      if (!cursorOnFirstLine) return;
+      // Use visualCursor.visualRow to check if cursor is on the first VISUAL line
+      // (accounting for line wrapping), not just the first logical line
+      if (textarea.visualCursor.visualRow !== 0) return;
 
       if (sentHistory.length === 0) return;
 
       key.preventDefault();
       if (historyIndexRef.current === -1) {
-        draftBeforeHistoryRef.current = text;
+        draftBeforeHistoryRef.current = textarea.plainText;
       }
       const nextIndex = Math.min(
         historyIndexRef.current + 1,
@@ -1046,11 +1054,10 @@ export function InputBar({
     } else if (key.name === "down") {
       if (historyIndexRef.current === -1) return;
 
-      const text = textarea.plainText;
-      const cursorOnLastLine = !text
-        .slice(textarea.cursorOffset)
-        .includes("\n");
-      if (!cursorOnLastLine) return;
+      // Use visualCursor.visualRow and total virtual line count to check
+      // if cursor is on the last VISUAL line (accounting for wrapping)
+      const totalVirtualLines = textarea.editorView.getTotalVirtualLineCount();
+      if (textarea.visualCursor.visualRow !== totalVirtualLines - 1) return;
 
       key.preventDefault();
       const nextIndex = historyIndexRef.current - 1;
@@ -1256,7 +1263,7 @@ export function InputBar({
             keyBindings={TEXTAREA_KEY_BINDINGS}
             syntaxStyle={mentionSyntaxStyle}
             onContentChange={handleTextareaContentChange}
-            placeholder={getInputBarPlaceholder(disabled, streaming, queue.length, voiceInput, voiceState, placeholderExample)}
+            placeholder={getInputBarPlaceholder(disabled, submitBlocked, streaming, queue.length, heldCount, voiceInput, voiceState, placeholderExample)}
           />
           <StatusBar contextUsage={contextUsage} showUpdateStatus={showUpdateStatus} />
         </box>
