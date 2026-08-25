@@ -24,9 +24,18 @@ import { isAllowedByAgentOverlay } from "../utils/permissions/agent-overlay";
 import { isPermittedForProject } from "../utils/configs/project-config";
 import { fetchWithRestart } from "../lib/api-client";
 import { getInstructionFilesForRequest } from "../lib/instruction-files";
+import { readGlobalConfig } from "../utils/configs/global-config";
 
 const MAX_STEPS = 50;
-const AGENT_STEP_URL = `http://localhost:${SERVER_PORT}/chat/agent-step`;
+
+// Resolved lazily (not a module const) so the sub-agent follows the same port the
+// server manager actually spawned on — global config's `port`, falling back to the
+// shared default. This URL used to hardcode SERVER_PORT, which silently sent
+// sub-agent steps to the wrong port whenever a custom one was configured.
+function agentStepUrl(): string {
+  const port = readGlobalConfig().port ?? SERVER_PORT;
+  return `http://localhost:${port}/chat/agent-step`;
+}
 
 // Forced wrap-up phase sizing: how many extra turns a sub-agent gets to
 // synthesize a final answer after breaching its turn/deadline budget, and the
@@ -356,7 +365,7 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
     // still propagate as errors — see StepContractError.
     let stepResult: AgentStepResponse;
     try {
-      const response = await fetchWithRestart(AGENT_STEP_URL, {
+      const response = await fetchWithRestart(agentStepUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // Read fresh every step, same as the main session's prepareSendMessagesRequest —
@@ -386,8 +395,18 @@ export async function runSpawnAgent(input: SpawnAgentInput): Promise<string> {
         const errorText = await response
           .text()
           .catch(() => String(response.status));
+        // The server sends {"error": "<reason>"} — unwrap the envelope so the
+        // thrown message carries the classified reason itself (e.g. "provider
+        // rate limit [gemini-2.5-flash]") instead of JSON wrapper noise.
+        let detail = errorText;
+        try {
+          const parsed = JSON.parse(errorText) as { error?: unknown };
+          if (typeof parsed.error === "string") detail = parsed.error;
+        } catch {
+          // Not JSON — fall through with the raw text.
+        }
         throw new StepContractError(
-          `Sub-agent step failed (${response.status}): ${errorText}`,
+          `Sub-agent step failed (${response.status}): ${detail}`,
         );
       }
 
