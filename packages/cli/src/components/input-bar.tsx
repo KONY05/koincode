@@ -1022,17 +1022,15 @@ export function InputBar({
     if (!textarea) return;
 
     if (key.name === "up") {
-      const text = textarea.plainText;
-      const cursorOnFirstLine = !text
-        .slice(0, textarea.cursorOffset)
-        .includes("\n");
-      if (!cursorOnFirstLine) return;
+      // Use visualCursor.visualRow to check if cursor is on the first VISUAL line
+      // (accounting for line wrapping), not just the first logical line
+      if (textarea.visualCursor.visualRow !== 0) return;
 
       if (sentHistory.length === 0) return;
 
       key.preventDefault();
       if (historyIndexRef.current === -1) {
-        draftBeforeHistoryRef.current = text;
+        draftBeforeHistoryRef.current = textarea.plainText;
       }
       const nextIndex = Math.min(
         historyIndexRef.current + 1,
@@ -1046,11 +1044,10 @@ export function InputBar({
     } else if (key.name === "down") {
       if (historyIndexRef.current === -1) return;
 
-      const text = textarea.plainText;
-      const cursorOnLastLine = !text
-        .slice(textarea.cursorOffset)
-        .includes("\n");
-      if (!cursorOnLastLine) return;
+      // Use visualCursor.visualRow and total virtual line count to check
+      // if cursor is on the last VISUAL line (accounting for wrapping)
+      const totalVirtualLines = textarea.editorView.getTotalVirtualLineCount();
+      if (textarea.visualCursor.visualRow !== totalVirtualLines - 1) return;
 
       key.preventDefault();
       const nextIndex = historyIndexRef.current - 1;
