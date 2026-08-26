@@ -1180,16 +1180,51 @@ export function useChat(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.status]);
 
+  // Post-compact usage override: set by markCompacted() when a /compact succeeds.
+  // The in-memory transcript still holds every pre-compact message, so the scan
+  // below would keep reporting the stale pre-compact size until the next turn
+  // completes; the override stands in until a later turn reports real usage.
+  const [postCompactOverride, setPostCompactOverride] = useState<{
+    tokensUsed: number;
+    messageCount: number;
+  } | null>(null);
+
   const contextUsage = useMemo((): ContextUsage | null => {
     const hasAssistantMessages = chat.messages.some(
       (m) => m.role === "assistant",
     );
     if (!hasAssistantMessages) return null;
 
+    if (postCompactOverride) {
+      const completedTurnSince = chat.messages
+        .slice(postCompactOverride.messageCount)
+        .some((m) => m.role === "assistant" && m.metadata?.usage);
+      if (!completedTurnSince) {
+        const contextWindow = getChatContextWindow(currentModel);
+        return {
+          tokensUsed: postCompactOverride.tokensUsed,
+          contextWindow,
+          percent: Math.min(
+            100,
+            Math.round((postCompactOverride.tokensUsed / contextWindow) * 100),
+          ),
+          hasUsageData: true,
+        };
+      }
+    }
+
+    // Also match a persisted compaction baseline (postCompactTokens, set by the
+    // compact route on the summary row) so a reloaded session shows the
+    // post-compact size — the summary row's own usage is the summarization
+    // call's, whose inputTokens reflect the pre-compact window.
     const lastWithUsage = [...chat.messages]
       .reverse()
-      .find((m) => m.role === "assistant" && m.metadata?.usage);
-    if (!lastWithUsage?.metadata?.usage) {
+      .find(
+        (m) =>
+          m.role === "assistant" &&
+          (m.metadata?.usage || m.metadata?.postCompactTokens != null),
+      );
+    if (!lastWithUsage?.metadata) {
       // Messages exist but the model doesn't report token usage
       return {
         tokensUsed: 0,
@@ -1199,7 +1234,10 @@ export function useChat(
       };
     }
 
-    const tokensUsed = lastWithUsage.metadata.usage.inputTokens ?? 0;
+    const tokensUsed =
+      lastWithUsage.metadata.postCompactTokens ??
+      lastWithUsage.metadata.usage?.inputTokens ??
+      0;
     // Capacity reflects the *currently selected* model, not necessarily the model that produced
     // the last response — switching models should update the window immediately, even before the
     // next request goes out. The last message's own contextWindow (server-known, for Ollama/custom
@@ -1216,7 +1254,7 @@ export function useChat(
       percent: Math.min(100, Math.round((tokensUsed / contextWindow) * 100)),
       hasUsageData: true,
     };
-  }, [chat.messages, currentModel]);
+  }, [chat.messages, currentModel, postCompactOverride]);
 
   const sessionCost = useMemo(
     () => estimateSessionCost(chat.messages) + estimateAuxCost(auxCost),
@@ -1371,6 +1409,15 @@ export function useChat(
     // immediate for both boundary types.
     markInstructionBoundary: () => {
       _lastInstructionBoundary.set(sessionId, chat.messages.length);
+    },
+    // Call right after a /compact POST succeeds, with the post-compact token
+    // figure from the server — see postCompactOverride above for why it's needed.
+    // Non-finite figures (e.g. an older server whose response predates the
+    // tokensUsed field) are ignored: they would poison the memo and crash
+    // number formatting downstream.
+    markCompacted: (tokensUsed: number) => {
+      if (!Number.isFinite(tokensUsed)) return;
+      setPostCompactOverride({ tokensUsed, messageCount: chat.messages.length });
     },
     // Truncates the last user turn (and everything after it) purely client-side via
     // the AI SDK's own chat.setMessages — no server round trip. Used for incognito

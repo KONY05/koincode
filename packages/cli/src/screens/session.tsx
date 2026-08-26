@@ -201,6 +201,7 @@ function SessionChat({
     interrupt,
     error,
     markInstructionBoundary,
+    markCompacted,
     deleteLastUserTurn,
   } = useChat(
     session.id,
@@ -446,7 +447,13 @@ function SessionChat({
 
       if (!res.ok) throw new Error("Compact failed");
 
+      const { tokensUsed } = await res.json();
+
       markInstructionBoundary();
+      // Refresh the context bar immediately: the in-memory transcript still
+      // holds the pre-compact messages, so without this it would keep showing
+      // the stale pre-compact size until the next turn completes.
+      markCompacted(tokensUsed);
 
       const eventText = source === "auto"
         ? "Context auto-compacted — history summarized, context window reset"
