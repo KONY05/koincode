@@ -398,6 +398,15 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort:  LHM_EFFORT_LEVELS,
   },
   {
+    id: "z-ai/glm-5.3-flash",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.075, outputUsdPerMillionTokens: 0.25 },
+    contextWindow: 1_048_576,
+    vision: true,
+    label: "GLM 5.3 Flash",
+    reasoningEffort:  LHM_EFFORT_LEVELS,
+  },
+  {
     id: "qwen/qwen3.8-max",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 6 },
