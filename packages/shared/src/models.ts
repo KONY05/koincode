@@ -55,7 +55,7 @@ export type SupportedChatModelDefinition = {
   /** Which reasoning effort levels this model accepts. Absent = no reasoning effort control for this model. */
   reasoningEffort?: readonly ReasoningEffortLevel[];
 };
-
+  
 export type ModelsDevModelEntry = {
   id?: string;
   name?: string;
