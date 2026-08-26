@@ -523,15 +523,6 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort: HX_EFFORT_LEVELS,
   },
   {
-    id: "stealth/ox-alpha",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-    contextWindow: 1_048_576,
-    vision: true,
-    label: "Ox Alpha",
-    reasoningEffort: LHM_EFFORT_LEVELS,
-  },
-  {
     id: "nvidia/nemotron-3-ultra-550b-a55b:free",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
