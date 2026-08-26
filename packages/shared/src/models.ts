@@ -55,7 +55,7 @@ export type SupportedChatModelDefinition = {
   /** Which reasoning effort levels this model accepts. Absent = no reasoning effort control for this model. */
   reasoningEffort?: readonly ReasoningEffortLevel[];
 };
-
+  
 export type ModelsDevModelEntry = {
   id?: string;
   name?: string;
@@ -398,6 +398,15 @@ export const SUPPORTED_CHAT_MODELS = [
     reasoningEffort:  LHM_EFFORT_LEVELS,
   },
   {
+    id: "z-ai/glm-5.3-flash",
+    provider: "openrouter",
+    pricing: { inputUsdPerMillionTokens: 0.075, outputUsdPerMillionTokens: 0.25 },
+    contextWindow: 1_048_576,
+    vision: true,
+    label: "GLM 5.3 Flash",
+    reasoningEffort:  LHM_EFFORT_LEVELS,
+  },
+  {
     id: "qwen/qwen3.8-max",
     provider: "openrouter",
     pricing: { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 6 },
@@ -512,15 +521,6 @@ export const SUPPORTED_CHAT_MODELS = [
     vision: false,
     label: "GLM 5.2 (free)",
     reasoningEffort: HX_EFFORT_LEVELS,
-  },
-  {
-    id: "stealth/ox-alpha",
-    provider: "openrouter",
-    pricing: { inputUsdPerMillionTokens: 0, outputUsdPerMillionTokens: 0 },
-    contextWindow: 1_048_576,
-    vision: true,
-    label: "Ox Alpha",
-    reasoningEffort: LHM_EFFORT_LEVELS,
   },
   {
     id: "nvidia/nemotron-3-ultra-550b-a55b:free",

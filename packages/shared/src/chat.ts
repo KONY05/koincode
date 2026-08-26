@@ -17,6 +17,12 @@ export type ChatMessageMetadata = {
   pricing?: ModelPricing;
   durationMs?: number;
   usage?: LanguageModelUsage;
+  /** Post-compact context-size baseline (tokens), set by the compact route on the
+   * persisted assistant summary row. The row's own `usage` is the summarization
+   * call's — its inputTokens reflect the pre-compact window the summarizer ran
+   * against — so the CLI's context-usage display reads this figure instead, until
+   * the next real turn reports fresh usage. */
+  postCompactTokens?: number;
   interrupted?: boolean;
   /** Set on synthetic user-role turns delivering a background task's result
    * (spawnAgent runInBackground, scheduleWakeup, backgrounded shell) — the

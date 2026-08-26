@@ -49,6 +49,10 @@ async function generateTitleFromMessage(message: string, model: string): Promise
 
 const workspaceRootSchema = z.object({ label: z.string(), path: z.string() });
 
+// Below this size, a single-exchange window is carried verbatim on /compact
+// instead of being re-stated by a summarizer call (~5k tokens of transcript).
+const SINGLE_EXCHANGE_VERBATIM_LIMIT = 20_000;
+
 const createSessionSchema = z.object({
   title: z.string(),
   model: z.string(),
@@ -422,9 +426,25 @@ const app = new Hono()
     let summaryModel: string = model;
     let summaryPricing: ModelPricing | undefined;
     const summary = await (async () => {
-      if (assistantMessages.length < 2 || !conversationText.trim()) {
+      // Summarize whenever there's any real content — a single exchange is still
+      // the session's full history, and /compact must not silently discard it.
+      // The old <2-assistant-messages guard turned short-session compacts into
+      // total amnesia: the persisted summary read "No significant conversation
+      // to summarize yet." and the model forgot everything pre-compact.
+      if (assistantMessages.length === 0 || !conversationText.trim()) {
         return "No significant conversation to summarize yet.";
       }
+      // A single short exchange is carried verbatim: it IS the history, and a
+      // summarizer call would spend tokens re-stating it (and can fail on
+      // provider rate limits). Only when that one exchange is itself too large
+      // for verbatim carry-over to shrink anything does the model summarize.
+      if (
+        assistantMessages.length < 2 &&
+        conversationText.length <= SINGLE_EXCHANGE_VERBATIM_LIMIT
+      ) {
+        return conversationText;
+      }
+
       try {
         const result = await generateTextWithFallback(model, {
           messages: [
@@ -433,7 +453,7 @@ const app = new Hono()
               content: buildCompactionPrompt(conversationText),
             },
           ],
-          maxOutputTokens: 1200,
+          maxOutputTokens: 4000,
         });
         summaryUsage = result.usage;
         summaryModel = result.resolvedModelId;
@@ -444,6 +464,15 @@ const app = new Hono()
         return "Context compaction summary could not be generated.";
       }
     })();
+
+    // Post-compact context-size baseline for the client's context-usage bar. The
+    // summary row's `usage` is the summarization call's — its inputTokens reflect
+    // the pre-compact window the summarizer ran against — so it must not be read
+    // as "current context". The summarizer's outputTokens is the real size of the
+    // new window's dominant content; fall back to a chars/4 heuristic when the
+    // summarization call failed and never reported usage.
+    const postCompactTokens =
+      summaryUsage?.outputTokens ?? Math.ceil(summary.length / 4);
 
     const compactedAt = new Date().toISOString();
     const userMsgId = generateId();
@@ -487,6 +516,7 @@ const app = new Hono()
               metadata: {
                 model: summaryModel,
                 mode,
+                postCompactTokens,
                 ...(summaryPricing ? { pricing: summaryPricing } : {}),
                 ...(summaryUsage ? { usage: summaryUsage } : {}),
               },
@@ -497,7 +527,7 @@ const app = new Hono()
       });
     });
 
-    return c.json({ summary, compactedAt });
+    return c.json({ summary, compactedAt, tokensUsed: postCompactTokens });
   })
   .post("/:id/handoff", async (c) => {
     const id = c.req.param("id");

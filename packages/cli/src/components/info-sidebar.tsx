@@ -11,7 +11,9 @@ import type { ModifiedFile } from "../lib/git-status";
 export const SIDEBAR_WIDTH = 34;
 
 function formatNumber(n: number): string {
-  return n.toLocaleString("en-US");
+  // A non-finite value must never escape as an exception here — a throw during
+  // render trips the renderer's error boundary and takes down the whole tree.
+  return Number.isFinite(n) ? n.toLocaleString("en-US") : "0";
 }
 
 // Adaptive cost formatting: on very cheap models a $0.000012 cost is meaningful only with
