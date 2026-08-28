@@ -1,12 +1,11 @@
 import { familySync, versionSync } from "detect-libc";
+import { execSync } from "child_process";
 
 // The prebuilt libsql native addon bundled into the Linux binaries (and installed from source)
 // references GLIBC_2.18 symbols, so on older systems the server dies at startup with a cryptic
 // `ERR_DLOPEN_FAILED: version 'GLIBC_2.18' not found`. We detect that up front and explain
 // instead. See the Requirements section in README.md.
 const MIN_GLIBC_VERSION = "2.18";
-
-import { execSync } from "child_process";
 
 /** Numeric-aware version compare ("2.9" < "2.18"), unlike naive string comparison. */
 export function compareVersions(a: string, b: string): number {
@@ -42,13 +41,13 @@ function isCompiledBinary(): boolean {
 export function getGlibcProblem(): string | null {
   if (process.platform !== "linux") return null;
 
-  let family: string | null = familySync() ?? null;
-  let version: string | null = versionSync() ?? null;
+  let family: string | null = familySync();
+  let version: string | null = versionSync();
 
   // Fallback: if detect-libc failed to identify libc details, try standard Linux commands.
   if (!family || !version) {
     try {
-      const getconfOut = execSync("getconf GNU_LIBC_VERSION", { stdio: "pipe", encoding: "utf-8" }).trim();
+      const getconfOut = execSync("getconf GNU_LIBC_VERSION", { stdio: "pipe", encoding: "utf-8", timeout: 5000 }).trim();
       const match = getconfOut.match(/^(glibc)\s+(\d+\.\d+(?:\.\d+)?)/i);
       if (match) {
         family = "glibc";
@@ -56,11 +55,12 @@ export function getGlibcProblem(): string | null {
       }
     } catch {
       try {
-        const lddOut = execSync("ldd --version", { stdio: "pipe", encoding: "utf-8" });
+        const lddOut = execSync("ldd --version", { stdio: "pipe", encoding: "utf-8", timeout: 5000 });
         const firstLine = lddOut.split("\n")[0] ?? "";
         if (/glibc|gnu/i.test(firstLine)) {
           family = "glibc";
-          const match = firstLine.match(/(\d+\.\d+(?:\.\d+)?)/);
+          // Match glibc version specifically (e.g., 'ldd (Ubuntu GLIBC 2.35-0ubuntu3) 2.35')
+          const match = firstLine.match(/glibc.*?([\d.]+)/i) || firstLine.match(/([\d.]+)/);
           if (match) {
             version = match[1] ?? null;
           }
