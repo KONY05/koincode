@@ -6,6 +6,8 @@ import { familySync, versionSync } from "detect-libc";
 // instead. See the Requirements section in README.md.
 const MIN_GLIBC_VERSION = "2.18";
 
+import { execSync } from "child_process";
+
 /** Numeric-aware version compare ("2.9" < "2.18"), unlike naive string comparison. */
 export function compareVersions(a: string, b: string): number {
   const partsA = a.split(".").map(Number);
@@ -26,6 +28,8 @@ export function looksLikeCompiledBinary(mainPath: string): boolean {
 }
 
 function isCompiledBinary(): boolean {
+  if (process.env.KOINCODE_TEST_COMPILED === "true") return true;
+  if (process.env.KOINCODE_TEST_COMPILED === "false") return false;
   return looksLikeCompiledBinary(Bun.main);
 }
 
@@ -38,7 +42,35 @@ function isCompiledBinary(): boolean {
 export function getGlibcProblem(): string | null {
   if (process.platform !== "linux") return null;
 
-  const family = familySync();
+  let family: string | null = familySync() ?? null;
+  let version: string | null = versionSync() ?? null;
+
+  // Fallback: if detect-libc failed to identify libc details, try standard Linux commands.
+  if (!family || !version) {
+    try {
+      const getconfOut = execSync("getconf GNU_LIBC_VERSION", { stdio: "pipe", encoding: "utf-8" }).trim();
+      const match = getconfOut.match(/^(glibc)\s+(\d+\.\d+(?:\.\d+)?)/i);
+      if (match) {
+        family = "glibc";
+        version = match[2] ?? null;
+      }
+    } catch {
+      try {
+        const lddOut = execSync("ldd --version", { stdio: "pipe", encoding: "utf-8" });
+        const firstLine = lddOut.split("\n")[0] ?? "";
+        if (/glibc|gnu/i.test(firstLine)) {
+          family = "glibc";
+          const match = firstLine.match(/(\d+\.\d+(?:\.\d+)?)/);
+          if (match) {
+            version = match[1] ?? null;
+          }
+        }
+      } catch {
+        // ignore fallback failures and continue to let detect-libc results stand
+      }
+    }
+  }
+
   if (family === "musl") {
     // We don't ship musl builds of the compiled binaries, so the embedded glibc addon
     // can't load there. Running from source on musl is fine — bun install picks the
@@ -53,7 +85,6 @@ export function getGlibcProblem(): string | null {
   }
 
   if (family === "glibc") {
-    const version = versionSync();
     if (version && compareVersions(version, MIN_GLIBC_VERSION) < 0) {
       return (
         `koincode requires Linux with glibc >= ${MIN_GLIBC_VERSION} (this machine reports glibc ${version}).\n` +
